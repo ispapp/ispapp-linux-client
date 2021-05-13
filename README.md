@@ -1,5 +1,4 @@
-![ISPApp Logo]
-(/logo.png)
+![ISPApp Logo](/logo.png)
 
 # about
 
