@@ -21,6 +21,14 @@ It will automatically monitor and allow ISPApp to generate realtime, daily, week
 * Ping to a Host - Average, Maximum and Minimum RTT + Total Loss
 ![Ping](/img/ping.png)
 
+# dependencies
+
+* json-c
+* libnl3
+* mbedtls
+
+This has been tested running on devices with 4MB of RAM and 16MB of Disk Space.
+
 # build
 
 ```
