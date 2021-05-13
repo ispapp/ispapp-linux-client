@@ -34,7 +34,7 @@ ISPApp also provides outage notifications and maintenance/degradation analysis f
 
 We have ISPApp Instances running with tens of thousands of charts and are ready for you to be a customer.
 
-ISPApp Instances are private, once we are out of Beta we will not have access to your Data.
+ISPApp Instances are private, once we are out of Beta we will not have access to your Data like Google and Facebook do.
 
 # dependencies
 
