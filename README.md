@@ -89,4 +89,4 @@ We plan to create packages for various distributions targetting:
 * Raspberry Pi/Etc
 * Routers (we already have an OpenWRT package, email me for more information)
 
-If you would like to be a package maintainer, please email andrew@ispapp.co
+If you would like to be a package maintainer, please email me via andrew@ispapp.co
