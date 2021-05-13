@@ -29,6 +29,8 @@ It will automatically monitor a host when `collect-client` is ran on that host a
 
 ISPApp also provides outage notifications and maintenance/degradation analysis for each of the monitored data types.
 
+We have ISPApp Instances running with tens of thousands of charts and are ready for you to be a customer.
+
 # dependencies
 
 * json-c
