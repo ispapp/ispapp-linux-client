@@ -71,3 +71,15 @@ LD_LIBRARY_PATH=/usr/local/lib ./collect-client subdomain.ispapp.co 8550 eth0 "l
 The project ispapp-linux-client is licensed per the GNU General Public License, version 2
 
 A copy is in the project directory, as a file named LICENSE
+
+# Roadmap
+
+We plan to create packages for various distributions targetting:
+
+* Servers
+* Virtualized Instances
+* IoT Devices
+* Desktops/Laptops
+* Raspberry Pi/Etc
+
+If you would like to be a package maintainer, please email andrew@ispapp.co
