@@ -4,9 +4,11 @@ Learn more at https://ispapp.co
 
 # about
 
-This is an ISPApp client which is designed to monitor hosts running Linux.  ISPApp allows you to monitor thousands of hosts or IoT devices quickly and easily with high resolution charts and realtime data.
+This is an ISPApp client which is designed to monitor hosts running Linux.
 
-It will automatically monitor and allow ISPApp to generate realtime, daily, weekly, monthly and annual charts for:
+ISPApp allows you to monitor thousands of hosts or IoT devices quickly and easily with high resolution charts and realtime data.
+
+It will automatically monitor a host when `collect-client` is ran on that host and send ISPApp data to generate realtime, daily, weekly, monthly and annual charts for:
 
 * All Network Interfaces - Traffic and Packet Rate
 ![Traffic](/img/if-traffic.png)
@@ -49,7 +51,7 @@ sudo --preserve-env make install
 
 # get ispapp-linux-client source
 cd
-git clone https://github.com/andrewhodel/ispapp-linux-client
+git clone https://github.com/ispapp/ispapp-linux-client
 cd ispapp-linux-client
 make
 ```
