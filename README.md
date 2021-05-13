@@ -1,4 +1,4 @@
-![ISPApp Logo](/logo.png)
+![ISPApp Logo](/img/logo.png)
 
 # about
 
@@ -7,11 +7,17 @@ This is an ISPApp client which is designed to monitor hosts running Linux.
 It will automatically monitor and allow ISPApp to generate realtime, daily, weekly, monthly and annual charts for:
 
 * All Network Interfaces - Traffic and Packet Rate
+![Traffic](/img/if-traffic.png)
 * All Wireless Interfaces - RSSI and Traffic per Connected Station, # of Stations per Interface
+![RSSI](/img/rssi.png)
 * All System Disks - Total, Used and Available Disk Space
+![Disk](/img/disk.png)
 * System Load
+![Load](/img/load.png)
 * System Memory
+![Memory](/img/memory.png)
 * Ping to a Host - Average, Maximum and Minimum RTT + Total Loss
+![Ping](/img/ping.png)
 
 # build
 
