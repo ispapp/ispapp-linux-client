@@ -1,5 +1,7 @@
 ![ISPApp Logo](/img/logo.png)
 
+Learn more at https://ispapp.co
+
 # about
 
 This is an ISPApp client which is designed to monitor hosts running Linux.
