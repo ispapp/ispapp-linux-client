@@ -22,6 +22,12 @@ It will automatically monitor a host when `collect-client` is ran on that host a
 ![Memory](/img/memory.png)
 * Ping to a Host - Average, Maximum and Minimum RTT + Total Loss
 ![Ping](/img/ping.png)
+* Environment - Temperature, Humidity, Precipitation, Barometric Pressure and others
+* Industrial Sensors - Gas Levels, Pressure, Fill Levels, Rotation and Positioning Data
+* Vehicle Data - Torque, Fuel Rate and others
+* Electronic Data - Voltage, Power and Current
+
+ISPApp also provides outage notifications and maintenance/degradation analysis for each of the monitored data types.
 
 # dependencies
 
