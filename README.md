@@ -28,10 +28,13 @@ It will automatically monitor a host when `collect-client` is ran on that host a
 * Industrial Sensors - Gas Levels, Pressure, Fill Levels, Rotation and Positioning Data
 * Vehicle Data - Torque, Fuel Rate and others
 * Electronic Data - Voltage, Power and Current
+* Request Data - HTTP Request Rate, DNS Request Rate, Rate of Incoming Emails etc (easily added to software with our REST API)
 
 ISPApp also provides outage notifications and maintenance/degradation analysis for each of the monitored data types.
 
 We have ISPApp Instances running with tens of thousands of charts and are ready for you to be a customer.
+
+ISPApp Instances are private, once we are out of Beta we will not have access to your Data.
 
 # dependencies
 
