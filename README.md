@@ -2,6 +2,8 @@
 
 Learn more at https://ispapp.co
 
+Watch a YouTube Video about how ISPApp can help you - https://www.youtube.com/watch?v=BQN8FdMqApo
+
 # about
 
 This is an ISPApp client which is designed to monitor hosts running Linux.
