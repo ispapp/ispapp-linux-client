@@ -72,7 +72,7 @@ The project ispapp-linux-client is licensed per the GNU General Public License, 
 
 A copy is in the project directory, as a file named LICENSE
 
-# Roadmap
+# roadmap
 
 We plan to create packages for various distributions targetting:
 
@@ -81,5 +81,6 @@ We plan to create packages for various distributions targetting:
 * IoT Devices
 * Desktops/Laptops
 * Raspberry Pi/Etc
+* Routers (we already have an OpenWRT package, email me for more information)
 
 If you would like to be a package maintainer, please email andrew@ispapp.co
