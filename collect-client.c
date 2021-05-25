@@ -62,13 +62,16 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <sys/statvfs.h>
 
 #define _XOPEN_SOURCE 700
-#include <linux/netlink.h>
 #include <linux/genetlink.h>
 #include <linux/nl80211.h>
 
 #include <netlink/genl/genl.h>	// genl_connect, genlmsg_put
 #include <netlink/genl/family.h>
 #include <netlink/genl/ctrl.h>	// genl_ctrl_resolve
+
+#include <netlink/netlink.h>
+#include <netlink/cache.h>
+#include <netlink/route/link.h>
 
 #if !defined(MBEDTLS_CONFIG_FILE)
 #include "mbedtls/config.h"
@@ -102,7 +105,7 @@ char *root_address;
 char *root_port;
 char *root_wlan_if;
 char *root_collect_key;
-char *root_client_info = "collect-client-2.09";
+char *root_client_info = "collect-client-2.10";
 char *root_hardware_make;
 char *root_hardware_model;
 char *root_hardware_model_number;
@@ -642,12 +645,9 @@ send_ping (struct sockaddr_in *ping_addr, char *ping_dom, char *ping_ip,
 	  // if packet was not sent, don't receive 
 	  if (flag)
 	    {
-	      if (!(pckt.hdr.type == 69 && pckt.hdr.code == 0))
+	      if (!(pckt.hdr.type == 0 && pckt.hdr.code == 0))
 		{
-		  //printf("Error..Packet received with ICMP type %d code %d\n", pckt.hdr.type, pckt.hdr.code);
-		}
-	      else
-		{
+
 		  //printf("%d bytes from %s (h: %s) (%s) msg_seq=%d ttl=%d rtt = %lf ms\n", PING_PKT_S, ping_dom, hostname_str, ping_ip, msg_count, ttl_val, rtt_msec);
 
 		  // if there was a successful response, set avgRtt to 0 so the average can be calculated correctly
@@ -673,6 +673,15 @@ send_ping (struct sockaddr_in *ping_addr, char *ping_dom, char *ping_ip,
 
 		  msg_received_count++;
 
+		}
+
+	      else
+
+		{
+
+		  printf
+		    ("Error..Packet received with ICMP type %d code %d\n",
+		     pckt.hdr.type, pckt.hdr.code);
 		}
 	    }
 
@@ -1175,16 +1184,41 @@ sendLoop (void *input)
 		{
 		  struct rtnl_link_stats *stats = ifa->ifa_data;
 
+		  struct rtnl_link *link;
+		  struct nl_sock *socket;
+		  uint64_t kbytes_in, kbytes_out, packets_in, packets_out;
+
+		  socket = nl_socket_alloc ();
+		  nl_connect (socket, NETLINK_ROUTE);
+
+		  if (rtnl_link_get_kernel (socket, 0, ifa->ifa_name, &link)
+		      >= 0)
+		    {
+		      packets_in =
+			rtnl_link_get_stat (link, RTNL_LINK_RX_PACKETS);
+		      packets_out =
+			rtnl_link_get_stat (link, RTNL_LINK_TX_PACKETS);
+		      kbytes_in =
+			rtnl_link_get_stat (link, RTNL_LINK_RX_BYTES);
+		      kbytes_out =
+			rtnl_link_get_stat (link, RTNL_LINK_TX_BYTES);
+		      //printf("%s: packets_in=%" PRIu64 ",packets_out=%" PRIu64 ",kbytes_in=%" PRIu64 ",kbytes_out=%" PRIu64 "\n", ifa->ifa_name, packets_in, packets_out, kbytes_in, kbytes_out);
+		      rtnl_link_put (link);
+		    }
+
+		  nl_socket_free (socket);
+
 		  if (real_iface_count == 0)
 		    {
 		      // first interface
 
+
 		      sprintf (interface_json_string,
-			       "[{\"if\": \"%s\", \"recBytes\": %lu, \"recPackets\": %lu, \"recErrors\": %lu, \"recDrops\": %lu, \"sentBytes\": %lu, \"sentPackets\": %lu, \"sentErrors\": %lu, \"sentDrops\": %lu}",
-			       ifa->ifa_name, stats->rx_bytes,
-			       stats->rx_packets, stats->rx_errors,
-			       stats->rx_dropped, stats->tx_bytes,
-			       stats->tx_packets, stats->tx_errors,
+			       "[{\"if\": \"%s\", \"recBytes\": %llu, \"recPackets\": %llu, \"recErrors\": %lu, \"recDrops\": %lu, \"sentBytes\": %llu, \"sentPackets\": %llu, \"sentErrors\": %lu, \"sentDrops\": %lu}",
+			       ifa->ifa_name, kbytes_in,
+			       packets_in, stats->rx_errors,
+			       stats->rx_dropped, kbytes_out,
+			       packets_out, stats->tx_errors,
 			       stats->tx_dropped);
 
 		    }
@@ -1201,11 +1235,11 @@ sendLoop (void *input)
 		      char *temp = calloc (800, sizeof (char));
 
 		      sprintf (temp,
-			       ", {\"if\": \"%s\", \"recBytes\": %lu, \"recPackets\": %lu, \"recErrors\": %lu, \"recDrops\": %lu, \"sentBytes\": %lu, \"sentPackets\": %lu, \"sentErrors\": %lu, \"sentDrops\": %lu}",
-			       ifa->ifa_name, stats->rx_bytes,
-			       stats->rx_packets, stats->rx_errors,
-			       stats->rx_dropped, stats->tx_bytes,
-			       stats->tx_packets, stats->tx_errors,
+			       ", {\"if\": \"%s\", \"recBytes\": %llu, \"recPackets\": %llu, \"recErrors\": %lu, \"recDrops\": %lu, \"sentBytes\": %llu, \"sentPackets\": %llu, \"sentErrors\": %lu, \"sentDrops\": %lu}",
+			       ifa->ifa_name, kbytes_in,
+			       packets_in, stats->rx_errors,
+			       stats->rx_dropped, kbytes_out,
+			       packets_out, stats->tx_errors,
 			       stats->tx_dropped);
 
 		      strcat (interface_json_string, temp);
