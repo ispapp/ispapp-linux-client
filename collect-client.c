@@ -98,6 +98,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 mbedtls_ssl_context ssl;
 mbedtls_net_context server_fd;
 int update_wait;
+int listener_update_interval_seconds = 60;
+int listener_outage_interval_seconds = 300;
 int authed_flag = 0;
 time_t last_response;
 int thread_running = 0;
@@ -105,7 +107,7 @@ char *root_address;
 char *root_port;
 char *root_wlan_if;
 char *root_collect_key;
-char *root_client_info = "collect-client-2.10";
+char *root_client_info = "collect-client-2.11";
 char *root_hardware_make;
 char *root_hardware_model;
 char *root_hardware_model_number;
@@ -2325,6 +2327,44 @@ main (int argc, char **argv)
 
 						}
 
+					      // set the outage interval
+					      struct json_object
+						*outage_interval_seconds_js;
+					      if (json_object_object_get_ex
+						  (host,
+						   "outageIntervalSeconds",
+						   &outage_interval_seconds_js))
+						{
+						  int outage_interval_seconds
+						    =
+						    json_object_get_int
+						    (outage_interval_seconds_js);
+
+						  // use this value for the normal update interval
+						  listener_outage_interval_seconds
+						    = outage_interval_seconds;
+
+						}
+
+					      // set the update interval
+					      struct json_object
+						*update_interval_seconds_js;
+					      if (json_object_object_get_ex
+						  (host,
+						   "updateIntervalSeconds",
+						   &update_interval_seconds_js))
+						{
+						  int update_interval_seconds
+						    =
+						    json_object_get_int
+						    (update_interval_seconds_js);
+
+						  // use this value for the normal update interval
+						  listener_update_interval_seconds
+						    = update_interval_seconds;
+
+						}
+
 					      const char *host_json_dump =
 						json_object_to_json_string_ext
 						(host,
@@ -2372,15 +2412,35 @@ main (int argc, char **argv)
 			    {
 			      // server has instructed the client to not updateFast
 
-			      // get the offset since the last collector update from the listener in seconds
+			      // get the offsets
+
+			      struct json_object *lastUpdateOffsetSec;
+			      json_object_object_get_ex (json,
+							 "lastUpdateOffsetSec",
+							 &lastUpdateOffsetSec);
+			      int lastUpdateOffsetSec_int =
+				json_object_get_int (lastUpdateOffsetSec);
+
 			      struct json_object *lastColUpdateOffsetSec;
 			      json_object_object_get_ex (json,
 							 "lastColUpdateOffsetSec",
 							 &lastColUpdateOffsetSec);
 			      int lastColUpdateOffsetSec_int =
 				json_object_get_int (lastColUpdateOffsetSec);
-			      // set to 300 seconds - lastColUpdateOffsetSec_int
-			      update_wait = 300 - lastColUpdateOffsetSec_int;
+
+			      // set to listener_outage_interval_seconds
+			      update_wait = listener_outage_interval_seconds - lastUpdateOffsetSec_int;
+
+			      // if listener_outage_interval_seconds is more than the required next collector update wait
+			      if (update_wait >
+				  listener_update_interval_seconds -
+				  lastColUpdateOffsetSec_int)
+				{
+				  // use it instead
+				  update_wait =
+				    listener_update_interval_seconds -
+				    lastColUpdateOffsetSec_int;
+				}
 
 			      if (update_wait < 1)
 				{
@@ -2388,6 +2448,9 @@ main (int argc, char **argv)
 				}
 			    }
 
+			  printf ("outage: %i, update:%i\n",
+				  listener_outage_interval_seconds,
+				  listener_update_interval_seconds);
 			  printf ("set update_wait to %i seconds\n",
 				  update_wait);
 
