@@ -107,7 +107,7 @@ char *root_address;
 char *root_port;
 char *root_wlan_if;
 char *root_collect_key;
-char *root_client_info = "collect-client-2.11";
+char *root_client_info = "collect-client-2.12";
 char *root_hardware_make;
 char *root_hardware_model;
 char *root_hardware_model_number;
@@ -1871,6 +1871,7 @@ main (int argc, char **argv)
 	      printf
 		("mbedtls_ssl_read() returned MBEDTLS_ERR_SSL_WANT_READ or MBEDTLS_ERR_SSL_WANT_WRITE, error: %s\n",
 		 err);
+	      free(buf);
 	      // try again
 	      continue;
 	    }
@@ -1882,6 +1883,7 @@ main (int argc, char **argv)
 	      printf
 		("mbedtls_ssl_read() returned MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY, error: %s\n",
 		 err);
+	      free(buf);
 	      goto reconnect;
 	    }
 
@@ -1890,12 +1892,14 @@ main (int argc, char **argv)
 	      char err[5000];
 	      mbedtls_strerror (ret, err, 5000);
 	      printf ("mbedtls_ssl_read() returned < 0, error: %s\n", err);
+	      free(buf);
 	      goto reconnect;
 	    }
 
 	  if (ret == 0)
 	    {
 	      mbedtls_printf ("\n\nEOF\n\n");
+	      free(buf);
 	      goto reconnect;
 	    }
 
@@ -2037,6 +2041,7 @@ main (int argc, char **argv)
 		{
 		  printf
 		    ("Missing the 4 required http response headers to make a valid WebSocket session\n");
+	          free(buf);
 		  goto reconnect;
 		}
 
@@ -2100,6 +2105,7 @@ main (int argc, char **argv)
 			  free (config_req);
 			  free (os_version);
 			  free (sbuf);
+			  free(buf);
 
 			  goto reconnect;
 			}
@@ -2133,6 +2139,7 @@ main (int argc, char **argv)
 		{
 		  printf
 		    ("skipping message from server because it is not type: text\n");
+		  free(buf);
 		  continue;
 		}
 
@@ -2244,6 +2251,7 @@ main (int argc, char **argv)
 			  // which is when json_object_put() returns 1
 			}
 
+		      free(buf);
 		      goto reconnect;
 
 		    }
