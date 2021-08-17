@@ -97,6 +97,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 // setup the ssl object outside main so it can be accessed by threads
 mbedtls_ssl_context ssl;
 mbedtls_net_context server_fd;
+mbedtls_entropy_context entropy;
+mbedtls_ctr_drbg_context ctr_drbg;
+mbedtls_ssl_config conf;
+mbedtls_x509_crt cacert;
+
 int update_wait;
 int listener_update_interval_seconds = 60;
 int listener_outage_interval_seconds = 300;
@@ -107,7 +112,7 @@ char *root_address;
 char *root_port;
 char *root_wlan_if;
 char *root_collect_key;
-char *root_client_info = "collect-client-2.12";
+char *root_client_info = "collect-client-2.13";
 char *root_hardware_make;
 char *root_hardware_model;
 char *root_hardware_model_number;
@@ -934,9 +939,9 @@ getWifiInfo_callback (struct nl_msg *msg, void *arg)
   if_indextoname (nla_get_u32 (tb[NL80211_ATTR_IFINDEX]), dev);
 
   // cast this as int8_t to get normal dBm values
-  int8_t signal = (int8_t) nla_get_u8 (sinfo[NL80211_STA_INFO_SIGNAL_AVG]);
+  int8_t wlsignal = (int8_t) nla_get_u8 (sinfo[NL80211_STA_INFO_SIGNAL_AVG]);
 
-  //printf("Station %s (on %s): %u\n", mac_addr, dev, signal);
+  //printf("Station %s (on %s): %u\n", mac_addr, dev, wlsignal);
 
   // add station to wap_json
 
@@ -969,7 +974,7 @@ getWifiInfo_callback (struct nl_msg *msg, void *arg)
 
 	  // add the rssi
 	  json_object_object_add (station, "rssi",
-				  json_object_new_int (signal));
+				  json_object_new_int (wlsignal));
 
 	  // add the tx and rx bytes
 	  json_object_object_add (station, "sentBytes",
@@ -984,7 +989,7 @@ getWifiInfo_callback (struct nl_msg *msg, void *arg)
 	  // append this station to the existing stations
 	  json_object_array_add (stations, station);
 
-	  //printf("adding station: %s\n\t\t RSSI: %d\n", json_object_to_json_string(station), signal);
+	  //printf("adding station: %s\n\t\t RSSI: %d\n", json_object_to_json_string(station), wlsignal);
 
 	}
 
@@ -1063,6 +1068,38 @@ getWifiStatus (Netlink * nl)
   return 0;
 }
 
+void * wsocket_kill() {
+
+      // notify the peer that the connection is being closed
+      printf ("mbedtls_()\n");
+      mbedtls_ssl_close_notify (&ssl);
+
+      // unallocate all certificate data
+      printf ("mbedtls_x509_crt_free()\n");
+      mbedtls_x509_crt_free (&cacert);
+      // free referenced items in an SSL context and clear memory
+      printf ("mbedtls_ssl_free()\n");
+      mbedtls_ssl_free (&ssl);
+      // free the SSL configuration context
+      printf ("mbedtls_ssl_config_free()\n");
+      mbedtls_ssl_config_free (&conf);
+      // clear CTR_CRBG context data
+      printf ("mbedtls_ctr_drbg_free()\n");
+      mbedtls_ctr_drbg_free (&ctr_drbg);
+      // free the data in the entropy context
+      printf ("mbedtls_entropy_free()\n");
+      mbedtls_entropy_free (&entropy);
+
+      // gracefully shutdown the connection and free associated data
+      printf ("server_fd.fd: %i\n", server_fd.fd);
+      if (server_fd.fd > 0)
+	{
+	  printf ("mbedtls_net_free()\n");
+	  mbedtls_net_free (&server_fd);
+	}
+
+}
+
 int wss_recv = -1;
 
 void *
@@ -1088,20 +1125,24 @@ sendLoop (void *input)
       if (wss_recv <= 0)
 	{
 
-	  if (timeout_inc > 400)
+	  if (timeout_inc > 200)
 	    {
 	      authed_flag = 0;
 	      thread_running = 0;
 
 	      // force a reconnect
-	      mbedtls_net_free (&server_fd);
+	      wsocket_kill();
+
+	      // kill the sendLoop thread
+	      printf("killing sendLoop() thread because of a response timeout\n");
+	      pthread_exit(0);
 
 	      break;
 	    }
 
 	  timeout_inc++;
 	  usleep (100000);
-	  printf ("update response was not recieved, waiting\n");
+	  printf ("response was not recieved, waiting %i/200\n", timeout_inc);
 	  continue;
 
 	}
@@ -1137,7 +1178,7 @@ sendLoop (void *input)
       // deauth if the socket isn't ready or it's been 4 rounds since the last response
       if (socket_poll <= 0 || time (NULL) - last_response >= update_wait * 4)
 	{
-	  // stop trying to send until we are re-authed
+	  // stop trying to send until re-authed
 	  printf
 	    ("deauthing session because the socket is dead or we have missed 4 responses\n");
 
@@ -1146,7 +1187,7 @@ sendLoop (void *input)
 
 	  // this disconnects the socket, forcing a reconnect
 	  // like goto reconnect, but from a thread
-	  mbedtls_net_free (&server_fd);
+	  wsocket_kill();
 
 	  break;
 	}
@@ -1654,11 +1695,6 @@ main (int argc, char **argv)
       int exit_code = MBEDTLS_EXIT_FAILURE;
       uint32_t flags;
       const char *pers = "ssl_client1";
-
-      mbedtls_entropy_context entropy;
-      mbedtls_ctr_drbg_context ctr_drbg;
-      mbedtls_ssl_config conf;
-      mbedtls_x509_crt cacert;
 
 #if defined(MBEDTLS_DEBUG_C)
       mbedtls_debug_set_threshold (DEBUG_LEVEL);
@@ -2213,6 +2249,8 @@ main (int argc, char **argv)
 	      if (!json)
 		{
 		  printf ("error parsing json response from:\n\n%s\n", buf);
+	          free(buf);
+		  goto reconnect;
 		}
 	      else
 		{
@@ -2757,39 +2795,15 @@ main (int argc, char **argv)
 	  pthread_cancel (thread_id);
 	}
 
-      // notify the peer that the connection is being closed
-      printf ("mbedtls_()\n");
-      mbedtls_ssl_close_notify (&ssl);
-
-      // unallocate all certificate data
-      printf ("mbedtls_x509_crt_free()\n");
-      mbedtls_x509_crt_free (&cacert);
-      // free referenced items in an SSL context and clear memory
-      printf ("mbedtls_ssl_free()\n");
-      mbedtls_ssl_free (&ssl);
-      // free the SSL configuration context
-      printf ("mbedtls_ssl_config_free()\n");
-      mbedtls_ssl_config_free (&conf);
-      // clear CTR_CRBG context data
-      printf ("mbedtls_ctr_drbg_free()\n");
-      mbedtls_ctr_drbg_free (&ctr_drbg);
-      // free the data in the entropy context
-      printf ("mbedtls_entropy_free()\n");
-      mbedtls_entropy_free (&entropy);
-
-      // gracefully shutdown the connection and free associated data
-      printf ("server_fd.fd: %i\n", server_fd.fd);
-      if (server_fd.fd > 0)
-	{
-	  printf ("mbedtls_net_free()\n");
-	  mbedtls_net_free (&server_fd);
-	}
+      wsocket_kill();
 
       // reconnect
       printf ("reconnecting...\n");
       sleep (2);
 
     }
+
+  printf("ending cleanly\n");
 
   free (root_address);
   free (root_port);
@@ -2805,4 +2819,5 @@ main (int argc, char **argv)
   free (root_fw_version);
   free (root_cert_file);
   free (root_config_file);
+
 }
