@@ -112,7 +112,7 @@ char *root_address;
 char *root_port;
 char *root_wlan_if;
 char *root_collect_key;
-char *root_client_info = "collect-client-2.13";
+char *root_client_info = "collect-client-2.14";
 char *root_hardware_make;
 char *root_hardware_model;
 char *root_hardware_model_number;
@@ -2261,15 +2261,21 @@ main (int argc, char **argv)
 		  printf ("\nserver responded with:\n---\n%s\n---\n",
 			  json_dump);
 
+		  // response must have a type field
 		  struct json_object *type;
-		  json_object_object_get_ex (json, "type", &type);
+		  if (!json_object_object_get_ex (json, "type", &type)) {
+			  // there was no type field, reconnect
+			  free(buf);
+			  goto reconnect;
+		  }
+
 		  const char *type_string = json_object_get_string (type);
 
 		  if (strcmp (type_string, "error") == 0)
 		    {
 		      struct json_object *e_msg;
 		      if (json_object_object_get_ex
-			  (json, "error_message", &e_msg))
+			  (json, "error", &e_msg))
 			{
 			  const char *e_msg_string =
 			    json_object_get_string (e_msg);
