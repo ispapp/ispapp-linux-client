@@ -112,7 +112,7 @@ char *root_address;
 char *root_port;
 char *root_wlan_if;
 char *root_collect_key;
-char *root_client_info = "collect-client-2.14";
+char *root_client_info = "collect-client-2.15";
 char *root_hardware_make;
 char *root_hardware_model;
 char *root_hardware_model_number;
@@ -122,7 +122,7 @@ char *root_os_build_date;
 char *root_fw;
 char *root_fw_version;
 char root_mac[18];
-char *root_cert_file;
+char *root_cert_path;
 char *root_config_file;
 
 char *
@@ -1652,7 +1652,7 @@ main (int argc, char **argv)
     {
       printf ("Missing %i arguments.\n", 15 - argc);
       printf
-	("Usage: ./collect-client ADDRESS PORT WLAN_IF KEY HARDWARE_MAKE HARDWARE_MODEL HARDWARE_MODEL_NUMBER HARDWARE_CPU_INFO HARDWARE_SERIAL OS_BUILD_DATE FIRMWARE FW_VERSION ROOT_CERT_FILE CONFIG_OUTPUT_FILE\n");
+	("Usage: ./collect-client ADDRESS PORT WLAN_IF KEY HARDWARE_MAKE HARDWARE_MODEL HARDWARE_MODEL_NUMBER HARDWARE_CPU_INFO HARDWARE_SERIAL OS_BUILD_DATE FIRMWARE FW_VERSION ROOT_CERT_PATH CONFIG_OUTPUT_FILE\n");
       printf ("\n\tExamples...\n");
       printf
 	("\tADDRESS:\tdev.ispapp.co\t\t(the address of the websocket server)\n");
@@ -1677,7 +1677,7 @@ main (int argc, char **argv)
       root_os_build_date = escape_string_for_json ((char *) argv[10]);
       root_fw = escape_string_for_json ((char *) argv[11]);
       root_fw_version = escape_string_for_json ((char *) argv[12]);
-      root_cert_file = escape_string_for_json ((char *) argv[13]);
+      root_cert_path = escape_string_for_json ((char *) argv[13]);
       root_config_file = escape_string_for_json ((char *) argv[14]);
 
       if (get_mac (root_wlan_if, root_mac))
@@ -1725,11 +1725,12 @@ main (int argc, char **argv)
 	  goto reconnect;
 	}
 
-      // load root CA certificate from root_cert_file which is provided as a ARGV parameter
-      if ((ret = mbedtls_x509_crt_parse_file (&cacert, root_cert_file)) != 0)
+      // load root CA certificate from root_cert_path which is provided as a ARGV parameter
+      // 0 if all certificates parsed successfully, a positive number if partly successful or a specific X509 or PEM error code
+      if ((ret = mbedtls_x509_crt_parse_path (&cacert, root_cert_path)) < 0)
 	{
 	  mbedtls_printf
-	    (" failed\n  !  mbedtls_x509_crt_parse returned -0x%x\n\n", -ret);
+	    (" failed\n  !  mbedtls_x509_crt_parse returned %d\n\n", ret);
 	  goto reconnect;
 	}
 
@@ -2823,7 +2824,7 @@ main (int argc, char **argv)
   free (root_os_build_date);
   free (root_fw);
   free (root_fw_version);
-  free (root_cert_file);
+  free (root_cert_path);
   free (root_config_file);
 
 }
