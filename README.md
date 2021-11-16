@@ -2,11 +2,11 @@
 
 Learn more at https://ispapp.co
 
-Watch a YouTube Video about how ISPApp can help you - https://www.youtube.com/watch?v=BQN8FdMqApo
+Watch a YouTube video about how ISPApp can help you - https://www.youtube.com/watch?v=BQN8FdMqApo
 
 # about
 
-This is an ISPApp client which is designed to monitor hosts running Linux.
+This is an ISPApp client designed to monitor hosts running Linux.
 
 ISPApp allows you to monitor thousands of hosts or IoT devices quickly and easily with high resolution charts and realtime data.
 
@@ -32,9 +32,9 @@ It will automatically monitor a host when `collect-client` is ran on that host a
 
 ISPApp also provides outage notifications and maintenance/degradation analysis for each of the monitored data types.
 
-We have ISPApp Instances running with tens of thousands of charts and are ready for you to be a customer.
+We have ISPApp instances running with tens of thousands of charts and are ready for you to be a customer.
 
-ISPApp Instances are private, once we are out of Beta we will not have access to your Data like Google and Facebook do.
+ISPApp instances are private, once we are out of Beta we will not have access to your data like Google and Facebook do.
 
 # dependencies
 
@@ -42,7 +42,7 @@ ISPApp Instances are private, once we are out of Beta we will not have access to
 * libnl3
 * mbedtls
 
-This has been tested running on devices with 4MB of RAM and 16MB of Disk Space.
+This has been tested running on small devices with 4MB of RAM and 16MB of disk space.
 
 # build
 
@@ -89,7 +89,7 @@ A copy is in the project directory, as a file named LICENSE
 
 # roadmap
 
-We plan to create packages for various distributions targetting:
+We plan to create packages for various distributions targeting:
 
 * Servers
 * Virtualized Instances
