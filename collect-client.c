@@ -112,7 +112,7 @@ char *root_address;
 char *root_port;
 char *root_wlan_if;
 char *root_collect_key;
-char *root_client_info = "collect-client-2.15";
+char *root_client_info = "collect-client-2.16";
 char *root_hardware_make;
 char *root_hardware_model;
 char *root_hardware_model_number;
@@ -120,7 +120,6 @@ char *root_hardware_cpu_info;
 char *root_hardware_serial;
 char *root_os_build_date;
 char *root_fw;
-char *root_fw_version;
 char root_mac[18];
 char *root_cert_path;
 char *root_config_file;
@@ -1648,11 +1647,11 @@ int
 main (int argc, char **argv)
 {
 
-  if (argc != 15)
+  if (argc != 14)
     {
       printf ("Missing %i arguments.\n", 15 - argc);
       printf
-	("Usage: ./collect-client ADDRESS PORT WLAN_IF KEY HARDWARE_MAKE HARDWARE_MODEL HARDWARE_MODEL_NUMBER HARDWARE_CPU_INFO HARDWARE_SERIAL OS_BUILD_DATE FIRMWARE FW_VERSION ROOT_CERT_PATH CONFIG_OUTPUT_FILE\n");
+	("Usage: ./collect-client ADDRESS PORT WLAN_IF KEY HARDWARE_MAKE HARDWARE_MODEL HARDWARE_MODEL_NUMBER HARDWARE_CPU_INFO HARDWARE_SERIAL OS_BUILD_DATE FIRMWARE ROOT_CERT_PATH CONFIG_OUTPUT_FILE\n");
       printf ("\n\tExamples...\n");
       printf
 	("\tADDRESS:\tdev.ispapp.co\t\t(the address of the websocket server)\n");
@@ -1676,9 +1675,8 @@ main (int argc, char **argv)
       root_hardware_serial = escape_string_for_json ((char *) argv[9]);
       root_os_build_date = escape_string_for_json ((char *) argv[10]);
       root_fw = escape_string_for_json ((char *) argv[11]);
-      root_fw_version = escape_string_for_json ((char *) argv[12]);
-      root_cert_path = escape_string_for_json ((char *) argv[13]);
-      root_config_file = escape_string_for_json ((char *) argv[14]);
+      root_cert_path = escape_string_for_json ((char *) argv[12]);
+      root_config_file = escape_string_for_json ((char *) argv[13]);
 
       if (get_mac (root_wlan_if, root_mac))
 	{
@@ -2109,15 +2107,14 @@ main (int argc, char **argv)
 			strlen (root_hardware_model_number) +
 			strlen (root_hardware_cpu_info) +
 			strlen (root_hardware_serial) +
-			strlen (root_os_build_date) + strlen (root_fw) +
-			strlen (root_fw_version) + 500, sizeof (char));
+			strlen (root_os_build_date) + strlen (root_fw) + 500, sizeof (char));
 	      sprintf (config_req,
-		       "{\"type\": \"config\", \"login\": \"%s\", \"key\": \"%s\", \"clientInfo\": \"%s\", \"os\": \"%s\", \"osVersion\": \"%s\", \"hardwareMake\": \"%s\", \"hardwareModel\": \"%s\", \"hardwareModelNumber\": \"%s\", \"hardwareCpuInfo\": \"%s\", \"hardwareSerialNumber\": \"%s\", \"osBuildDate\": %u, \"fw\": \"%s\", \"fwVersion\": \"%s\"}",
+		       "{\"type\": \"config\", \"login\": \"%s\", \"key\": \"%s\", \"clientInfo\": \"%s\", \"os\": \"%s\", \"osVersion\": \"%s\", \"hardwareMake\": \"%s\", \"hardwareModel\": \"%s\", \"hardwareModelNumber\": \"%s\", \"hardwareCpuInfo\": \"%s\", \"hardwareSerialNumber\": \"%s\", \"osBuildDate\": %u, \"fw\": \"%s\"}",
 		       root_mac, root_collect_key, root_client_info,
 		       os_version, os_version, root_hardware_make,
 		       root_hardware_model, root_hardware_model_number,
 		       root_hardware_cpu_info, root_hardware_serial,
-		       atoi (root_os_build_date), root_fw, root_fw_version);
+		       atoi (root_os_build_date), root_fw);
 
 	      //printf("config req: %s\n", config_req);
 
@@ -2823,7 +2820,6 @@ main (int argc, char **argv)
   free (root_hardware_serial);
   free (root_os_build_date);
   free (root_fw);
-  free (root_fw_version);
   free (root_cert_path);
   free (root_config_file);
 
