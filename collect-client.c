@@ -112,7 +112,7 @@ char *root_address;
 char *root_port;
 char *root_wlan_if;
 char *root_collect_key;
-char *root_client_info = "collect-client-2.16";
+char *root_client_info = "collect-client-2.17";
 char *root_hardware_make;
 char *root_hardware_model;
 char *root_hardware_model_number;
@@ -1488,7 +1488,6 @@ sendLoop (void *input)
 		{
 		  mbedtls_printf
 		    (" failed\n  ! mbedtls_ssl_write returned %d\n\n", ret);
-		  free (sbuf);
 		  break;
 		}
 	    }
@@ -1895,8 +1894,7 @@ main (int argc, char **argv)
 	  // read up to a maximum size of buf, if the server sends more you won't get the whole json object
 	  ret = mbedtls_ssl_read (&ssl, buf, len);
 
-	  printf ("buf size: %u, read %u bytes\n", len, ret);
-	  printf ("%s\n\n", buf);
+	  printf("after mbedtls_ssl_read(), before error checking\n");
 
 	  if (ret == MBEDTLS_ERR_SSL_WANT_READ
 	      || ret == MBEDTLS_ERR_SSL_WANT_WRITE)
@@ -1937,6 +1935,9 @@ main (int argc, char **argv)
 	      free(buf);
 	      goto reconnect;
 	    }
+
+	  printf ("buf size: %u, read %u bytes\n", len, ret);
+	  printf ("%s\n\n", buf);
 
 	  // set the length to the number of bytes read
 	  len = ret;
@@ -2782,6 +2783,8 @@ main (int argc, char **argv)
 		}
 
 	    }
+
+	  printf("last free() of buf\n");
 
 	  free (buf);
 
