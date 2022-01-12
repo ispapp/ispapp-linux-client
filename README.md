@@ -75,6 +75,8 @@ The parameter field names are shown by launching the program without any options
 
 It must be run as root to send ping packets, ping requires a raw network socket which is supposed to be represented on the network as a privileged action.
 
+You need to make the `ispapp-keys` directory and copy `__ispapp_co.ca-bundle` there.
+
 ```
 sudo LD_LIBRARY_PATH=/usr/local/lib ./collect-client subdomain.ispapp.co 8550 eth0 "long_host_key" "amazon" "ec2" "amazon linux 2" "nano" "NA" "1602685864" "" /home/ec2-user/ispapp-keys /tmp/collect-client-config.json > /dev/null 2>&1 &
 
