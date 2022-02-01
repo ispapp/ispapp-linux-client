@@ -107,7 +107,6 @@ int listener_update_interval_seconds = 60;
 int listener_outage_interval_seconds = 300;
 int authed_flag = 0;
 time_t last_response;
-int thread_running = 0;
 char *root_address;
 char *root_port;
 char *root_wlan_if;
@@ -1105,7 +1104,6 @@ void *
 sendLoop (void *input)
 {
 
-  thread_running = 1;
   int timeout_inc = 0;
 
   while (1)
@@ -1127,7 +1125,6 @@ sendLoop (void *input)
 	  if (timeout_inc > 200)
 	    {
 	      authed_flag = 0;
-	      thread_running = 0;
 
 	      // force a reconnect
 	      wsocket_kill();
@@ -1182,7 +1179,6 @@ sendLoop (void *input)
 	    ("deauthing session because the socket is dead or we have missed 4 responses\n");
 
 	  authed_flag = 0;
-	  thread_running = 0;
 
 	  // this disconnects the socket, forcing a reconnect
 	  // like goto reconnect, but from a thread
@@ -1518,8 +1514,6 @@ sendLoop (void *input)
 
     }
 
-  thread_running = 0;
-
 }
 
 int
@@ -1701,7 +1695,6 @@ main (int argc, char **argv)
       update_wait = 2;
       authed_flag = 0;
       last_response = time (NULL) + update_wait;
-      thread_running = 0;
 
       // init the rng and session data
       mbedtls_net_init (&server_fd);
@@ -2795,12 +2788,8 @@ main (int argc, char **argv)
     reconnect:
 
       // end the sendLoop thread
-      printf ("thread_running; %i\n", thread_running);
-      if (thread_running == 1)
-	{
-	  printf ("pthread_cancel()\n");
-	  pthread_cancel (thread_id);
-	}
+	printf ("pthread_cancel()\n");
+	pthread_cancel (thread_id);
 
       wsocket_kill();
 
