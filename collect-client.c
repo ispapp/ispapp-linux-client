@@ -1089,12 +1089,8 @@ void * wsocket_kill() {
       mbedtls_entropy_free (&entropy);
 
       // gracefully shutdown the connection and free associated data
-      printf ("server_fd.fd: %i\n", server_fd.fd);
-      if (server_fd.fd > 0)
-	{
 	  printf ("mbedtls_net_free()\n");
 	  mbedtls_net_free (&server_fd);
-	}
 
 }
 
