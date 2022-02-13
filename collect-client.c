@@ -102,6 +102,8 @@ mbedtls_ctr_drbg_context ctr_drbg;
 mbedtls_ssl_config conf;
 mbedtls_x509_crt cacert;
 
+
+pthread_t thread_id = 0;
 int update_wait;
 int listener_update_interval_seconds = 60;
 int listener_outage_interval_seconds = 300;
@@ -271,7 +273,7 @@ wss_frame_encode_message (char *output_buf, int type, char *buf)
   //      bit 1           = MASK (1 indicates message is XOR encoded, messages from the client must be masked)
   //      bit 2-8         = payload length (read bits 2-8 as an unsigned int up to 125, if == 126 read the next 16 bits as unsigned int, if == 127 read the next 64 bits as unsigned int)
 
-  // set bit 1 to 1 (which is also decimal 1)
+  // set bit 1 to 1 (that is also decimal 1)
   output_buf[1] = 128;		// or output_buf[1] |= (unsigned char) 1 << 7;
 
   // the third and fourth byte of the frame if payload length <= UINT16_MAX
@@ -844,7 +846,7 @@ getWifiName_callback (struct nl_msg *msg, void *arg)
   // it can be dumped to the screen with nl_msg_dump
   // nl_msg_dump(msg, stdout);
 
-  // parse the data into tb_msg which is a struct nlattr
+  // parse the data into tb_msg: a struct nlattr
   nla_parse (tb_msg,
 	     NL80211_ATTR_MAX,
 	     genlmsg_attrdata (gnlh, 0), genlmsg_attrlen (gnlh, 0), NULL);
@@ -943,7 +945,7 @@ getWifiInfo_callback (struct nl_msg *msg, void *arg)
 
   // add station to wap_json
 
-  // first loop through wap_json and find the object which has interface set to dev
+  // first loop through wap_json and find the object that has interface set to dev
 
   int arraylen = json_object_array_length (wap_json);
   //printf("wap array length: %i\n", arraylen);
@@ -1068,6 +1070,10 @@ getWifiStatus (Netlink * nl)
 
 void * wsocket_kill() {
 
+      // end the sendLoop thread
+	printf ("pthread_cancel()\n");
+	pthread_cancel (thread_id);
+
       // notify the peer that the connection is being closed
       printf ("mbedtls_()\n");
       mbedtls_ssl_close_notify (&ssl);
@@ -1125,10 +1131,6 @@ sendLoop (void *input)
 	      // force a reconnect
 	      wsocket_kill();
 
-	      // kill the sendLoop thread
-	      printf("killing sendLoop() thread because of a response timeout\n");
-	      pthread_exit(0);
-
 	      break;
 	    }
 
@@ -1141,8 +1143,10 @@ sendLoop (void *input)
 
       printf ("sendLoop iteration\n");
 
-      // set wss_recv to 0, which resets it
+      // set wss_recv to 0
       wss_recv = 0;
+      // reset the timeout counter
+      timeout_inc = 0;
 
       time_t start = time (NULL);
 
@@ -1176,8 +1180,7 @@ sendLoop (void *input)
 
 	  authed_flag = 0;
 
-	  // this disconnects the socket, forcing a reconnect
-	  // like goto reconnect, but from a thread
+	  // reconnect
 	  wsocket_kill();
 
 	  break;
@@ -1505,7 +1508,6 @@ sendLoop (void *input)
       while (json_object_put (wap_json) != 1)
 	{
 	  // keep decrementing the object until the memory it is using is free
-	  // which is when json_object_put() returns 1
 	}
 
     }
@@ -1525,8 +1527,8 @@ popenTHREE (int *threepipe, const char *command)
   int pid;
   int rc;
 
-  // pipe returns r[0] which is the fd for the read end
-  // and r[1] which is the fd for the write end
+  // pipe returns r[0] : the fd for the read end
+  // and r[1] : the fd for the write end
   // this means you have to open the fd with fdopen()
   rc = pipe (in);
   if (rc < 0)
@@ -1557,8 +1559,7 @@ popenTHREE (int *threepipe, const char *command)
     }
   else if (pid == 0)
     {				/* child */
-      // this is the child process which is replaced by the executed
-      // process
+      // this is the child process that is replaced by the executed process
       // via execve
       close (in[1]);
       close (out[0]);
@@ -1711,7 +1712,7 @@ main (int argc, char **argv)
 	  goto reconnect;
 	}
 
-      // load root CA certificate from root_cert_path which is provided as a ARGV parameter
+      // load root CA certificate from root_cert_path provided as a ARGV parameter
       // 0 if all certificates parsed successfully, a positive number if partly successful or a specific X509 or PEM error code
       if ((ret = mbedtls_x509_crt_parse_path (&cacert, root_cert_path)) < 0)
 	{
@@ -1749,7 +1750,7 @@ main (int argc, char **argv)
 
       //printf("\nrandom b64 string: (%i, %i) %s %i\n", strlen(randomB64String), b64len, randomB64String);
 
-      // The hashing function appends the fixed string 258EAFA5-E914-47DA-95CA-C5AB0DC85B11 (a UUID) to the value from Sec-WebSocket-Key header (which is not decoded from base64), applies the SHA-1 hashing function, and encodes the result using base64.
+      // The hashing function appends the fixed string 258EAFA5-E914-47DA-95CA-C5AB0DC85B11 (a UUID) to the value from Sec-WebSocket-Key header (not decoded from base64), applies the SHA-1 hashing function, and encodes the result using base64.
       char hashCheckString[150];
       hashCheckString[0] = '\0';
       strcat (hashCheckString, randomB64String);
@@ -1867,9 +1868,6 @@ main (int argc, char **argv)
 	    }
 	}
 
-      // start a detached thread for sending updates
-      pthread_t thread_id = 0;
-
       int first_response = 0;
       do
 	{
@@ -1943,7 +1941,7 @@ main (int argc, char **argv)
 	      char headerHttp[40];
 	      char headerUpgrade[40];
 	      char headerConnection[40];
-	      char headerSecWebsocketAccept[40];	// ensure this matches b64HashCheckString which we calculated earlier from the random bytes we sent in Sec-WebSocket-Key
+	      char headerSecWebsocketAccept[40];	// ensure this matches b64HashCheckString calculated earlier from the random bytes we sent in Sec-WebSocket-Key
 
 	      int hbuf_realloc_size = 200;
 	      char *hbuf = calloc (hbuf_realloc_size, sizeof (char));
@@ -2280,7 +2278,6 @@ main (int argc, char **argv)
 		      while (json_object_put (json) != 1)
 			{
 			  // keep decrementing the object until the memory it is using is free
-			  // which is when json_object_put() returns 1
 			}
 
 		      free(buf);
@@ -2293,7 +2290,7 @@ main (int argc, char **argv)
 		      // this is a config response
 
 		      // set wss_recv to 1, indicating that we have recieved a response
-		      // which allows the sendLoop function to send another update
+		      // allowing the sendLoop function to send another update
 		      wss_recv = 1;
 
 		      printf ("checking client.authed for msg.type config\n");
@@ -2432,7 +2429,7 @@ main (int argc, char **argv)
 		      // this is an update response
 
 		      // set wss_recv to 1, indicating that we have recieved a response
-		      // which allows the sendLoop function to send another update
+		      // allowing the sendLoop function to send another update
 		      wss_recv = 1;
 
 		      // check if updateFast is true
@@ -2734,7 +2731,6 @@ main (int argc, char **argv)
 				  while (json_object_put (json) != 1)
 				    {
 				      // keep decrementing the object until the memory it is using is free
-				      // which is when json_object_put() returns 1
 				    }
 
 				  goto reconnect;
@@ -2768,7 +2764,6 @@ main (int argc, char **argv)
 	      while (json_object_put (json) != 1)
 		{
 		  // keep decrementing the object until the memory it is using is free
-		  // which is when json_object_put() returns 1
 		}
 
 	    }
@@ -2782,10 +2777,6 @@ main (int argc, char **argv)
       while (1);
 
     reconnect:
-
-      // end the sendLoop thread
-	printf ("pthread_cancel()\n");
-	pthread_cancel (thread_id);
 
       wsocket_kill();
 
