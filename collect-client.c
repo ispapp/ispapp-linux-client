@@ -935,7 +935,7 @@ void *pingLoop() {
       struct ping_response pr;
       sprintf(pr.host, "%s", ping_addresses[c]);
 
-      printf("pinging %s 5 times.\n", pr.host);
+      //printf("pinging %s 5 times.\n", pr.host);
 
       ip_addr = dns_lookup(pr.host, &addr_con);
 
@@ -1232,7 +1232,7 @@ void *sendLoop(void *input) {
     char *updateString = calloc(600 + strlen(wan_ip) + strlen(wap_json_string) + strlen(ping_json_string) + strlen(system_json_string) + strlen(interface_json_string), sizeof(char));
     sprintf(updateString, "{\"type\": \"update\", \"uptime\": %llu, \"wanIp\": \"%s\", \"collectors\": {\"wap\": %s, \"ping\": %s, \"system\": %s, \"interface\": %s}}", uptime, wan_ip, wap_json_string, ping_json_string, system_json_string, interface_json_string);
 
-    printf("updateString: %s\n\n", updateString);
+    //printf("updateString: %s\n\n", updateString);
 
     // after the first response, write a update request json string
     char *sbuf = calloc(strlen(updateString) + 14, sizeof(char));
