@@ -112,7 +112,7 @@ char *root_address;
 char *root_port;
 char *root_wlan_if;
 char *root_collect_key;
-char *root_client_info = "collect-client-2.17";
+char *root_client_info = "collect-client-2.18";
 char *root_hardware_make;
 char *root_hardware_model;
 char *root_hardware_model_number;
@@ -1954,7 +1954,7 @@ int main(int argc, char **argv) {
             char *out_stdout = calloc(PATH_MAX, sizeof(char));
             char *out_stderr = calloc(PATH_MAX, sizeof(char));
 
-            char ch;
+            int ch;
             unsigned long c = 0;
             unsigned long current_size = PATH_MAX;
 
