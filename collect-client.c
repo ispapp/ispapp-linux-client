@@ -102,6 +102,8 @@ mbedtls_ssl_config conf;
 mbedtls_x509_crt cacert;
 
 pthread_t thread_id = 0;
+pthread_t ping_thread_id = 0;
+char *ping_json_string;
 int thread_cancel = 0;
 int update_wait;
 int listener_update_interval_seconds = 60;
@@ -112,7 +114,7 @@ char *root_address;
 char *root_port;
 char *root_wlan_if;
 char *root_collect_key;
-char *root_client_info = "collect-client-2.18";
+char *root_client_info = "collect-client-2.20";
 char *root_hardware_make;
 char *root_hardware_model;
 char *root_hardware_model_number;
@@ -123,6 +125,7 @@ char *root_fw;
 char root_mac[18];
 char *root_cert_path;
 char *root_config_file;
+int wss_recv = -1;
 
 char *escape_string_for_json(char *str) {
   // allocate the length of str
@@ -479,26 +482,26 @@ void send_ping(struct sockaddr_in *ping_addr, char *ping_dom, char *ping_ip, cha
   // send icmp packets
   int sent = 0;
   while (sent < 5) {
-    // printf("\nTrying to open socket to '%s' IP: %s\n", pr->host, ping_ip);
+    // printf("ping opening socket to '%s' IP: %s\n", pr->host, ping_ip);
 
     int sockfd;
 
     // root access required to do this
     sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
     if (sockfd < 0) {
-      printf("\nPing socket file descriptor not received!! Got %i\n", sockfd);
+      printf("\nping socket file descriptor not received!! Got %i\n", sockfd);
       return;
     } else {
-      // printf("\nSocket file descriptor %d received\n", sockfd);
+      // printf("\nping socket file descriptor %d received\n", sockfd);
     }
 
     // set the socket options
     if (setsockopt(sockfd, SOL_IP, IP_TTL, &ttl_val, sizeof(ttl_val)) != 0) {
-      printf("Setting socket options to TTL failed!\n");
+      printf("ping, setting socket options to TTL failed!\n");
       close(sockfd);
       return;
     } else {
-      // printf("Socket set to TTL..\n");
+      // printf("ping socket set to TTL..\n");
     }
 
     // setting timeout of recv setting
@@ -524,7 +527,7 @@ void send_ping(struct sockaddr_in *ping_addr, char *ping_dom, char *ping_ip, cha
     // send packet
     clock_gettime(CLOCK_MONOTONIC, &time_start);
     if (sendto(sockfd, &pckt, sizeof(pckt), 0, (struct sockaddr *)ping_addr, sizeof(*ping_addr)) <= 0) {
-      printf("\nPacket Sending Failed!\n");
+      printf("ping, packet send failure.\n");
       flag = 0;
     }
 
@@ -532,7 +535,7 @@ void send_ping(struct sockaddr_in *ping_addr, char *ping_dom, char *ping_ip, cha
     addr_len = sizeof(r_addr);
 
     if (recvfrom(sockfd, &pckt, sizeof(pckt), 0, (struct sockaddr *)&r_addr, (socklen_t *)&addr_len) <= 0 && msg_count > 1) {
-      printf("\nPacket receive failed!\n");
+      printf("ping packet receive failed.\n");
     } else {
       clock_gettime(CLOCK_MONOTONIC, &time_end);
 
@@ -542,7 +545,7 @@ void send_ping(struct sockaddr_in *ping_addr, char *ping_dom, char *ping_ip, cha
       // if packet was not sent, don't receive
       if (flag) {
         if (pckt.hdr.type == 69) {
-          // printf("%d bytes from %s (h: %s) (%s) msg_seq=%d ttl=%d rtt = %lf ms\n", PING_PKT_S, ping_dom, hostname_str, ping_ip, msg_count, ttl_val, rtt_msec);
+          // printf("ping: %d bytes from %s (h: %s) (%s) msg_seq=%d ttl=%d rtt = %lf ms\n", PING_PKT_S, ping_dom, hostname_str, ping_ip, msg_count, ttl_val, rtt_msec);
 
           // if there was a successful response, set avgRtt to 0 so the average can be calculated correctly
           if (pr->avgRtt == -1) {
@@ -569,7 +572,7 @@ void send_ping(struct sockaddr_in *ping_addr, char *ping_dom, char *ping_ip, cha
         else
 
         {
-          printf("Error..Packet received with ICMP type %d code %d\n", pckt.hdr.type, pckt.hdr.code);
+          printf("ping Error..Packet received with ICMP type %d code %d\n", pckt.hdr.type, pckt.hdr.code);
         }
       }
     }
@@ -587,7 +590,8 @@ void send_ping(struct sockaddr_in *ping_addr, char *ping_dom, char *ping_ip, cha
     pr->avgRtt = pr->avgRtt / msg_received_count;
   }
 
-  printf("avgRtt: %lf, msg_received_count: %i, sent: %i\n", pr->avgRtt, msg_received_count, sent);
+  //printf("ping avgRtt: %lf, msg_received_count: %i, sent: %i\n", pr->avgRtt, msg_received_count, sent);
+
 }
 
 typedef struct {
@@ -899,7 +903,88 @@ void *wsocket_kill() {
   printf("wsocket_kill() finished\n");
 }
 
-int wss_recv = -1;
+void *pingLoop() {
+
+  char *ping_addresses[4];
+  ping_addresses[0] = "aws-eu-west-2-ping.ispapp.co";
+  ping_addresses[1] = "aws-sa-east-1-ping.ispapp.co";
+  ping_addresses[2] = "aws-us-east-1-ping.ispapp.co";
+  ping_addresses[3] = "aws-us-west-1-ping.ispapp.co";
+
+  // allocate space for ping_json_string
+  ping_json_string = calloc(800, sizeof(char));
+  sprintf(ping_json_string, "%s", "[]");
+
+  while (1) {
+
+    // ping hosts
+    //printf("PING LOOP\n");
+
+    char *temp_string = calloc(800, sizeof(char));
+    sprintf(temp_string, "%s", "[");
+
+    int num_ping_hosts = 4;
+    int c = 0;
+    int valid_response_count = 0;
+
+    while (c < num_ping_hosts) {
+
+      char *ip_addr;
+      struct sockaddr_in addr_con;
+
+      struct ping_response pr;
+      sprintf(pr.host, "%s", ping_addresses[c]);
+
+      printf("pinging %s 5 times.\n", pr.host);
+
+      ip_addr = dns_lookup(pr.host, &addr_con);
+
+      if (ip_addr == NULL) {
+        printf("ping collector, DNS lookup failed with: %s\n", pr.host);
+      } else {
+        //printf("\nopening socket to '%s' IP: %s\n", pr.host, ip_addr);
+
+        // send pings
+        send_ping(&addr_con, pr.host, ip_addr, pr.host, &pr);
+
+        //printf("ping result for host: %s, avgRtt: %lf\n", pr.host, pr.avgRtt);
+
+        char *temp_ping_host_string = calloc(190, sizeof(char));
+        sprintf(temp_ping_host_string, "{\"host\": \"%s\", \"avgRtt\": %lf, \"minRtt\": %lf, \"maxRtt\": %lf, \"loss\": %d}", pr.host, pr.avgRtt, pr.minRtt, pr.maxRtt, pr.loss);
+
+        if (valid_response_count == 0) {
+          // add without ", " at the start
+        } else {
+          strcat(temp_string, ", ");
+        }
+
+        strcat(temp_string, temp_ping_host_string);
+        free(temp_ping_host_string);
+
+        free(ip_addr);
+
+        valid_response_count = 1;
+
+      }
+
+      c++;
+
+    }
+
+    // copy temp_string to ping_json_string
+    strcat(temp_string, "]");
+    memcpy(ping_json_string, temp_string, 800);
+    free(temp_string);
+
+    // pingLoop() sleep
+    int sleep_s = update_wait - 3;
+    if (sleep_s > 0) {
+    	sleep(sleep_s);
+    }
+
+  }
+
+}
 
 void *sendLoop(void *input) {
   int timeout_inc = 0;
@@ -932,11 +1017,11 @@ void *sendLoop(void *input) {
 
       timeout_inc++;
       usleep(100000);
-      printf("response was not recieved, waiting %i/200\n", timeout_inc);
+      printf("waiting for response: %i/200\n", timeout_inc);
       continue;
     }
 
-    printf("sendLoop iteration\n");
+    //printf("sendLoop() iteration\n");
 
     // set wss_recv to 0
     wss_recv = 0;
@@ -959,7 +1044,7 @@ void *sendLoop(void *input) {
 
     // check if the socket is good
     int socket_poll = mbedtls_net_poll(&server_fd, MBEDTLS_NET_POLL_WRITE, 0);
-    printf("sendLoop() socket status: %i\n", socket_poll);
+    //printf("sendLoop() socket status: %i\n", socket_poll);
 
     // deauth if the socket isn't ready or it's been 4 rounds since the last response
     if (socket_poll <= 0 || time(NULL) - last_response >= update_wait * 4) {
@@ -976,7 +1061,7 @@ void *sendLoop(void *input) {
     // get wan_ip
     char *wan_ip = calloc(20, sizeof(char));
     get_wan(wan_ip);
-    printf("got wan %s\n", wan_ip);
+    //printf("got wan %s\n", wan_ip);
 
     // get collector interface
     char *interface_json_string = calloc(800, sizeof(char));
@@ -1046,31 +1131,7 @@ void *sendLoop(void *input) {
 
     freeifaddrs(ifaddr);
 
-    printf("got interface_json_string: %s\n", interface_json_string);
-
-    // get collector ping
-    char *ip_addr;
-    struct sockaddr_in addr_con;
-
-    struct ping_response pr;
-    sprintf(pr.host, "%s", "dev.ispapp.co");
-
-    printf("pinging %s 5 times.\n", pr.host);
-
-    ip_addr = dns_lookup(pr.host, &addr_con);
-
-    if (ip_addr == NULL) {
-      printf("DNS lookup failed! Could not resolve hostname: %s\n", pr.host);
-    } else {
-      printf("\nTrying to open socket to '%s' IP: %s\n", pr.host, ip_addr);
-
-      // send pings
-      send_ping(&addr_con, pr.host, ip_addr, pr.host, &pr);
-
-      printf("got ping result for host: %s, avgRtt: %lf\n", pr.host, pr.avgRtt);
-
-      free(ip_addr);
-    }
+    //printf("got interface_json_string: %s\n", interface_json_string);
 
     // get collector system
     struct sysinfo system_info;
@@ -1136,14 +1197,14 @@ void *sendLoop(void *input) {
       strcat(disks_json_string, "]");
     }
 
-    // printf("got disks_json_string (len %u): %s\n", strlen(disks_json_string), disks_json_string);
+    //printf("got disks_json_string (len %u): %s\n", strlen(disks_json_string), disks_json_string);
 
     // write to system_json_string
     char *system_json_string = calloc(strlen(disks_json_string) + 400, sizeof(char));
 
     sprintf(system_json_string, "{\"load\": {\"one\": %ld, \"five\": %ld, \"fifteen\": %ld, \"processCount\": %llu}, \"memory\": {\"total\": %llu, \"free\": %llu, \"buffers\": %llu, \"cache\": %llu}, \"disks\": %s}", system_info.loads[0], system_info.loads[1], system_info.loads[2], procs, totalram, freeram, bufferram, sharedram, disks_json_string);
 
-    printf("got system json string: %s\n", system_json_string);
+    //printf("got system json string: %s\n", system_json_string);
 
     // get collector wap
     wap_json = json_object_new_array();
@@ -1164,12 +1225,12 @@ void *sendLoop(void *input) {
     }
 
     const char *wap_json_string = json_object_to_json_string(wap_json);
-    printf("wap_json: %s\n\n", wap_json_string);
+    //printf("wap_json: %s\n\n", wap_json_string);
 
     int ret = 1, len;
 
-    char *updateString = calloc(600 + strlen(wan_ip) + +strlen(wap_json_string) + strlen(interface_json_string) + strlen(disks_json_string) + strlen(system_json_string), sizeof(char));
-    sprintf(updateString, "{\"type\": \"update\", \"uptime\": %llu, \"wanIp\": \"%s\", \"collectors\": {\"wap\": %s, \"ping\": [{\"host\": \"%s\", \"avgRtt\": %lf, \"minRtt\": %lf, \"maxRtt\": %lf, \"loss\": %d}], \"system\": %s, \"interface\": %s, \"disks\": %s}}", uptime, wan_ip, wap_json_string, pr.host, pr.avgRtt, pr.minRtt, pr.maxRtt, pr.loss, system_json_string, interface_json_string, disks_json_string);
+    char *updateString = calloc(600 + strlen(wan_ip) + strlen(wap_json_string) + strlen(ping_json_string) + strlen(system_json_string) + strlen(interface_json_string), sizeof(char));
+    sprintf(updateString, "{\"type\": \"update\", \"uptime\": %llu, \"wanIp\": \"%s\", \"collectors\": {\"wap\": %s, \"ping\": %s, \"system\": %s, \"interface\": %s}}", uptime, wan_ip, wap_json_string, ping_json_string, system_json_string, interface_json_string);
 
     printf("updateString: %s\n\n", updateString);
 
@@ -1186,7 +1247,7 @@ void *sendLoop(void *input) {
       }
 
       len = ret;
-      mbedtls_printf("sent update: %lld bytes written\n\n", sbuf_len);
+      //mbedtls_printf("sent update: %lld bytes written\n\n", sbuf_len);
 
     } else {
       printf("error creating websocket frame\n");
@@ -1495,7 +1556,7 @@ int main(int argc, char **argv) {
 
     int first_response = 0;
     do {
-      printf("\n\nREAD LOOP START\n");
+      printf("\n\nREAD LOOP\n");
 
       len = 8192;
       unsigned char *buf = calloc(len, sizeof(char));
@@ -1503,8 +1564,6 @@ int main(int argc, char **argv) {
 
       // read up to a maximum size of buf, if the server sends more you won't get the whole json object
       ret = mbedtls_ssl_read(&ssl, buf, len);
-
-      printf("after mbedtls_ssl_read(), before error checking\n");
 
       if (ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE) {
         char err[5000];
@@ -1537,8 +1596,8 @@ int main(int argc, char **argv) {
         goto reconnect;
       }
 
-      printf("buf size: %u, read %u bytes\n", len, ret);
-      printf("%s\n\n", buf);
+      //printf("buf size: %u, read %u bytes\n", len, ret);
+      //printf("%s\n\n", buf);
 
       // set the length to the number of bytes read
       len = ret;
@@ -1758,7 +1817,7 @@ int main(int argc, char **argv) {
         }
 
         // print the payload data
-        printf("payload (%u, %u): %s\n", payload_len, strlen(buf), buf);
+        //printf("payload (%u, %u): %s\n", payload_len, strlen(buf), buf);
 
         struct json_object *json;
 
@@ -1769,7 +1828,7 @@ int main(int argc, char **argv) {
           goto reconnect;
         } else {
           const char *json_dump = json_object_to_json_string_ext(json, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY);
-          printf("\nserver responded with:\n---\n%s\n---\n", json_dump);
+          //printf("\nserver responded with:\n---\n%s\n---\n", json_dump);
 
           // response must have a type field
           struct json_object *type;
@@ -1822,6 +1881,10 @@ int main(int argc, char **argv) {
                   // start a detached thread for sending updates
                   pthread_create(&thread_id, NULL, sendLoop, NULL);
                   pthread_detach(thread_id);
+
+                  // start a ping thread
+                  pthread_create(&ping_thread_id, NULL, pingLoop, NULL);
+                  pthread_detach(ping_thread_id);
 
                   // write the configuration parameters to file
                   if (root_config_file[0] != '\0') {
@@ -1923,8 +1986,8 @@ int main(int argc, char **argv) {
                 }
               }
 
-              printf("outage: %i, update:%i\n", listener_outage_interval_seconds, listener_update_interval_seconds);
-              printf("set update_wait to %i seconds\n", update_wait);
+              //printf("outage: %i, update:%i\n", listener_outage_interval_seconds, listener_update_interval_seconds);
+              //printf("set update_wait to %i seconds\n", update_wait);
             }
 
           } else if (authed_flag == 1 && strcmp(type_string, "cmd") == 0) {
@@ -2102,8 +2165,6 @@ int main(int argc, char **argv) {
           // keep decrementing the object until the memory it is using is free
         }
       }
-
-      printf("last free() of buf\n");
 
       free(buf);
 
