@@ -41,6 +41,7 @@ ISPApp instances are private, once we are out of Beta we will not have access to
 * json-c
 * libnl3
 * mbedtls
+* timeout
 
 This has been tested running on small devices with 4MB of RAM and 16MB of disk space.
 

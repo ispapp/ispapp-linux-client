@@ -102,6 +102,7 @@ mbedtls_ssl_config conf;
 mbedtls_x509_crt cacert;
 
 pthread_t thread_id = 0;
+int thread_cancel = 0;
 int update_wait;
 int listener_update_interval_seconds = 60;
 int listener_outage_interval_seconds = 300;
@@ -871,10 +872,6 @@ static int getWifiStatus(Netlink *nl) {
 }
 
 void *wsocket_kill() {
-  // end the sendLoop thread
-  printf("pthread_cancel()\n");
-  pthread_cancel(thread_id);
-
   // notify the peer that the connection is being closed
   printf("mbedtls_()\n");
   mbedtls_ssl_close_notify(&ssl);
@@ -898,6 +895,8 @@ void *wsocket_kill() {
   // gracefully shutdown the connection and free associated data
   printf("mbedtls_net_free()\n");
   mbedtls_net_free(&server_fd);
+
+  printf("wsocket_kill() finished\n");
 }
 
 int wss_recv = -1;
@@ -906,6 +905,12 @@ void *sendLoop(void *input) {
   int timeout_inc = 0;
 
   while (1) {
+    if (thread_cancel == 1) {
+      thread_cancel = 0;
+      wsocket_kill();
+      return;
+    }
+
     if (authed_flag != 1) {
       printf("not authed, not sending update\n");
 
@@ -919,9 +924,10 @@ void *sendLoop(void *input) {
         authed_flag = 0;
 
         // force a reconnect
-        wsocket_kill();
+        thread_cancel = 1;
 
-        break;
+        // loop so the thread exits
+        continue;
       }
 
       timeout_inc++;
@@ -963,9 +969,8 @@ void *sendLoop(void *input) {
       authed_flag = 0;
 
       // reconnect
-      wsocket_kill();
-
-      break;
+      thread_cancel = 1;
+      continue;
     }
 
     // get wan_ip
@@ -1199,6 +1204,8 @@ void *sendLoop(void *input) {
       // keep decrementing the object until the memory it is using is free
     }
   }
+
+  printf("sendLoop() end\n");
 }
 
 int popenTHREE(int *threepipe, const char *command) {
@@ -1304,6 +1311,15 @@ static void my_debug(void *ctx, int level, const char *file, int line, const cha
 }
 
 int main(int argc, char **argv) {
+  if (system("which timeout > /dev/null 2>&1")) {
+    // Command doesn't exist...
+    printf("timeout command does not exist, install timeout\n");
+    exit(1);
+  } else {
+    // Command does exist
+    printf("timeout command exists\n");
+  }
+
   if (argc != 14) {
     printf("Missing %i arguments.\n", 15 - argc);
     printf("Usage: ./collect-client ADDRESS PORT WLAN_IF KEY HARDWARE_MAKE HARDWARE_MODEL HARDWARE_MODEL_NUMBER HARDWARE_CPU_INFO HARDWARE_SERIAL OS_BUILD_DATE FIRMWARE ROOT_CERT_PATH CONFIG_OUTPUT_FILE\n");
@@ -1919,44 +1935,10 @@ int main(int argc, char **argv) {
             const char *cmd_string = json_object_get_string(cmd);
 
             int first_pipe[2];
+            // popenTHREE uses the timeout command
             int pid = popenTHREE(first_pipe, cmd_string);
 
             printf("Executing Command (pid: %i): %s.\n", pid, cmd_string);
-
-            // timeout check here
-            int timed_out = 0;
-            /*
-               int status = 0;
-               pid_t wpid = fork();
-               wpid = waitpid(pid, &status, 0);
-
-               int timeout_second_count = 0;
-
-               while (1) {
-
-               timeout_second_count++;
-
-               sleep(1);
-               printf("waitpid returned: %d\n", wpid);
-
-               if (wpid > -1) {
-               // the process ended
-               printf("child process ended\n\n");
-               break;
-               }
-
-               if (timeout_second_count >= 4) {
-               printf("child process timeout reached\n");
-
-               // kill the process
-               kill(pid, SIGKILL);
-               // set the stderr to inform the user of the timeout
-               timed_out = 1;
-               break;
-               }
-
-               }
-             */
 
             FILE *f_stdout;
             FILE *f_stderr;
@@ -1977,6 +1959,11 @@ int main(int argc, char **argv) {
             unsigned long current_size = PATH_MAX;
 
             while (1) {
+              if (c > PATH_MAX) {
+                printf("PATH_MAX response size reached in command output\n");
+                break;
+              }
+
               ch = getc(f_stdout);
 
               if (ch != EOF) {
@@ -1986,6 +1973,7 @@ int main(int argc, char **argv) {
                 }
 
                 out_stdout[c] = ch;
+
               } else {
                 // done
                 break;
@@ -1994,32 +1982,30 @@ int main(int argc, char **argv) {
               c++;
             }
 
-            if (timed_out == 1) {
-              // write a timeout err to out_stderr
-              sprintf(out_stderr, "process timeout of 4 seconds reached");
-              printf("wrote timeout error to out_stderr\n");
+            // write the stderr to out_stderr
+            c = 0;
+            current_size = PATH_MAX;
+            while (1) {
+              if (c > PATH_MAX) {
+                printf("PATH_MAX response size reached in command output\n");
+                break;
+              }
 
-            } else {
-              // write the stderr to out_stderr
-              c = 0;
-              current_size = PATH_MAX;
-              while (1) {
-                ch = getc(f_stderr);
+              ch = getc(f_stderr);
 
-                if (ch != EOF) {
-                  if (c > current_size) {
-                    current_size += PATH_MAX;
-                    out_stderr = realloc(out_stderr, current_size);
-                  }
-
-                  out_stderr[c] = ch;
-                } else {
-                  // done
-                  break;
+              if (ch != EOF) {
+                if (c > current_size) {
+                  current_size += PATH_MAX;
+                  out_stderr = realloc(out_stderr, current_size);
                 }
 
-                c++;
+                out_stderr[c] = ch;
+              } else {
+                // done
+                break;
               }
+
+              c++;
             }
 
             // printf("out_stdout strlen(): %u\n", strlen(out_stdout));
@@ -2030,7 +2016,6 @@ int main(int argc, char **argv) {
 
             if (strlen(out_stdout) > 4000) {
               sprintf(out_stderr, "command output is too long: %u bytes\ntry sending the output to a file with >", strlen(out_stdout));
-              sprintf(out_stdout, "");
             }
 
             // allocate enough space for the b64 encoded string by using twice the strlen, +1 incase the strlen is 0
