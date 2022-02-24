@@ -49,7 +49,7 @@ This has been tested running on small devices with 4MB of RAM and 16MB of disk s
 
 ```
 # install deps as root
-yum -y install json-c-devel libnl3-devel
+yum -y install json-c-devel libnl3-devel timeout
 
 # add to /etc/profile
 export SHARED=1
