@@ -106,6 +106,7 @@ pthread_t ping_thread_id = 0;
 char *ping_json_string;
 int thread_cancel = 0;
 int update_wait;
+int send_col_data = 1;
 int listener_update_interval_seconds = 60;
 int listener_outage_interval_seconds = 300;
 int authed_flag = 0;
@@ -1047,7 +1048,7 @@ void *sendLoop(void *input) {
     //printf("sendLoop() socket status: %i\n", socket_poll);
 
     // deauth if the socket isn't ready or it's been 4 rounds since the last response
-    if (socket_poll <= 0 || time(NULL) - last_response >= update_wait * 4) {
+    if ((socket_poll <= 0 || time(NULL) - last_response >= update_wait * 4) && update_wait != 0) {
       // stop trying to send until re-authed
       printf("deauthing session because the socket is dead or we have missed 4 responses\n");
 
@@ -1229,8 +1230,19 @@ void *sendLoop(void *input) {
 
     int ret = 1, len;
 
-    char *updateString = calloc(600 + strlen(wan_ip) + strlen(wap_json_string) + strlen(ping_json_string) + strlen(system_json_string) + strlen(interface_json_string), sizeof(char));
-    sprintf(updateString, "{\"type\": \"update\", \"uptime\": %llu, \"wanIp\": \"%s\", \"collectors\": {\"wap\": %s, \"ping\": %s, \"system\": %s, \"interface\": %s}}", uptime, wan_ip, wap_json_string, ping_json_string, system_json_string, interface_json_string);
+    char *updateString;
+
+    if (send_col_data == 1) {
+
+      updateString = calloc(600 + strlen(wan_ip) + strlen(wap_json_string) + strlen(ping_json_string) + strlen(system_json_string) + strlen(interface_json_string), sizeof(char));
+      sprintf(updateString, "{\"type\": \"update\", \"uptime\": %llu, \"wanIp\": \"%s\", \"collectors\": {\"wap\": %s, \"ping\": %s, \"system\": %s, \"interface\": %s}}", uptime, wan_ip, wap_json_string, ping_json_string, system_json_string, interface_json_string);
+
+    } else {
+
+      updateString = calloc(179, sizeof(char));
+      sprintf(updateString, "{\"type\": \"update\", \"uptime\": %llu, \"wanIp\": \"%s\"}", uptime, wan_ip);
+
+    }
 
     //printf("updateString: %s\n\n", updateString);
 
@@ -1958,12 +1970,12 @@ int main(int argc, char **argv) {
 
               if (uf_bool == true) {
                 // server has instructed the client to updateFast
-                update_wait = 1;
+                update_wait = 0;
+                send_col_data = 1;
               } else {
                 // server has instructed the client to not updateFast
 
                 // get the offsets
-
                 struct json_object *lastUpdateOffsetSec;
                 json_object_object_get_ex(json, "lastUpdateOffsetSec", &lastUpdateOffsetSec);
                 int lastUpdateOffsetSec_int = json_object_get_int(lastUpdateOffsetSec);
@@ -1975,19 +1987,21 @@ int main(int argc, char **argv) {
                 // set to listener_outage_interval_seconds
                 update_wait = listener_outage_interval_seconds - lastUpdateOffsetSec_int;
 
-                // if listener_outage_interval_seconds is more than the required next collector update wait
-                if (update_wait > listener_update_interval_seconds - lastColUpdateOffsetSec_int) {
-                  // use it instead
+                if (listener_update_interval_seconds - lastColUpdateOffsetSec_int <= update_wait) {
+                  send_col_data = 1;
                   update_wait = listener_update_interval_seconds - lastColUpdateOffsetSec_int;
+                } else {
+                  send_col_data = 0;
                 }
 
-                if (update_wait < 1) {
-                  update_wait = 1;
+                if (update_wait < 0) {
+                  update_wait = 0;
                 }
               }
 
               //printf("outage: %i, update:%i\n", listener_outage_interval_seconds, listener_update_interval_seconds);
               //printf("set update_wait to %i seconds\n", update_wait);
+
             }
 
           } else if (authed_flag == 1 && strcmp(type_string, "cmd") == 0) {
