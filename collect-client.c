@@ -106,6 +106,7 @@ pthread_t ping_thread_id = 0;
 char *ping_json_string;
 int thread_cancel = 0;
 int update_wait;
+int collector_wait = 0;
 int send_col_data = 1;
 int listener_update_interval_seconds = 60;
 int listener_outage_interval_seconds = 300;
@@ -115,7 +116,7 @@ char *root_address;
 char *root_port;
 char *root_wlan_if;
 char *root_collect_key;
-char *root_client_info = "collect-client-2.20";
+char *root_client_info = "collect-client-2.21";
 char *root_hardware_make;
 char *root_hardware_model;
 char *root_hardware_model_number;
@@ -978,9 +979,15 @@ void *pingLoop() {
     free(temp_string);
 
     // pingLoop() sleep
-    int sleep_s = update_wait - 3;
-    if (sleep_s > 0) {
-    	sleep(sleep_s);
+    while (1) {
+
+      if (collector_wait == 0) {
+        // gather collector data
+        collector_wait = 1;
+        break;
+      }
+      // wait 1/10th of a second
+      usleep(100000);
     }
 
   }
@@ -1017,6 +1024,8 @@ void *sendLoop(void *input) {
       }
 
       timeout_inc++;
+
+      // wait 1/10th of a second
       usleep(100000);
       printf("waiting for response: %i/200\n", timeout_inc);
       continue;
@@ -1033,10 +1042,12 @@ void *sendLoop(void *input) {
 
     while (1) {
       // send an update every update_wait seconds
-      sleep(1);
+      // this sets the fastest update interval of the program
+      // half a second is fast
+      usleep(100000*5);
 
       time_t now = time(NULL);
-      printf("start: %u, now: %u, update_wait: %i; sending update in %u seconds.\n", start, now, update_wait, update_wait - (now - start));
+      //printf("start: %u, now: %u, update_wait: %i; sending update in %u seconds.\n", start, now, update_wait, update_wait - (now - start));
       if (start + update_wait <= now) {
         // update_wait timeout has been reached
         break;
@@ -1970,6 +1981,7 @@ int main(int argc, char **argv) {
 
               if (uf_bool == true) {
                 // server has instructed the client to updateFast
+                collector_wait = 0;
                 update_wait = 0;
                 send_col_data = 1;
               } else {
@@ -1988,6 +2000,7 @@ int main(int argc, char **argv) {
                 update_wait = listener_outage_interval_seconds - lastUpdateOffsetSec_int;
 
                 if (listener_update_interval_seconds - lastColUpdateOffsetSec_int <= update_wait) {
+                  collector_wait = 0;
                   send_col_data = 1;
                   update_wait = listener_update_interval_seconds - lastColUpdateOffsetSec_int;
                 } else {
