@@ -43,7 +43,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <errno.h>
 #include <ifaddrs.h>
 #include <json-c/json.h>
-#include <limits.h>
 #include <linux/if_link.h>
 #include <linux/kernel.h>
 #include <linux/reboot.h>
@@ -90,6 +89,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #define MBEDTLS_EXIT_FAILURE EXIT_FAILURE
 #endif /* MBEDTLS_PLATFORM_C */
 
+#include "utility.h"
+#include "webshell.h"
+
 // the level of debug logs you require. Its values can be between 0 and 5, where 5 is the most logs
 #define DEBUG_LEVEL 1
 
@@ -129,47 +131,6 @@ char *root_cert_path;
 char *root_config_file;
 int wss_recv = -1;
 
-char *escape_string_for_json(char *str) {
-  // allocate the length of str
-  char *nstr = calloc(strlen(str) + 1, sizeof(char));
-
-  // loop through each character
-  long unsigned int c = 0;
-  long unsigned int d = 0;
-  while (c < strlen(str)) {
-    // printf("character: %c\n", str[c]);
-
-    // json needs everything from '\x00' to '\x1f' escaped
-    if (str[c] == '"' || str[c] == '\\' || ('\x00' <= str[c] && str[c] <= '\x1f')) {
-      // printf("\tescaping %c\n", str[c]);
-
-      // add the escape character to nstr
-      nstr[d] = '\\';
-
-      // increment d to account for the extra space
-      d++;
-
-      // allocate that space in the nstr pointer
-      nstr = realloc(nstr, d);
-
-      // add the character
-      nstr[d] = str[c];
-
-    } else {
-      // add the character to nstr
-      nstr[d] = str[c];
-    }
-
-    c++;
-    d++;
-  }
-
-  // add the \0 at the end
-  nstr[d] = '\0';
-
-  return nstr;
-}
-
 static int get_mac(char *ifname, char *mac) {
   // printf("getting mac for %s\n", ifname);
   struct ifreq s;
@@ -181,29 +142,6 @@ static int get_mac(char *ifname, char *mac) {
     return 1;
   }
   return -1;
-}
-
-int l_strcpy(char *dest, char *src, int start, int end) {
-  // returns number of characters copied
-
-  int c = 0;
-  int d = 0;
-  while (c < strlen(src)) {
-    if (c > end && end > 0) {
-      break;
-    }
-
-    if (c > start) {
-      dest[d] = src[c];
-      d++;
-    }
-
-    c++;
-  }
-
-  dest[d] = '\0';
-
-  return d;
 }
 
 #define BYTE_TO_BINARY_PATTERN "%c%c%c%c%c%c%c%c"
@@ -1292,101 +1230,6 @@ void *sendLoop(void *input) {
   printf("sendLoop() end\n");
 }
 
-int popenTHREE(int *threepipe, const char *command) {
-  // threepipe[0] is the stdin fd
-  // threepipe[1] is the stdout fd
-  // threepipe[2] is the stderr fd
-
-  int in[2];
-  int out[2];
-  int err[2];
-  int pid;
-  int rc;
-
-  // pipe returns r[0] : the fd for the read end
-  // and r[1] : the fd for the write end
-  // this means you have to open the fd with fdopen()
-  rc = pipe(in);
-  if (rc < 0) goto error_in;
-
-  rc = pipe(out);
-  if (rc < 0) goto error_out;
-
-  rc = pipe(err);
-  if (rc < 0) goto error_err;
-
-  pid = fork();
-  if (pid > 0) { /* parent */
-    // this is the parent process that produces the pipes
-    close(in[0]);
-    close(out[1]);
-    close(err[1]);
-    // stdin, write to this
-    threepipe[0] = in[1];
-    // stdout, read from this
-    threepipe[1] = out[0];
-    // stderr, read from this
-    threepipe[2] = err[0];
-    return pid;
-  } else if (pid == 0) { /* child */
-    // this is the child process that is replaced by the executed process
-    // via execve
-    close(in[1]);
-    close(out[0]);
-    close(err[0]);
-    close(0);
-    if (!dup(in[0])) {
-      ;
-    }
-    close(1);
-    if (!dup(out[1])) {
-      ;
-    }
-    close(2);
-    if (!dup(err[1])) {
-      ;
-    }
-    // this replaces the child process with whatever file is executed
-    // it returns -1 when there is a failure and on success it does
-    // not return
-    char *timeout_str = calloc(strlen(command) + 20, sizeof(char));
-    sprintf(timeout_str, "timeout 4 %s", command);
-    int r = execl("/bin/sh", "sh", "-c", timeout_str, NULL);
-    free(timeout_str);
-    printf("execl returned: %i\n", r);
-
-    if (r == -1) {
-      printf("execl error: %s\n", strerror(errno));
-    }
-
-    _exit(1);
-  } else
-    goto error_fork;
-
-  return pid;
-
-error_fork:
-  close(err[0]);
-  close(err[1]);
-error_err:
-  close(out[0]);
-  close(out[1]);
-error_out:
-  close(in[0]);
-  close(in[1]);
-error_in:
-  return -1;
-}
-
-int pcloseTHREE(int pid, int *threepipe) {
-  int status;
-  close(threepipe[0]);
-  close(threepipe[1]);
-  close(threepipe[2]);
-  waitpid(pid, &status, 0);
-  return status;
-}
-
 static void my_debug(void *ctx, int level, const char *file, int line, const char *str) {
   ((void)level);
 
@@ -2024,82 +1867,12 @@ int main(int argc, char **argv) {
             json_object_object_get_ex(json, "cmd", &cmd);
             const char *cmd_string = json_object_get_string(cmd);
 
-            int first_pipe[2];
-            // popenTHREE uses the timeout command
-            int pid = popenTHREE(first_pipe, cmd_string);
+            char *out_stdout;
+            char *out_stderr;
+            unsigned long out_size;
+            unsigned long err_size;
 
-            printf("Executing Command (pid: %i): %s.\n", pid, cmd_string);
-
-            FILE *f_stdout;
-            FILE *f_stderr;
-
-            if (NULL == (f_stdout = fdopen(first_pipe[1], "r"))) {
-              perror("fdopen failed");
-            }
-
-            if (NULL == (f_stderr = fdopen(first_pipe[2], "r"))) {
-              perror("fdopen failed");
-            }
-
-            char *out_stdout = calloc(PATH_MAX, sizeof(char));
-            char *out_stderr = calloc(PATH_MAX, sizeof(char));
-
-            int ch;
-            unsigned long c = 0;
-            unsigned long current_size = PATH_MAX;
-
-            while (1) {
-              if (c > PATH_MAX) {
-                printf("PATH_MAX response size reached in command output\n");
-                break;
-              }
-
-              ch = getc(f_stdout);
-
-              if (ch != EOF) {
-                if (c > current_size) {
-                  current_size += PATH_MAX;
-                  out_stdout = realloc(out_stdout, current_size);
-                }
-
-                out_stdout[c] = ch;
-
-              } else {
-                // done
-                break;
-              }
-
-              c++;
-            }
-
-            // write the stderr to out_stderr
-            c = 0;
-            current_size = PATH_MAX;
-            while (1) {
-              if (c > PATH_MAX) {
-                printf("PATH_MAX response size reached in command output\n");
-                break;
-              }
-
-              ch = getc(f_stderr);
-
-              if (ch != EOF) {
-                if (c > current_size) {
-                  current_size += PATH_MAX;
-                  out_stderr = realloc(out_stderr, current_size);
-                }
-
-                out_stderr[c] = ch;
-              } else {
-                // done
-                break;
-              }
-
-              c++;
-            }
-
-            // printf("out_stdout strlen(): %u\n", strlen(out_stdout));
-            // printf("out_stderr strlen(): %u\n", strlen(out_stderr));
+            execCommand(cmd_string, &out_stdout, &out_size, &out_stderr, &err_size);
 
             printf("\nSTDOUT:\n%s\n\n", out_stdout);
             printf("\nSTDERR:\n%s\n\n", out_stderr);
@@ -2156,10 +1929,6 @@ int main(int argc, char **argv) {
                   free(e_out_stdout);
                   free(e_out_stderr);
 
-                  fclose(f_stdout);
-                  fclose(f_stderr);
-                  pcloseTHREE(pid, first_pipe);
-
                   while (json_object_put(json) != 1) {
                     // keep decrementing the object until the memory it is using is free
                   }
@@ -2181,10 +1950,6 @@ int main(int argc, char **argv) {
             free(out_stderr);
             free(e_out_stdout);
             free(e_out_stderr);
-
-            fclose(f_stdout);
-            fclose(f_stderr);
-            pcloseTHREE(pid, first_pipe);
           }
         }
 
