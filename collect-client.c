@@ -2024,7 +2024,7 @@ int main(int argc, char **argv) {
             json_object_object_get_ex(json, "cmd", &cmd);
             const char *cmd_string = json_object_get_string(cmd);
 
-            int first_pipe[2];
+            int first_pipe[3];
             // popenTHREE uses the timeout command
             int pid = popenTHREE(first_pipe, cmd_string);
 
