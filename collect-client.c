@@ -116,7 +116,7 @@ char *root_address;
 char *root_port;
 char *root_wlan_if;
 char *root_collect_key;
-char *root_client_info = "collect-client-2.21";
+char *root_client_info = "collect-client-2.22";
 char *root_hardware_make;
 char *root_hardware_model;
 char *root_hardware_model_number;
