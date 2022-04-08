@@ -116,7 +116,7 @@ char *root_address;
 char *root_port;
 char *root_wlan_if;
 char *root_collect_key;
-char *root_client_info = "collect-client-2.22";
+char *root_client_info = "collect-client-2.23";
 char *root_hardware_make;
 char *root_hardware_model;
 char *root_hardware_model_number;
@@ -644,7 +644,7 @@ static int initNl80211(Netlink *nl) {
 
   nl->id = genl_ctrl_resolve(nl->socket, "nl80211");
   if (nl->id < 0) {
-    fprintf(stderr, "Nl80211 interface not found.\n");
+    //fprintf(stderr, "Nl80211 interface not found.\n");
     nl_close(nl->socket);
     nl_socket_free(nl->socket);
     return -ENOENT;
@@ -1027,7 +1027,7 @@ void *sendLoop(void *input) {
 
       // wait 1/10th of a second
       usleep(100000);
-      printf("waiting for response: %i/200\n", timeout_inc);
+      //printf("waiting for response: %i/200\n", timeout_inc);
       continue;
     }
 
@@ -1225,7 +1225,7 @@ void *sendLoop(void *input) {
 
     nl.id = initNl80211(&nl);
     if (nl.id < 0) {
-      fprintf(stderr, "Error initializing netlink 802.11\n");
+      //fprintf(stderr, "Error initializing netlink 802.11\n");
     } else {
       getWifiStatus(&nl);
       // printf("getWifiStatus() finished\n\n");
@@ -1289,7 +1289,7 @@ void *sendLoop(void *input) {
     }
   }
 
-  printf("sendLoop() end\n");
+  //printf("sendLoop() end\n");
 }
 
 int popenTHREE(int *threepipe, const char *command) {
@@ -1579,7 +1579,7 @@ int main(int argc, char **argv) {
 
     int first_response = 0;
     do {
-      printf("\n\nREAD LOOP\n");
+      //printf("\n\nREAD LOOP\n");
 
       len = 8192;
       unsigned char *buf = calloc(len, sizeof(char));
