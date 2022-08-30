@@ -115,7 +115,7 @@ char *root_address;
 char *root_port;
 char *root_wlan_if;
 char *root_collect_key;
-char *root_client_info = "collect-client-2.27";
+char *root_client_info = "collect-client-2.28";
 char *root_hardware_make;
 char *root_hardware_model;
 char *root_hardware_model_number;
@@ -1263,12 +1263,12 @@ void *sendLoop(void *input) {
     if (send_col_data == 1) {
 
       updateString = calloc(600 + strlen(wan_ip) + strlen(wap_json_string) + strlen(ping_json_string) + strlen(system_json_string) + strlen(interface_json_string), sizeof(char));
-      sprintf(updateString, "{\"type\": \"update\", \"uptime\": %llu, \"wanIp\": \"%s\", \"collectors\": {\"wap\": %s, \"ping\": %s, \"system\": %s, \"interface\": %s}}", uptime, wan_ip, wap_json_string, ping_json_string, system_json_string, interface_json_string);
+      sprintf(updateString, "{\"type\": \"update\", \"login\": \"%s\", \"key\": \"%s\", \"uptime\": %llu, \"wanIp\": \"%s\", \"collectors\": {\"wap\": %s, \"ping\": %s, \"system\": %s, \"interface\": %s}}", root_mac, root_collect_key, uptime, wan_ip, wap_json_string, ping_json_string, system_json_string, interface_json_string);
 
     } else {
 
       updateString = calloc(179, sizeof(char));
-      sprintf(updateString, "{\"type\": \"update\", \"uptime\": %llu, \"wanIp\": \"%s\"}", uptime, wan_ip);
+      sprintf(updateString, "{\"type\": \"update\", \"login\": \"%s\", \"key\": \"%s\", \"uptime\": %llu, \"wanIp\": \"%s\"}", root_mac, root_collect_key, uptime, wan_ip);
 
     }
 
@@ -2163,7 +2163,7 @@ int main(int argc, char **argv) {
             const char *ws_id_string = json_object_get_string(ws_id);
 
             char *update = calloc(strlen(uuidv4_string) + strlen(e_out_stdout) + strlen(e_out_stderr) + strlen(ws_id_string) + 200, sizeof(char));
-            sprintf(update, "{\"type\": \"cmd\", \"uuidv4\": \"%s\", \"stdout\": \"%s\", \"stderr\": \"%s\", \"ws_id\": \"%s\"}", uuidv4_string, e_out_stdout, e_out_stderr, ws_id_string);
+            sprintf(update, "{\"type\": \"cmd\", \"login\": \"%s\", \"key\": \"%s\", \"uuidv4\": \"%s\", \"stdout\": \"%s\", \"stderr\": \"%s\", \"ws_id\": \"%s\"}", root_mac, root_collect_key, uuidv4_string, e_out_stdout, e_out_stderr, ws_id_string);
 
             printf("responding with command output: %s\n", update);
 
