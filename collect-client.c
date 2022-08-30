@@ -1422,7 +1422,32 @@ static void my_debug(void *ctx, int level, const char *file, int line, const cha
   fflush((FILE *)ctx);
 }
 
+int exit_program = 0;
+void sig_handler(int sig) {
+    switch (sig) {
+    case SIGINT:
+	// ctrl-c
+	printf("SIGINT\n");
+	exit_program = 1;
+	wsocket_kill();
+    case SIGTERM:
+	// kill
+	printf("SIGTERM\n");
+	exit_program = 1;
+	wsocket_kill();
+    case SIGSEGV:
+        fprintf(stderr, "give out a backtrace or something...\n");
+    default:
+        fprintf(stderr, "wasn't expecting signal: %d\n", sig);
+    }
+}
+
 int main(int argc, char **argv) {
+
+  // handle signals
+  signal(SIGSEGV, sig_handler);
+  signal(SIGTERM, sig_handler);
+  signal(SIGINT, sig_handler);
 
   int stdout_pipe[2];
   pipe(stdout_pipe);
@@ -2139,8 +2164,8 @@ int main(int argc, char **argv) {
               c++;
             }
 
-            // printf("out_stdout strlen(): %u\n", strlen(out_stdout));
-            // printf("out_stderr strlen(): %u\n", strlen(out_stderr));
+            //printf("out_stdout strlen(): %u\n", strlen(out_stdout));
+            //printf("out_stderr strlen(): %u\n", strlen(out_stderr));
 
             printf("\nSTDOUT:\n%s\n\n", out_stdout);
             printf("\nSTDERR:\n%s\n\n", out_stderr);
@@ -2263,6 +2288,11 @@ int main(int argc, char **argv) {
   // gracefully shutdown the connection and free associated data
   printf("mbedtls_net_free()\n");
   mbedtls_net_free(&server_fd);
+
+    if (exit_program == 1) {
+	// allow main() to finish
+	break;
+    }
 
     // reconnect
     printf("reconnecting...\n");
