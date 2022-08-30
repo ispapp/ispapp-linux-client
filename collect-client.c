@@ -110,7 +110,6 @@ int collector_wait = 0;
 int send_col_data = 1;
 int listener_update_interval_seconds = 60;
 int listener_outage_interval_seconds = 300;
-int authed_flag = 0;
 time_t last_response;
 char *root_address;
 char *root_port;
@@ -128,6 +127,7 @@ char root_mac[18];
 char *root_cert_path;
 char *root_config_file;
 int wss_recv = -1;
+int send_config_request = 1;
 
 char *escape_string_for_json(char *str) {
   // allocate the length of str
@@ -995,52 +995,77 @@ void *pingLoop() {
 }
 
 void *sendLoop(void *input) {
-  int timeout_inc = 0;
 
   while (1) {
     if (thread_cancel == 1) {
+	// stop the sendLoop() and force a reconnect
       thread_cancel = 0;
       wsocket_kill();
       return;
-    }
-
-    if (authed_flag != 1) {
-      printf("not authed, not sending update\n");
-
-      sleep(1);
-      continue;
-    }
-
-    // check if an update has been recieved
-    if (wss_recv <= 0) {
-      if (timeout_inc > 200) {
-        authed_flag = 0;
-
-        // force a reconnect
-        thread_cancel = 1;
-
-        // loop so the thread exits
-        continue;
-      }
-
-      timeout_inc++;
-
-      // wait 1/10th of a second
-      usleep(100000);
-      //printf("waiting for response: %i/200\n", timeout_inc);
-      continue;
     }
 
     //printf("sendLoop() iteration\n");
 
     // set wss_recv to 0
     wss_recv = 0;
-    // reset the timeout counter
-    timeout_inc = 0;
 
     time_t start = time(NULL);
 
     while (1) {
+
+        if (send_config_request == 1) {
+
+		printf("\nWriting json config request to wss:\n");
+
+		// get osVersion
+		struct utsname uts;
+		char *os_version = calloc(400, sizeof(char));
+		int uname_err = uname(&uts);
+		if (uname_err != 0) {
+		  printf("uname error=%d\n", uname_err);
+		} else {
+		  sprintf(os_version, "%s %s %s %s %s", uts.sysname, uts.nodename, uts.release, uts.version, uts.machine);
+		}
+
+		char *config_req = calloc(strlen(root_mac) + strlen(root_collect_key) + strlen(root_client_info) + strlen(os_version) + strlen(os_version) + strlen(root_hardware_make) + strlen(root_hardware_model) + strlen(root_hardware_model_number) + strlen(root_hardware_cpu_info) + strlen(root_hardware_serial) + strlen(root_os_build_date) + strlen(root_fw) + 500, sizeof(char));
+		sprintf(config_req, "{\"type\": \"config\", \"login\": \"%s\", \"key\": \"%s\", \"clientInfo\": \"%s\", \"os\": \"%s\", \"osVersion\": \"%s\", \"hardwareMake\": \"%s\", \"hardwareModel\": \"%s\", \"hardwareModelNumber\": \"%s\", \"hardwareCpuInfo\": \"%s\", \"hardwareSerialNumber\": \"%s\", \"osBuildDate\": %u, \"fw\": \"%s\"}", root_mac, root_collect_key, root_client_info, os_version, os_version, root_hardware_make, root_hardware_model, root_hardware_model_number, root_hardware_cpu_info, root_hardware_serial, atoi(root_os_build_date), root_fw);
+
+		// printf("config req: %s\n", config_req);
+
+		// write a config request json string
+		char *sbuf = calloc(strlen(config_req) + 14, sizeof(char));
+		long long unsigned int sbuf_len = wss_frame_encode_message(sbuf, 1, config_req);
+
+		int ret;
+
+		if (sbuf_len >= 0) {
+		  while ((ret = mbedtls_ssl_write(&ssl, sbuf, sbuf_len)) <= 0) {
+		    if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
+		      mbedtls_printf(" failed\n  ! mbedtls_ssl_write returned %d\n\n", ret);
+
+		      free(config_req);
+		      free(os_version);
+		      free(sbuf);
+
+		      thread_cancel = 1;
+		      continue;
+		    }
+		  }
+
+		  mbedtls_printf("\t%lld bytes written\n\n", sbuf_len);
+
+		} else {
+		  printf("error creating websocket frame\n");
+		}
+
+		free(config_req);
+		free(os_version);
+		free(sbuf);
+
+		send_config_request = 0;
+
+        }
+
       // send an update every update_wait seconds
       // this sets the fastest update interval of the program
       // half a second is fast
@@ -1058,12 +1083,8 @@ void *sendLoop(void *input) {
     int socket_poll = mbedtls_net_poll(&server_fd, MBEDTLS_NET_POLL_WRITE, 0);
     //printf("sendLoop() socket status: %i\n", socket_poll);
 
-    // deauth if the socket isn't ready or it's been 4 rounds since the last response
+    // reconnect if the socket isn't ready or it's been 4 rounds since the last response
     if ((socket_poll <= 0 || time(NULL) - last_response >= update_wait * 4) && update_wait != 0) {
-      // stop trying to send until re-authed
-      printf("deauthing session because the socket is dead or we have missed 4 responses\n");
-
-      authed_flag = 0;
 
       // reconnect
       thread_cancel = 1;
@@ -1257,7 +1278,7 @@ void *sendLoop(void *input) {
 
     //printf("updateString: %s\n\n", updateString);
 
-    // after the first response, write a update request json string
+    // write a update request json string
     char *sbuf = calloc(strlen(updateString) + 14, sizeof(char));
     long long unsigned int sbuf_len = wss_frame_encode_message(sbuf, 1, updateString);
 
@@ -1459,7 +1480,6 @@ int main(int argc, char **argv) {
 
     // set first update_wait to 2 seconds
     update_wait = 2;
-    authed_flag = 0;
     last_response = time(NULL) + update_wait;
 
     // init the rng and session data
@@ -1744,51 +1764,15 @@ int main(int argc, char **argv) {
 
         first_response = 1;
 
-        printf("\nWriting json config request to wss:\n");
+	  // start a detached thread for sending messages
+	  pthread_create(&thread_id, NULL, sendLoop, NULL);
+	  pthread_detach(thread_id);
 
-        // get osVersion
-        struct utsname uts;
-        char *os_version = calloc(400, sizeof(char));
-        int uname_err = uname(&uts);
-        if (uname_err != 0) {
-          printf("uname error=%d\n", uname_err);
-        } else {
-          sprintf(os_version, "%s %s %s %s %s", uts.sysname, uts.nodename, uts.release, uts.version, uts.machine);
-        }
+	  // start a ping thread
+	  pthread_create(&ping_thread_id, NULL, pingLoop, NULL);
+	  pthread_detach(ping_thread_id);
 
-        char *config_req = calloc(strlen(root_mac) + strlen(root_collect_key) + strlen(root_client_info) + strlen(os_version) + strlen(os_version) + strlen(root_hardware_make) + strlen(root_hardware_model) + strlen(root_hardware_model_number) + strlen(root_hardware_cpu_info) + strlen(root_hardware_serial) + strlen(root_os_build_date) + strlen(root_fw) + 500, sizeof(char));
-        sprintf(config_req, "{\"type\": \"config\", \"login\": \"%s\", \"key\": \"%s\", \"clientInfo\": \"%s\", \"os\": \"%s\", \"osVersion\": \"%s\", \"hardwareMake\": \"%s\", \"hardwareModel\": \"%s\", \"hardwareModelNumber\": \"%s\", \"hardwareCpuInfo\": \"%s\", \"hardwareSerialNumber\": \"%s\", \"osBuildDate\": %u, \"fw\": \"%s\"}", root_mac, root_collect_key, root_client_info, os_version, os_version, root_hardware_make, root_hardware_model, root_hardware_model_number, root_hardware_cpu_info, root_hardware_serial, atoi(root_os_build_date), root_fw);
-
-        // printf("config req: %s\n", config_req);
-
-        // after the first response, write a config request json string
-        char *sbuf = calloc(strlen(config_req) + 14, sizeof(char));
-        long long unsigned int sbuf_len = wss_frame_encode_message(sbuf, 1, config_req);
-
-        if (sbuf_len >= 0) {
-          while ((ret = mbedtls_ssl_write(&ssl, sbuf, sbuf_len)) <= 0) {
-            if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
-              mbedtls_printf(" failed\n  ! mbedtls_ssl_write returned %d\n\n", ret);
-
-              free(config_req);
-              free(os_version);
-              free(sbuf);
-              free(buf);
-
-              goto reconnect;
-            }
-          }
-
-          len = ret;
-          mbedtls_printf("\t%lld bytes written\n\n", sbuf_len);
-
-        } else {
-          printf("error creating websocket frame\n");
-        }
-
-        free(config_req);
-        free(os_version);
-        free(sbuf);
+	printf("sendLoop() started\n");
 
       } else {
         // this is a response after the ws upgrade
@@ -1893,33 +1877,22 @@ int main(int argc, char **argv) {
             free(buf);
             goto reconnect;
 
-          } else if (authed_flag == 0 && strcmp(type_string, "config") == 0) {
+          } else if (strcmp(type_string, "config") == 0) {
             // this is a config response
 
             // set wss_recv to 1, indicating that we have recieved a response
             // allowing the sendLoop function to send another update
             wss_recv = 1;
 
-            printf("checking client.authed for msg.type config\n");
             struct json_object *client;
             if (json_object_object_get_ex(json, "client", &client)) {
-              // if type == config and client.authed == true then we
-              // can set authed_flag to 1
+
               struct json_object *authed;
               if (json_object_object_get_ex(client, "authed", &authed)) {
                 bool authed_bool = json_object_get_boolean(authed);
 
                 if (authed_bool) {
-                  printf("client.authed is true, this host is authenticated and it is time to set startup configuration values\n");
-                  authed_flag = 1;
-
-                  // start a detached thread for sending updates
-                  pthread_create(&thread_id, NULL, sendLoop, NULL);
-                  pthread_detach(thread_id);
-
-                  // start a ping thread
-                  pthread_create(&ping_thread_id, NULL, pingLoop, NULL);
-                  pthread_detach(ping_thread_id);
+                  printf("host is authenticated, writing startup configuration values to %s\n", root_config_file);
 
                   // write the configuration parameters to file
                   if (root_config_file[0] != '\0') {
@@ -1930,13 +1903,6 @@ int main(int argc, char **argv) {
                     } else {
                       struct json_object *host;
                       if (json_object_object_get_ex(client, "host", &host)) {
-                        // check if the host should be rebooted
-                        // for example, a wss type=cmd request for reboot could have been issued by the server
-                        // but this client could have been disconnected at the time the cmd was sent due to a
-                        // network disconnect.
-                        //
-                        // this would cause the script to reconnect to the wss listener when it has an internet connection
-                        // and it would first issue this config request, getting a response of reboot=1 meaning reboot this device
 
                         struct json_object *reboot_js;
                         if (json_object_object_get_ex(host, "reboot", &reboot_js)) {
@@ -1977,7 +1943,7 @@ int main(int argc, char **argv) {
               }
             }
 
-          } else if (authed_flag == 1 && strcmp(type_string, "update") == 0) {
+          } else if (strcmp(type_string, "update") == 0) {
             // this is an update response
 
             // set wss_recv to 1, indicating that we have recieved a response
@@ -2029,7 +1995,7 @@ int main(int argc, char **argv) {
 
             }
 
-          } else if (authed_flag == 1 && strcmp(type_string, "cmd") == 0) {
+          } else if (strcmp(type_string, "cmd") == 0) {
             // this is a command that should be run on the host
 
             struct json_object *cmd;
