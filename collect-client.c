@@ -2170,7 +2170,7 @@ int main(int argc, char **argv) {
             // plus something to prevent a 0 allocation
             char *e_out_stdout = calloc((strlen(out_stdout) * 2) + 200, sizeof(char));
             size_t e_out_stdout_len;
-            int e_out_stdout_encode_status = mbedtls_base64_encode(e_out_stdout, strlen(out_stdout) * 2, &e_out_stdout_len, out_stdout, strlen(out_stdout));
+            int e_out_stdout_encode_status = mbedtls_base64_encode(e_out_stdout, (strlen(out_stdout) * 2) + 200, &e_out_stdout_len, out_stdout, strlen(out_stdout));
             e_out_stdout[e_out_stdout_len] = '\0';
             // printf("e_out_stdout strlen(): %u, %u\n", strlen(e_out_stdout), e_out_stdout_len);
 
@@ -2178,7 +2178,7 @@ int main(int argc, char **argv) {
             // plus something to prevent a 0 allocation
             char *e_out_stderr = calloc((strlen(out_stderr) * 2) + 200, sizeof(char));
             size_t e_out_stderr_len;
-            int e_out_stderr_encode_status = mbedtls_base64_encode(e_out_stderr, strlen(out_stderr) * 2, &e_out_stderr_len, out_stderr, strlen(out_stderr));
+            int e_out_stderr_encode_status = mbedtls_base64_encode(e_out_stderr, (strlen(out_stderr) * 2) + 200, &e_out_stderr_len, out_stderr, strlen(out_stderr));
             e_out_stderr[e_out_stderr_len] = '\0';
             // printf("e_out_stderr strlen(): %u, %u\n", strlen(e_out_stderr), e_out_stderr_len);
 
