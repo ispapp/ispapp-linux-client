@@ -1357,9 +1357,10 @@ int popenTHREE(int *threepipe, const char *command) {
 
     if (r == -1) {
       printf("execl error: %s\n", strerror(errno));
+      exit(1);
+    } else {
+      exit(0);
     }
-
-    _exit(1);
   } else
     goto error_fork;
 
@@ -1395,13 +1396,24 @@ static void my_debug(void *ctx, int level, const char *file, int line, const cha
 }
 
 int main(int argc, char **argv) {
-  if (system("which timeout > /dev/null 2>&1")) {
-    // Command doesn't exist...
-    printf("timeout command does not exist, install timeout\n");
-    exit(1);
-  } else {
-    // Command does exist
-    printf("timeout command exists\n");
+
+  int pid = fork();
+
+  if (pid == 0) {
+    // child process
+
+    int r = execl("/bin/sh", "sh", "-c", "which timeout", NULL);
+
+    if (r == -1) {
+      // Command doesn't exist...
+      printf("timeout command does not exist, install timeout\n");
+    } else {
+      // Command does exist
+      printf("timeout command exists\n");
+    }
+
+    exit(0);
+
   }
 
   if (argc != 14) {
