@@ -896,8 +896,6 @@ void *pingLoop() {
   ping_addresses[2] = "aws-us-east-1-ping.ispapp.co";
   ping_addresses[3] = "aws-us-west-1-ping.ispapp.co";
 
-  // allocate space for ping_json_string
-  ping_json_string = calloc(800, sizeof(char));
   sprintf(ping_json_string, "%s", "[]");
 
   while (1) {
@@ -1347,6 +1345,13 @@ int popenTHREE(int *pipes, const char *command) {
     pipes[1] = out[0];
     // stderr, read from this
     pipes[2] = err[0];
+
+    // wait for the child process to end
+    int status;
+    wait(&status);
+
+    free(timeout_str);
+
     return pid;
   } else if (pid == 0) { /* child */
     // this is the child process that is replaced by the executed process
@@ -1378,14 +1383,15 @@ int popenTHREE(int *pipes, const char *command) {
       exit(1);
     }
 
-  } else
+  } else {
+
+    // the child process did not start
+    free(timeout_str);
     goto error_fork;
 
-  int status;
-  wait(&status);
+    return pid;
 
-  free(timeout_str);
-  return pid;
+  }
 
 error_fork:
   close(err[0]);
@@ -1497,6 +1503,9 @@ int main(int argc, char **argv) {
       printf("LOGIN MAC ADDRESS: %s\n", root_mac);
     }
   }
+
+  // allocate space for ping_json_string
+  ping_json_string = calloc(800, sizeof(char));
 
   while (1) {
     printf("connecting\n");
