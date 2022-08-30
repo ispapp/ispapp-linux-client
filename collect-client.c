@@ -2267,8 +2267,6 @@ int main(int argc, char **argv) {
 
     connection_failures++;
 
-    wsocket_kill();
-
   // unallocate all certificate data
   printf("mbedtls_x509_crt_free()\n");
   mbedtls_x509_crt_free(&cacert);
