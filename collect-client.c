@@ -2115,15 +2115,11 @@ int main(int argc, char **argv) {
             unsigned long current_size = PATH_MAX;
 
             while (1) {
-              if (c > PATH_MAX) {
-                printf("PATH_MAX response size reached in command output\n");
-                break;
-              }
 
               ch = getc(f_stdout);
 
               if (ch != EOF) {
-                if (c > current_size) {
+                if (c > current_size-1) {
                   current_size += PATH_MAX;
                   out_stdout = realloc(out_stdout, current_size);
                 }
@@ -2142,19 +2138,16 @@ int main(int argc, char **argv) {
             c = 0;
             current_size = PATH_MAX;
             while (1) {
-              if (c > PATH_MAX) {
-                printf("PATH_MAX response size reached in command output\n");
-                break;
-              }
 
               ch = getc(f_stderr);
 
               if (ch != EOF) {
-                if (c > current_size) {
+                if (c > current_size-1) {
                   current_size += PATH_MAX;
                   out_stderr = realloc(out_stderr, current_size);
                 }
 
+		printf("%d\n", c);
                 out_stderr[c] = ch;
               } else {
                 // done
@@ -2175,14 +2168,16 @@ int main(int argc, char **argv) {
             }
 
             // allocate enough space for the b64 encoded string by using twice the strlen
-            char *e_out_stdout = calloc((strlen(out_stdout) * 2), sizeof(char));
+            // plus something to prevent a 0 allocation
+            char *e_out_stdout = calloc((strlen(out_stdout) * 2) + 200, sizeof(char));
             size_t e_out_stdout_len;
             int e_out_stdout_encode_status = mbedtls_base64_encode(e_out_stdout, strlen(out_stdout) * 2, &e_out_stdout_len, out_stdout, strlen(out_stdout));
             e_out_stdout[e_out_stdout_len] = '\0';
             // printf("e_out_stdout strlen(): %u, %u\n", strlen(e_out_stdout), e_out_stdout_len);
 
             // allocate enough space for the b64 encoded string by using twice the strlen
-            char *e_out_stderr = calloc((strlen(out_stderr) * 2), sizeof(char));
+            // plus something to prevent a 0 allocation
+            char *e_out_stderr = calloc((strlen(out_stderr) * 2) + 200, sizeof(char));
             size_t e_out_stderr_len;
             int e_out_stderr_encode_status = mbedtls_base64_encode(e_out_stderr, strlen(out_stderr) * 2, &e_out_stderr_len, out_stderr, strlen(out_stderr));
             e_out_stderr[e_out_stderr_len] = '\0';
