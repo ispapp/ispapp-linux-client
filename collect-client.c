@@ -115,7 +115,7 @@ char *root_address;
 char *root_port;
 char *root_wlan_if;
 char *root_collect_key;
-char *root_client_info = "collect-client-2.25";
+char *root_client_info = "collect-client-2.26";
 char *root_hardware_make;
 char *root_hardware_model;
 char *root_hardware_model_number;
@@ -131,6 +131,7 @@ int send_config_request = 1;
 int64_t last_config_change_ts_ms = -1;
 uint64_t message_sends = 0;
 uint64_t message_receives = 0;
+int timeout_cmd_detected = 1;
 
 char *escape_string_for_json(char *str) {
   // allocate the length of str
@@ -1045,7 +1046,7 @@ void *sendLoop(void *input) {
 
 		// send config request
 
-		printf("\nWriting json config request to wss:\n");
+		printf("\nSending config request:\n");
 
 		// get osVersion
 		struct utsname uts;
@@ -1057,10 +1058,21 @@ void *sendLoop(void *input) {
 		  sprintf(os_version, "%s %s %s %s %s", uts.sysname, uts.nodename, uts.release, uts.version, uts.machine);
 		}
 
-		char *config_req = calloc(strlen(root_mac) + strlen(root_collect_key) + strlen(root_client_info) + strlen(os_version) + strlen(os_version) + strlen(root_hardware_make) + strlen(root_hardware_model) + strlen(root_hardware_model_number) + strlen(root_hardware_cpu_info) + strlen(root_hardware_serial) + strlen(root_os_build_date) + strlen(root_fw) + 500, sizeof(char));
-		sprintf(config_req, "{\"type\": \"config\", \"login\": \"%s\", \"key\": \"%s\", \"clientInfo\": \"%s\", \"os\": \"%s\", \"osVersion\": \"%s\", \"hardwareMake\": \"%s\", \"hardwareModel\": \"%s\", \"hardwareModelNumber\": \"%s\", \"hardwareCpuInfo\": \"%s\", \"hardwareSerialNumber\": \"%s\", \"osBuildDate\": %u, \"fw\": \"%s\"}", root_mac, root_collect_key, root_client_info, os_version, os_version, root_hardware_make, root_hardware_model, root_hardware_model_number, root_hardware_cpu_info, root_hardware_serial, atoi(root_os_build_date), root_fw);
+		char hostname[253];
+		gethostname(hostname, 253);
 
-		// printf("config req: %s\n", config_req);
+		bool webshell_support = true;
+		if (timeout_cmd_detected == 0) {
+			webshell_support = false;
+		}
+
+		bool bandwidth_test_support = false;
+		bool firmware_upgrade_support = false;
+
+		char *config_req = calloc(strlen(root_mac) + strlen(root_collect_key) + strlen(root_client_info) + strlen(os_version) + strlen(os_version) + strlen(root_hardware_make) + strlen(root_hardware_model) + strlen(root_hardware_model_number) + strlen(root_hardware_cpu_info) + strlen(root_hardware_serial) + strlen(root_os_build_date) + strlen(root_fw) + 800, sizeof(char));
+		sprintf(config_req, "{\"type\": \"config\", \"login\": \"%s\", \"key\": \"%s\", \"clientInfo\": \"%s\", \"os\": \"%s\", \"osVersion\": \"%s\", \"hardwareMake\": \"%s\", \"hardwareModel\": \"%s\", \"hardwareModelNumber\": \"%s\", \"hardwareCpuInfo\": \"%s\", \"hardwareSerialNumber\": \"%s\", \"osBuildDate\": %u, \"fw\": \"%s\", \"hostname\": \"%s\", \"webshellSupport\": %s, \"bandwidthTestSupport\": %s, \"firmwareUpgradeSupport\": %s}", root_mac, root_collect_key, root_client_info, os_version, os_version, root_hardware_make, root_hardware_model, root_hardware_model_number, root_hardware_cpu_info, root_hardware_serial, atoi(root_os_build_date), root_fw, hostname, webshell_support ? "true" : "false", bandwidth_test_support ? "true" : "false", firmware_upgrade_support ? "true" : "false");
+
+		//printf("config req: %s\n", config_req);
 
 		// write a config request json string
 		char *sbuf = calloc(strlen(config_req) + 14, sizeof(char));
@@ -1322,10 +1334,10 @@ void *sendLoop(void *input) {
   //printf("sendLoop() end\n");
 }
 
-int popenTHREE(int *threepipe, const char *command) {
-  // threepipe[0] is the stdin fd
-  // threepipe[1] is the stdout fd
-  // threepipe[2] is the stderr fd
+int popenTHREE(int *pipes, const char *command) {
+  // pipes[0] is the stdin fd
+  // pipes[1] is the stdout fd
+  // pipes[2] is the stderr fd
 
   int in[2];
   int out[2];
@@ -1345,6 +1357,10 @@ int popenTHREE(int *threepipe, const char *command) {
   rc = pipe(err);
   if (rc < 0) goto error_err;
 
+  // set the command
+  char *timeout_str = calloc(strlen(command) + 20, sizeof(char));
+  sprintf(timeout_str, "timeout 4 %s", command);
+
   pid = fork();
   if (pid > 0) { /* parent */
     // this is the parent process that produces the pipes
@@ -1352,11 +1368,11 @@ int popenTHREE(int *threepipe, const char *command) {
     close(out[1]);
     close(err[1]);
     // stdin, write to this
-    threepipe[0] = in[1];
+    pipes[0] = in[1];
     // stdout, read from this
-    threepipe[1] = out[0];
+    pipes[1] = out[0];
     // stderr, read from this
-    threepipe[2] = err[0];
+    pipes[2] = err[0];
     return pid;
   } else if (pid == 0) { /* child */
     // this is the child process that is replaced by the executed process
@@ -1379,21 +1395,22 @@ int popenTHREE(int *threepipe, const char *command) {
     // this replaces the child process with whatever file is executed
     // it returns -1 when there is a failure and on success it does
     // not return
-    char *timeout_str = calloc(strlen(command) + 20, sizeof(char));
-    sprintf(timeout_str, "timeout 4 %s", command);
+
+    // only returns if there was an error
     int r = execl("/bin/sh", "sh", "-c", timeout_str, NULL);
-    free(timeout_str);
-    printf("execl returned: %i\n", r);
 
     if (r == -1) {
       printf("execl error: %s\n", strerror(errno));
       exit(1);
-    } else {
-      exit(0);
     }
+
   } else
     goto error_fork;
 
+  int status;
+  wait(&status);
+
+  free(timeout_str);
   return pid;
 
 error_fork:
@@ -1409,11 +1426,11 @@ error_in:
   return -1;
 }
 
-int pcloseTHREE(int pid, int *threepipe) {
+int pcloseTHREE(int pid, int *pipes) {
   int status;
-  close(threepipe[0]);
-  close(threepipe[1]);
-  close(threepipe[2]);
+  close(pipes[0]);
+  close(pipes[1]);
+  close(pipes[2]);
   waitpid(pid, &status, 0);
   return status;
 }
@@ -1427,23 +1444,55 @@ static void my_debug(void *ctx, int level, const char *file, int line, const cha
 
 int main(int argc, char **argv) {
 
+  int stdout_pipe[2];
+  pipe(stdout_pipe);
+
+  int stderr_pipe[2];
+  pipe(stderr_pipe);
+
   int pid = fork();
 
   if (pid == 0) {
     // child process
 
+    // write output to side [1] of each pipe
+    dup2(stdout_pipe[1], STDOUT_FILENO);
+    dup2(stderr_pipe[1], STDERR_FILENO);
+
+    // only returns if there was an error
     int r = execl("/bin/sh", "sh", "-c", "which timeout", NULL);
 
     if (r == -1) {
-      // Command doesn't exist...
-      printf("timeout command does not exist, install timeout\n");
-    } else {
-      // Command does exist
-      printf("timeout command exists\n");
+      // error with execl
+      timeout_cmd_detected = 0;
     }
 
     exit(0);
 
+  }
+
+  // wait for timeout command detection
+  int status;
+  wait(&status);
+
+  //printf("status: %d\n", status);
+
+  // close the "write from child side" of the pipes
+  // as the child process that was forked has finished
+  close(stdout_pipe[1]);
+  close(stderr_pipe[1]);
+
+  char stdout_foo[4096];
+  char stderr_foo[4096];
+  int stdout_nbytes = read(stdout_pipe[0], stdout_foo, sizeof(stdout_foo));
+  int stderr_nbytes = read(stderr_pipe[0], stderr_foo, sizeof(stderr_foo));
+
+  //printf("stdout (%d): %s\n", stdout_nbytes, stdout_foo);
+  //printf("stderr (%d): %s\n", stderr_nbytes, stderr_foo);
+
+  if (stderr_nbytes > 0) {
+    // `which timeout` returned an error, indicating there is no timeout command
+    timeout_cmd_detected = 0;
   }
 
   if (argc != 14) {
@@ -2033,20 +2082,19 @@ int main(int argc, char **argv) {
             json_object_object_get_ex(json, "cmd", &cmd);
             const char *cmd_string = json_object_get_string(cmd);
 
-            int first_pipe[3];
-            // popenTHREE uses the timeout command
-            int pid = popenTHREE(first_pipe, cmd_string);
+            int pipes[3];
+            int pid = popenTHREE(pipes, cmd_string);
 
             printf("Executing Command (pid: %i): %s.\n", pid, cmd_string);
 
             FILE *f_stdout;
             FILE *f_stderr;
 
-            if (NULL == (f_stdout = fdopen(first_pipe[1], "r"))) {
+            if (NULL == (f_stdout = fdopen(pipes[1], "r"))) {
               perror("fdopen failed");
             }
 
-            if (NULL == (f_stderr = fdopen(first_pipe[2], "r"))) {
+            if (NULL == (f_stderr = fdopen(pipes[2], "r"))) {
               perror("fdopen failed");
             }
 
@@ -2167,7 +2215,7 @@ int main(int argc, char **argv) {
 
                   fclose(f_stdout);
                   fclose(f_stderr);
-                  pcloseTHREE(pid, first_pipe);
+                  pcloseTHREE(pid, pipes);
 
                   while (json_object_put(json) != 1) {
                     // keep decrementing the object until the memory it is using is free
@@ -2193,7 +2241,7 @@ int main(int argc, char **argv) {
 
             fclose(f_stdout);
             fclose(f_stderr);
-            pcloseTHREE(pid, first_pipe);
+            pcloseTHREE(pid, pipes);
           }
         }
 
