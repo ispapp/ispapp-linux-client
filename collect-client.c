@@ -880,30 +880,10 @@ static int getWifiStatus(Netlink *nl) {
   return 0;
 }
 
-void *wsocket_kill() {
+void wsocket_kill() {
   // notify the peer that the connection is being closed
   printf("mbedtls_()\n");
   mbedtls_ssl_close_notify(&ssl);
-
-  // unallocate all certificate data
-  printf("mbedtls_x509_crt_free()\n");
-  mbedtls_x509_crt_free(&cacert);
-  // free referenced items in an SSL context and clear memory
-  printf("mbedtls_ssl_free()\n");
-  mbedtls_ssl_free(&ssl);
-  // free the SSL configuration context
-  printf("mbedtls_ssl_config_free()\n");
-  mbedtls_ssl_config_free(&conf);
-  // clear CTR_CRBG context data
-  printf("mbedtls_ctr_drbg_free()\n");
-  mbedtls_ctr_drbg_free(&ctr_drbg);
-  // free the data in the entropy context
-  printf("mbedtls_entropy_free()\n");
-  mbedtls_entropy_free(&entropy);
-
-  // gracefully shutdown the connection and free associated data
-  printf("mbedtls_net_free()\n");
-  mbedtls_net_free(&server_fd);
 
   printf("wsocket_kill() finished\n");
 }
@@ -2254,6 +2234,26 @@ int main(int argc, char **argv) {
     connection_failures++;
 
     wsocket_kill();
+
+  // unallocate all certificate data
+  printf("mbedtls_x509_crt_free()\n");
+  mbedtls_x509_crt_free(&cacert);
+  // free referenced items in an SSL context and clear memory
+  printf("mbedtls_ssl_free()\n");
+  mbedtls_ssl_free(&ssl);
+  // free the SSL configuration context
+  printf("mbedtls_ssl_config_free()\n");
+  mbedtls_ssl_config_free(&conf);
+  // clear CTR_CRBG context data
+  printf("mbedtls_ctr_drbg_free()\n");
+  mbedtls_ctr_drbg_free(&ctr_drbg);
+  // free the data in the entropy context
+  printf("mbedtls_entropy_free()\n");
+  mbedtls_entropy_free(&entropy);
+
+  // gracefully shutdown the connection and free associated data
+  printf("mbedtls_net_free()\n");
+  mbedtls_net_free(&server_fd);
 
     // reconnect
     printf("reconnecting...\n");
