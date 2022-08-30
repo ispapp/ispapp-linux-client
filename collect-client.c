@@ -115,7 +115,7 @@ char *root_address;
 char *root_port;
 char *root_wlan_if;
 char *root_collect_key;
-char *root_client_info = "collect-client-2.24";
+char *root_client_info = "collect-client-2.25";
 char *root_hardware_make;
 char *root_hardware_model;
 char *root_hardware_model_number;
@@ -129,6 +129,8 @@ char *root_config_file;
 int wss_recv = -1;
 int send_config_request = 1;
 int64_t last_config_change_ts_ms = -1;
+uint64_t message_sends = 0;
+uint64_t message_receives = 0;
 
 char *escape_string_for_json(char *str) {
   // allocate the length of str
@@ -1014,7 +1016,34 @@ void *sendLoop(void *input) {
 
     while (1) {
 
+      // send an update every update_wait seconds
+      // this sets the fastest update interval of the program
+      // half a second is fast
+      usleep(100000*5);
+
+      time_t now = time(NULL);
+      //printf("start: %u, now: %u, update_wait: %i; sending update in %u seconds.\n", start, now, update_wait, update_wait - (now - start));
+      if (start + update_wait <= now) {
+        // update_wait timeout has been reached
+        break;
+      }
+    }
+
+    // check if the socket is good
+    int socket_poll = mbedtls_net_poll(&server_fd, MBEDTLS_NET_POLL_WRITE, 0);
+    //printf("sendLoop() socket status: %i\n", socket_poll);
+
+    // reconnect if the socket isn't ready or it's been 4 rounds since the last response
+    if ((socket_poll <= 0 || time(NULL) - last_response >= update_wait * 4) && update_wait != 0) {
+
+      // reconnect
+      thread_cancel = 1;
+      continue;
+    }
+
         if (send_config_request == 1) {
+
+		// send config request
 
 		printf("\nWriting json config request to wss:\n");
 
@@ -1065,37 +1094,14 @@ void *sendLoop(void *input) {
 
 		send_config_request = 0;
 
+		message_sends++;
+
         }
-
-      // send an update every update_wait seconds
-      // this sets the fastest update interval of the program
-      // half a second is fast
-      usleep(100000*5);
-
-      time_t now = time(NULL);
-      //printf("start: %u, now: %u, update_wait: %i; sending update in %u seconds.\n", start, now, update_wait, update_wait - (now - start));
-      if (start + update_wait <= now) {
-        // update_wait timeout has been reached
-        break;
-      }
-    }
-
-    // check if the socket is good
-    int socket_poll = mbedtls_net_poll(&server_fd, MBEDTLS_NET_POLL_WRITE, 0);
-    //printf("sendLoop() socket status: %i\n", socket_poll);
-
-    // reconnect if the socket isn't ready or it's been 4 rounds since the last response
-    if ((socket_poll <= 0 || time(NULL) - last_response >= update_wait * 4) && update_wait != 0) {
-
-      // reconnect
-      thread_cancel = 1;
-      continue;
-    }
 
     // get wan_ip
     char *wan_ip = calloc(20, sizeof(char));
     get_wan(wan_ip);
-    //printf("got wan %s\n", wan_ip);
+    //printf("wan IP %s\n", wan_ip);
 
     // get collector interface
     char *interface_json_string = calloc(800, sizeof(char));
@@ -1165,7 +1171,7 @@ void *sendLoop(void *input) {
 
     freeifaddrs(ifaddr);
 
-    //printf("got interface_json_string: %s\n", interface_json_string);
+    //printf("collectors.interface_json_string: %s\n", interface_json_string);
 
     // get collector system
     struct sysinfo system_info;
@@ -1231,14 +1237,14 @@ void *sendLoop(void *input) {
       strcat(disks_json_string, "]");
     }
 
-    //printf("got disks_json_string (len %u): %s\n", strlen(disks_json_string), disks_json_string);
+    //printf("collectors.disks_json_string (len %u): %s\n", strlen(disks_json_string), disks_json_string);
 
     // write to system_json_string
     char *system_json_string = calloc(strlen(disks_json_string) + 400, sizeof(char));
 
-    sprintf(system_json_string, "{\"load\": {\"one\": %ld, \"five\": %ld, \"fifteen\": %ld, \"processCount\": %llu}, \"memory\": {\"total\": %llu, \"free\": %llu, \"buffers\": %llu, \"cache\": %llu}, \"disks\": %s}", system_info.loads[0], system_info.loads[1], system_info.loads[2], procs, totalram, freeram, bufferram, sharedram, disks_json_string);
+    sprintf(system_json_string, "{\"load\": {\"one\": %ld, \"five\": %ld, \"fifteen\": %ld, \"processCount\": %llu}, \"memory\": {\"total\": %llu, \"free\": %llu, \"buffers\": %llu, \"cache\": %llu}, \"disks\": %s, \"connDetails\": {\"connectionFailures\": %llu}}", system_info.loads[0], system_info.loads[1], system_info.loads[2], procs, totalram, freeram, bufferram, sharedram, disks_json_string, abs(message_sends-message_receives));
 
-    //printf("got system json string: %s\n", system_json_string);
+    //printf("collectors.system json string: %s\n", system_json_string);
 
     // get collector wap
     wap_json = json_object_new_array();
@@ -1293,6 +1299,8 @@ void *sendLoop(void *input) {
 
       len = ret;
       //mbedtls_printf("sent update: %lld bytes written\n\n", sbuf_len);
+
+      message_sends++;
 
     } else {
       printf("error creating websocket frame\n");
@@ -1847,6 +1855,9 @@ int main(int argc, char **argv) {
           free(buf);
           goto reconnect;
         } else {
+
+          message_receives++;
+
           const char *json_dump = json_object_to_json_string_ext(json, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY);
           //printf("\nserver responded with:\n---\n%s\n---\n", json_dump);
 
