@@ -2147,7 +2147,6 @@ int main(int argc, char **argv) {
                   out_stderr = realloc(out_stderr, current_size);
                 }
 
-		printf("%d\n", c);
                 out_stderr[c] = ch;
               } else {
                 // done
