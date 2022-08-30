@@ -115,7 +115,7 @@ char *root_address;
 char *root_port;
 char *root_wlan_if;
 char *root_collect_key;
-char *root_client_info = "collect-client-2.23";
+char *root_client_info = "collect-client-2.24";
 char *root_hardware_make;
 char *root_hardware_model;
 char *root_hardware_model_number;
@@ -128,6 +128,7 @@ char *root_cert_path;
 char *root_config_file;
 int wss_recv = -1;
 int send_config_request = 1;
+int64_t last_config_change_ts_ms = -1;
 
 char *escape_string_for_json(char *str) {
   // allocate the length of str
@@ -1915,6 +1916,15 @@ int main(int argc, char **argv) {
                           }
                         }
 
+                        // set the last config changed time
+                        struct json_object *last_config_change_ts_ms_js;
+                        if (json_object_object_get_ex(host, "lastConfigChangeTsMs", &last_config_change_ts_ms_js)) {
+                          int64_t new_last_config_change_ts_ms = json_object_get_int64(last_config_change_ts_ms_js);
+
+                          // define this in the global scope
+                          last_config_change_ts_ms = new_last_config_change_ts_ms;
+                        }
+
                         // set the outage interval
                         struct json_object *outage_interval_seconds_js;
                         if (json_object_object_get_ex(host, "outageIntervalSeconds", &outage_interval_seconds_js)) {
@@ -1949,6 +1959,16 @@ int main(int argc, char **argv) {
             // set wss_recv to 1, indicating that we have recieved a response
             // allowing the sendLoop function to send another update
             wss_recv = 1;
+
+	// check if there has been a configuration change
+	struct json_object *newConfigTsMs_js;
+	json_object_object_get_ex(json, "lastConfigChangeTsMs", &newConfigTsMs_js);
+	int64_t newConfigTsMs = json_object_get_int64(newConfigTsMs_js);
+
+	if (newConfigTsMs != last_config_change_ts_ms) {
+		// get the new config
+		send_config_request = 1;
+	}
 
             // check if updateFast is true
             struct json_object *uf;
