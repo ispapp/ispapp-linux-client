@@ -115,7 +115,7 @@ char *root_address;
 char *root_port;
 char *root_wlan_if;
 char *root_collect_key;
-char *root_client_info = "collect-client-2.26";
+char *root_client_info = "collect-client-2.27";
 char *root_hardware_make;
 char *root_hardware_model;
 char *root_hardware_model_number;
@@ -129,8 +129,7 @@ char *root_config_file;
 int wss_recv = -1;
 int send_config_request = 1;
 int64_t last_config_change_ts_ms = -1;
-uint64_t message_sends = 0;
-uint64_t message_receives = 0;
+uint64_t connection_failures = 0;
 int timeout_cmd_detected = 1;
 
 char *escape_string_for_json(char *str) {
@@ -1046,7 +1045,7 @@ void *sendLoop(void *input) {
 
 		// send config request
 
-		printf("\nSending config request:\n");
+		printf("\nsending config request:\n");
 
 		// get osVersion
 		struct utsname uts;
@@ -1105,8 +1104,6 @@ void *sendLoop(void *input) {
 		free(sbuf);
 
 		send_config_request = 0;
-
-		message_sends++;
 
         }
 
@@ -1254,7 +1251,7 @@ void *sendLoop(void *input) {
     // write to system_json_string
     char *system_json_string = calloc(strlen(disks_json_string) + 400, sizeof(char));
 
-    sprintf(system_json_string, "{\"load\": {\"one\": %ld, \"five\": %ld, \"fifteen\": %ld, \"processCount\": %llu}, \"memory\": {\"total\": %llu, \"free\": %llu, \"buffers\": %llu, \"cache\": %llu}, \"disks\": %s, \"connDetails\": {\"connectionFailures\": %llu}}", system_info.loads[0], system_info.loads[1], system_info.loads[2], procs, totalram, freeram, bufferram, sharedram, disks_json_string, abs(message_sends-message_receives));
+    sprintf(system_json_string, "{\"load\": {\"one\": %ld, \"five\": %ld, \"fifteen\": %ld, \"processCount\": %llu}, \"memory\": {\"total\": %llu, \"free\": %llu, \"buffers\": %llu, \"cache\": %llu}, \"disks\": %s, \"connDetails\": {\"connectionFailures\": %llu}}", system_info.loads[0], system_info.loads[1], system_info.loads[2], procs, totalram, freeram, bufferram, sharedram, disks_json_string, connection_failures);
 
     //printf("collectors.system json string: %s\n", system_json_string);
 
@@ -1311,8 +1308,6 @@ void *sendLoop(void *input) {
 
       len = ret;
       //mbedtls_printf("sent update: %lld bytes written\n\n", sbuf_len);
-
-      message_sends++;
 
     } else {
       printf("error creating websocket frame\n");
@@ -1905,8 +1900,6 @@ int main(int argc, char **argv) {
           goto reconnect;
         } else {
 
-          message_receives++;
-
           const char *json_dump = json_object_to_json_string_ext(json, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY);
           //printf("\nserver responded with:\n---\n%s\n---\n", json_dump);
 
@@ -2022,13 +2015,20 @@ int main(int argc, char **argv) {
 
 	// check if there has been a configuration change
 	struct json_object *newConfigTsMs_js;
-	json_object_object_get_ex(json, "lastConfigChangeTsMs", &newConfigTsMs_js);
+	bool new_config_object_exists = json_object_object_get_ex(json, "lastConfigChangeTsMs", &newConfigTsMs_js);
 	int64_t newConfigTsMs = json_object_get_int64(newConfigTsMs_js);
 
-	if (newConfigTsMs != last_config_change_ts_ms) {
-		// get the new config
-		send_config_request = 1;
-	}
+        if (new_config_object_exists == true) {
+
+		if (newConfigTsMs != last_config_change_ts_ms) {
+			// get the new config
+			send_config_request = 1;
+
+			printf("new configuration: %lld %lld\n", newConfigTsMs, last_config_change_ts_ms);
+
+		}
+
+        }
 
             // check if updateFast is true
             struct json_object *uf;
@@ -2257,6 +2257,8 @@ int main(int argc, char **argv) {
     while (1);
 
   reconnect:
+
+    connection_failures++;
 
     wsocket_kill();
 
