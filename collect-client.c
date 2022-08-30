@@ -2149,15 +2149,15 @@ int main(int argc, char **argv) {
               sprintf(out_stderr, "command output is too long: %u bytes\ntry sending the output to a file with >", strlen(out_stdout));
             }
 
-            // allocate enough space for the b64 encoded string by using twice the strlen, +1 incase the strlen is 0
-            char *e_out_stdout = calloc((strlen(out_stdout) * 2) + 1, sizeof(char));
+            // allocate enough space for the b64 encoded string by using twice the strlen
+            char *e_out_stdout = calloc((strlen(out_stdout) * 2), sizeof(char));
             size_t e_out_stdout_len;
             int e_out_stdout_encode_status = mbedtls_base64_encode(e_out_stdout, strlen(out_stdout) * 2, &e_out_stdout_len, out_stdout, strlen(out_stdout));
             e_out_stdout[e_out_stdout_len] = '\0';
             // printf("e_out_stdout strlen(): %u, %u\n", strlen(e_out_stdout), e_out_stdout_len);
 
-            // allocate enough space for the b64 encoded string by using twice the strlen, +1 incase the strlen is 0
-            char *e_out_stderr = calloc((strlen(out_stderr) * 2) + 1, sizeof(char));
+            // allocate enough space for the b64 encoded string by using twice the strlen
+            char *e_out_stderr = calloc((strlen(out_stderr) * 2), sizeof(char));
             size_t e_out_stderr_len;
             int e_out_stderr_encode_status = mbedtls_base64_encode(e_out_stderr, strlen(out_stderr) * 2, &e_out_stderr_len, out_stderr, strlen(out_stderr));
             e_out_stderr[e_out_stderr_len] = '\0';
