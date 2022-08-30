@@ -1077,12 +1077,12 @@ void *sendLoop(void *input) {
 		char *sbuf = calloc(strlen(config_req) + 14, sizeof(char));
 		long long unsigned int sbuf_len = wss_frame_encode_message(sbuf, 1, config_req);
 
-		int ret;
+		int config_ret;
 
 		if (sbuf_len >= 0) {
-		  while ((ret = mbedtls_ssl_write(&ssl, sbuf, sbuf_len)) <= 0) {
-		    if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
-		      mbedtls_printf(" failed\n  ! mbedtls_ssl_write returned %d\n\n", ret);
+		  while ((config_ret = mbedtls_ssl_write(&ssl, sbuf, sbuf_len)) <= 0) {
+		    if (config_ret != MBEDTLS_ERR_SSL_WANT_READ && config_ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
+		      mbedtls_printf(" failed\n  ! mbedtls_ssl_write returned %d\n\n", config_ret);
 
 		      free(config_req);
 		      free(os_version);
@@ -1276,7 +1276,7 @@ void *sendLoop(void *input) {
     const char *wap_json_string = json_object_to_json_string(wap_json);
     //printf("wap_json: %s\n\n", wap_json_string);
 
-    int ret = 1, len;
+    int update_ret = 1;
 
     char *updateString;
 
@@ -1299,14 +1299,13 @@ void *sendLoop(void *input) {
     long long unsigned int sbuf_len = wss_frame_encode_message(sbuf, 1, updateString);
 
     if (sbuf_len >= 0) {
-      while ((ret = mbedtls_ssl_write(&ssl, sbuf, sbuf_len)) <= 0) {
-        if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
-          mbedtls_printf(" failed\n  ! mbedtls_ssl_write returned %d\n\n", ret);
+      while ((update_ret = mbedtls_ssl_write(&ssl, sbuf, sbuf_len)) <= 0) {
+        if (update_ret != MBEDTLS_ERR_SSL_WANT_READ && update_ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
+          mbedtls_printf(" failed\n  ! mbedtls_ssl_write returned %d\n\n", update_ret);
           break;
         }
       }
 
-      len = ret;
       //mbedtls_printf("sent update: %lld bytes written\n\n", sbuf_len);
 
     } else {
@@ -1522,7 +1521,7 @@ int main(int argc, char **argv) {
   while (1) {
     printf("connecting\n");
 
-    int ret = 1, len;
+    int connect_ret = 1;
     int exit_code = MBEDTLS_EXIT_FAILURE;
     uint32_t flags;
     const char *pers = "ssl_client1";
@@ -1544,15 +1543,15 @@ int main(int argc, char **argv) {
 
     // seed the rng
     mbedtls_entropy_init(&entropy);
-    if ((ret = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy, (const unsigned char *)pers, strlen(pers))) != 0) {
-      mbedtls_printf(" failed\n  ! mbedtls_ctr_drbg_seed returned %d\n", ret);
+    if ((connect_ret = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy, (const unsigned char *)pers, strlen(pers))) != 0) {
+      mbedtls_printf(" failed\n  ! mbedtls_ctr_drbg_seed returned %d\n", connect_ret);
       goto reconnect;
     }
 
     // load root CA certificate from root_cert_path provided as a ARGV parameter
     // 0 if all certificates parsed successfully, a positive number if partly successful or a specific X509 or PEM error code
-    if ((ret = mbedtls_x509_crt_parse_path(&cacert, root_cert_path)) < 0) {
-      mbedtls_printf(" failed\n  !  mbedtls_x509_crt_parse returned %d\n\n", ret);
+    if ((connect_ret = mbedtls_x509_crt_parse_path(&cacert, root_cert_path)) < 0) {
+      mbedtls_printf(" failed\n  !  mbedtls_x509_crt_parse returned %d\n\n", connect_ret);
       goto reconnect;
     }
 
@@ -1605,14 +1604,14 @@ int main(int argc, char **argv) {
     // printf("Initial GET request (%i):\n\n%s\n\n", strlen(reqString), reqString);
 
     // start the connection
-    if ((ret = mbedtls_net_connect(&server_fd, root_address, root_port, MBEDTLS_NET_PROTO_TCP)) != 0) {
-      mbedtls_printf(" failed\n  ! mbedtls_net_connect returned %d\n\n", ret);
+    if ((connect_ret = mbedtls_net_connect(&server_fd, root_address, root_port, MBEDTLS_NET_PROTO_TCP)) != 0) {
+      mbedtls_printf(" failed\n  ! mbedtls_net_connect returned %d\n\n", connect_ret);
       goto reconnect;
     }
 
     // ssl config
-    if ((ret = mbedtls_ssl_config_defaults(&conf, MBEDTLS_SSL_IS_CLIENT, MBEDTLS_SSL_TRANSPORT_STREAM, MBEDTLS_SSL_PRESET_DEFAULT)) != 0) {
-      mbedtls_printf(" failed\n  ! mbedtls_ssl_config_defaults returned %d\n\n", ret);
+    if ((connect_ret = mbedtls_ssl_config_defaults(&conf, MBEDTLS_SSL_IS_CLIENT, MBEDTLS_SSL_TRANSPORT_STREAM, MBEDTLS_SSL_PRESET_DEFAULT)) != 0) {
+      mbedtls_printf(" failed\n  ! mbedtls_ssl_config_defaults returned %d\n\n", connect_ret);
       goto reconnect;
     }
 
@@ -1622,22 +1621,22 @@ int main(int argc, char **argv) {
     mbedtls_ssl_conf_rng(&conf, mbedtls_ctr_drbg_random, &ctr_drbg);
     mbedtls_ssl_conf_dbg(&conf, my_debug, stdout);
 
-    if ((ret = mbedtls_ssl_setup(&ssl, &conf)) != 0) {
-      mbedtls_printf(" failed\n  ! mbedtls_ssl_setup returned %d\n\n", ret);
+    if ((connect_ret = mbedtls_ssl_setup(&ssl, &conf)) != 0) {
+      mbedtls_printf(" failed\n  ! mbedtls_ssl_setup returned %d\n\n", connect_ret);
       goto reconnect;
     }
 
-    if ((ret = mbedtls_ssl_set_hostname(&ssl, root_address)) != 0) {
-      mbedtls_printf(" failed\n  ! mbedtls_ssl_set_hostname returned %d\n\n", ret);
+    if ((connect_ret = mbedtls_ssl_set_hostname(&ssl, root_address)) != 0) {
+      mbedtls_printf(" failed\n  ! mbedtls_ssl_set_hostname returned %d\n\n", connect_ret);
       goto reconnect;
     }
 
     mbedtls_ssl_set_bio(&ssl, &server_fd, mbedtls_net_send, mbedtls_net_recv, NULL);
 
     // tls/ssl handshake
-    while ((ret = mbedtls_ssl_handshake(&ssl)) != 0) {
-      if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
-        mbedtls_printf(" failed\n  ! mbedtls_ssl_handshake returned -0x%x\n\n", (unsigned int)-ret);
+    while ((connect_ret = mbedtls_ssl_handshake(&ssl)) != 0) {
+      if (connect_ret != MBEDTLS_ERR_SSL_WANT_READ && connect_ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
+        mbedtls_printf(" failed\n  ! mbedtls_ssl_handshake returned -0x%x\n\n", connect_ret);
         goto reconnect;
       }
     }
@@ -1655,9 +1654,9 @@ int main(int argc, char **argv) {
     }
 
     // write the get request
-    while ((ret = mbedtls_ssl_write(&ssl, reqString, strlen(reqString))) <= 0) {
-      if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
-        mbedtls_printf(" failed\n  ! mbedtls_ssl_write returned %d\n\n", ret);
+    while ((connect_ret = mbedtls_ssl_write(&ssl, reqString, strlen(reqString))) <= 0) {
+      if (connect_ret != MBEDTLS_ERR_SSL_WANT_READ && connect_ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
+        mbedtls_printf(" failed\n  ! mbedtls_ssl_write returned %d\n\n", connect_ret);
         goto reconnect;
       }
     }
@@ -1666,49 +1665,45 @@ int main(int argc, char **argv) {
     do {
       //printf("\n\nREAD LOOP\n");
 
-      len = 8192;
-      unsigned char *buf = calloc(len, sizeof(char));
-      // unsigned char buf[len];
+      int read_len = 8192;
+      unsigned char *buf = calloc(read_len, sizeof(char));
 
       // read up to a maximum size of buf, if the server sends more you won't get the whole json object
-      ret = mbedtls_ssl_read(&ssl, buf, len);
+      connect_ret = mbedtls_ssl_read(&ssl, buf, read_len);
 
-      if (ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE) {
+      if (connect_ret == MBEDTLS_ERR_SSL_WANT_READ || connect_ret == MBEDTLS_ERR_SSL_WANT_WRITE) {
         char err[5000];
-        mbedtls_strerror(ret, err, 5000);
+        mbedtls_strerror(connect_ret, err, 5000);
         printf("mbedtls_ssl_read() returned MBEDTLS_ERR_SSL_WANT_READ or MBEDTLS_ERR_SSL_WANT_WRITE, error: %s\n", err);
         free(buf);
         // try again
         continue;
       }
 
-      if (ret == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) {
+      if (connect_ret == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) {
         char err[5000];
-        mbedtls_strerror(ret, err, 5000);
+        mbedtls_strerror(connect_ret, err, 5000);
         printf("mbedtls_ssl_read() returned MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY, error: %s\n", err);
         free(buf);
         goto reconnect;
       }
 
-      if (ret < 0) {
+      if (connect_ret < 0) {
         char err[5000];
-        mbedtls_strerror(ret, err, 5000);
+        mbedtls_strerror(connect_ret, err, 5000);
         printf("mbedtls_ssl_read() returned < 0, error: %s\n", err);
         free(buf);
         goto reconnect;
       }
 
-      if (ret == 0) {
+      if (connect_ret == 0) {
         mbedtls_printf("\n\nEOF\n\n");
         free(buf);
         goto reconnect;
       }
 
-      //printf("buf size: %u, read %u bytes\n", len, ret);
+      //printf("buf size: %u, read %u bytes\n", read_len, connect_ret);
       //printf("%s\n\n", buf);
-
-      // set the length to the number of bytes read
-      len = ret;
 
       // store the time this response was receieved
       last_response = time(NULL);
@@ -1727,12 +1722,12 @@ int main(int argc, char **argv) {
         int validHeaderCount = 0;
         int c = 0;
         int d = 0;
-        while (c < len) {
+        while (c < read_len) {
           if (buf[c] == '\r' && buf[c + 1] == '\n') {
             c++;
           }
 
-          if (c + 1 == len) {
+          if (c + 1 == read_len) {
             // finished, this skips the last \r\n for parsing
             break;
           }
@@ -2193,15 +2188,15 @@ int main(int argc, char **argv) {
             printf("responding with command output: %s\n", update);
 
             // cl->send(cl, update, strlen(update), UWSC_OP_TEXT);
-            int ret = 1, len;
+            int cmd_ret = 1;
 
             char *sbuf = calloc(strlen(update) + 14, sizeof(char));
             long long unsigned int sbuf_len = wss_frame_encode_message(sbuf, 1, update);
 
             if (sbuf_len >= 0) {
-              while ((ret = mbedtls_ssl_write(&ssl, sbuf, sbuf_len)) <= 0) {
-                if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
-                  mbedtls_printf(" failed\n  ! mbedtls_ssl_write returned %d\n\n", ret);
+              while ((cmd_ret = mbedtls_ssl_write(&ssl, sbuf, sbuf_len)) <= 0) {
+                if (cmd_ret != MBEDTLS_ERR_SSL_WANT_READ && cmd_ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
+                  mbedtls_printf(" failed\n  ! mbedtls_ssl_write returned %d\n\n", cmd_ret);
 
                   free(buf);
 
@@ -2224,8 +2219,6 @@ int main(int argc, char **argv) {
                   goto reconnect;
                 }
               }
-
-              len = ret;
 
             } else {
               printf("error creating websocket frame.\n");
