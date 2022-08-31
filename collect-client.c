@@ -1265,7 +1265,7 @@ void *sendLoop(void *input) {
 
     } else {
 
-      updateString = calloc(179, sizeof(char));
+      updateString = calloc(1000, sizeof(char));
       sprintf(updateString, "{\"type\": \"update\", \"login\": \"%s\", \"key\": \"%s\", \"uptime\": %llu, \"wanIp\": \"%s\"}", root_mac, root_collect_key, uptime, wan_ip);
 
     }
@@ -1427,19 +1427,22 @@ void sig_handler(int sig) {
     switch (sig) {
     case SIGINT:
 	// ctrl-c
-	printf("SIGINT\n");
-	exit_program = 1;
-	wsocket_kill();
+	//printf("SIGINT\n");
+	break;
     case SIGTERM:
 	// kill
-	printf("SIGTERM\n");
+	//printf("SIGTERM\n");
+	break;
+    case SIGSEGV:
+	// invalid memory reference
+	//printf("SIGSEGV\n");
+	break;
+    }
+
+	// start program exit
 	exit_program = 1;
 	wsocket_kill();
-    case SIGSEGV:
-        fprintf(stderr, "give out a backtrace or something...\n");
-    default:
-        fprintf(stderr, "wasn't expecting signal: %d\n", sig);
-    }
+
 }
 
 int main(int argc, char **argv) {
