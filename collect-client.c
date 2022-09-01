@@ -131,6 +131,40 @@ int send_config_request = 1;
 int64_t last_config_change_ts_ms = -1;
 uint64_t connection_failures = 0;
 int timeout_cmd_detected = 1;
+char **ping_addresses;
+int num_ping_hosts = 0;
+
+// each label of a domain (parts separated by .) can be 63 characters max, the whole domain can be 253 character long at maximum
+// there are 4 double (64 bit) values and an integer plus the json object keys
+
+// the range of the whole part of the number in IEEE 754 is (−9,007,199,254,740,992 to 9,007,199,254,740,992) 16 characters in a string
+
+// if you only fill the fraction part of a double and leave the whole at zero, a double can have a very long string representation
+// you can use scientific notation (counting the number of leading zeros) to make a short string representation
+// 2 x 10^-1074 is 1074 digits
+// you could make many leading zeros and a few significant digits in the fraction part
+
+// the maximum value of the whole part must be allowed
+// the decimal point must be allowed
+// the understanding that the fraction part can have a large number of leading zeros and few significant digits is crucial in understanding
+// that storing values as strings must support scientific notation
+
+// with regards to precision, always include the number of leading or trailing zeros (per IBM)
+// allowing consideration of only printing strings with a precision of 10
+// 16 whole part digits, 1 decimal point, 10 fraction part digits
+// total 27 characters
+
+// if the measuring equipment was precise enough to maintain an accuracy that required 5000 leading zeros, you would expect a string length of that
+// but considering that the string can send scientific notation, and that double IEEE 754 type data can use some of the whole part bits to represent a longer fraction part
+// and that storing a very precise number that is less than 1 is important
+//
+// a string length of 500 is capable for each double
+
+// 253 domain length
+// 2000 (4) doubles
+// 16 (1) uint64
+// 20 json formatting
+int ping_host_json_data_length = 253 + 2000 + 16 + 20;
 
 char *escape_string_for_json(char *str) {
   // allocate the length of str
@@ -220,10 +254,6 @@ int wss_frame_encode_message(char *output_buf, int type, char *buf) {
     printf("message is too long to encode into a WebSocket frame.\n");
     return -1;
   }
-
-  // allocate space in output_buf
-  // char *output_buf = calloc(strlen(buf) + 14, sizeof(char));
-  // output_buf = calloc(strlen(buf) + 14, sizeof(char));
 
   // the first byte of the frame, bits 1-8
   //      bit 1           = FIN (1 indicates last message in a series)
@@ -890,12 +920,6 @@ void wsocket_kill() {
 
 void *pingLoop() {
 
-  char *ping_addresses[4];
-  ping_addresses[0] = "aws-eu-west-2-ping.ispapp.co";
-  ping_addresses[1] = "aws-sa-east-1-ping.ispapp.co";
-  ping_addresses[2] = "aws-us-east-1-ping.ispapp.co";
-  ping_addresses[3] = "aws-us-west-1-ping.ispapp.co";
-
   sprintf(ping_json_string, "%s", "[]");
 
   while (1) {
@@ -903,12 +927,14 @@ void *pingLoop() {
     // ping hosts
     //printf("PING LOOP\n");
 
-    char *temp_string = calloc(800, sizeof(char));
+    // stores the json string of the ping collector
+    char *temp_string = calloc(ping_host_json_data_length * num_ping_hosts, sizeof(char));
     sprintf(temp_string, "%s", "[");
 
-    int num_ping_hosts = 4;
     int c = 0;
     int valid_response_count = 0;
+
+    //printf("number of ping hosts: %d\n", num_ping_hosts);
 
     while (c < num_ping_hosts) {
 
@@ -932,7 +958,7 @@ void *pingLoop() {
 
         //printf("ping result for host: %s, avgRtt: %lf\n", pr.host, pr.avgRtt);
 
-        char *temp_ping_host_string = calloc(190, sizeof(char));
+        char *temp_ping_host_string = calloc(ping_host_json_data_length, sizeof(char));
         sprintf(temp_ping_host_string, "{\"host\": \"%s\", \"avgRtt\": %lf, \"minRtt\": %lf, \"maxRtt\": %lf, \"loss\": %d}", pr.host, pr.avgRtt, pr.minRtt, pr.maxRtt, pr.loss);
 
         if (valid_response_count == 0) {
@@ -956,7 +982,7 @@ void *pingLoop() {
 
     // copy temp_string to ping_json_string
     strcat(temp_string, "]");
-    memcpy(ping_json_string, temp_string, 800);
+    memcpy(ping_json_string, temp_string, ping_host_json_data_length * num_ping_hosts);
     free(temp_string);
 
     // pingLoop() sleep
@@ -1532,8 +1558,18 @@ int main(int argc, char **argv) {
     }
   }
 
+  ping_addresses = calloc(4, sizeof(char*));
+  ping_addresses[0] = "aws-eu-west-2-ping.ispapp.co";
+  ping_addresses[1] = "aws-sa-east-1-ping.ispapp.co";
+  ping_addresses[2] = "aws-us-east-1-ping.ispapp.co";
+  ping_addresses[3] = "aws-us-west-1-ping.ispapp.co";
+
+  // divide by the length of a pointer, depends on processor and there is no libc function to do that yet
+  //num_ping_hosts = sizeof(ping_addresses) / 2;
+  num_ping_hosts = 4;
+
   // allocate space for ping_json_string
-  ping_json_string = calloc(800, sizeof(char));
+  ping_json_string = calloc(ping_host_json_data_length * num_ping_hosts, sizeof(char));
 
   while (1) {
     printf("connecting\n");
@@ -1837,7 +1873,7 @@ int main(int argc, char **argv) {
 	  pthread_create(&ping_thread_id, NULL, pingLoop, NULL);
 	  pthread_detach(ping_thread_id);
 
-	printf("sendLoop() started\n");
+	printf("sendLoop() and pingLoop() started\n");
 
       } else {
         // this is a response after the ws upgrade
@@ -2309,4 +2345,5 @@ int main(int argc, char **argv) {
   free(root_fw);
   free(root_cert_path);
   free(root_config_file);
+  free(ping_addresses);
 }
