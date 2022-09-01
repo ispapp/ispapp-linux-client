@@ -2135,7 +2135,7 @@ int main(int argc, char **argv) {
             int pipes[3];
             int pid = popenTHREE(pipes, cmd_string);
 
-            printf("Executing Command (pid: %i): %s.\n", pid, cmd_string);
+            //printf("Executing Command (pid: %i): %s.\n", pid, cmd_string);
 
             FILE *f_stdout;
             FILE *f_stderr;
@@ -2197,31 +2197,26 @@ int main(int argc, char **argv) {
               c++;
             }
 
-            //printf("out_stdout strlen(): %u\n", strlen(out_stdout));
-            //printf("out_stderr strlen(): %u\n", strlen(out_stderr));
+            // each should only be calculated once
+            int out_stdout_strlen = strlen(out_stdout);
+            int out_stderr_strlen = strlen(out_stderr);
 
-            printf("\nSTDOUT:\n%s\n\n", out_stdout);
-            printf("\nSTDERR:\n%s\n\n", out_stderr);
-
-            if (strlen(out_stdout) > 4000) {
-              sprintf(out_stderr, "command output is too long: %u bytes\ntry sending the output to a file with >", strlen(out_stdout));
-            }
+            //printf("\nSTDOUT:\n%s\n\n", out_stdout);
+            //printf("\nSTDERR:\n%s\n\n", out_stderr);
 
             // allocate enough space for the b64 encoded string by using twice the strlen
             // plus something to prevent a 0 allocation
-            char *e_out_stdout = calloc((strlen(out_stdout) * 2) + 200, sizeof(char));
+            char *e_out_stdout = calloc((out_stdout_strlen * 2) + 200, sizeof(char));
             size_t e_out_stdout_len;
-            int e_out_stdout_encode_status = mbedtls_base64_encode(e_out_stdout, (strlen(out_stdout) * 2) + 200, &e_out_stdout_len, out_stdout, strlen(out_stdout));
+            int e_out_stdout_encode_status = mbedtls_base64_encode(e_out_stdout, (out_stdout_strlen * 2) + 200, &e_out_stdout_len, out_stdout, out_stdout_strlen);
             e_out_stdout[e_out_stdout_len] = '\0';
-            // printf("e_out_stdout strlen(): %u, %u\n", strlen(e_out_stdout), e_out_stdout_len);
 
             // allocate enough space for the b64 encoded string by using twice the strlen
             // plus something to prevent a 0 allocation
-            char *e_out_stderr = calloc((strlen(out_stderr) * 2) + 200, sizeof(char));
+            char *e_out_stderr = calloc((out_stderr_strlen * 2) + 200, sizeof(char));
             size_t e_out_stderr_len;
-            int e_out_stderr_encode_status = mbedtls_base64_encode(e_out_stderr, (strlen(out_stderr) * 2) + 200, &e_out_stderr_len, out_stderr, strlen(out_stderr));
+            int e_out_stderr_encode_status = mbedtls_base64_encode(e_out_stderr, (out_stderr_strlen * 2) + 200, &e_out_stderr_len, out_stderr, out_stderr_strlen);
             e_out_stderr[e_out_stderr_len] = '\0';
-            // printf("e_out_stderr strlen(): %u, %u\n", strlen(e_out_stderr), e_out_stderr_len);
 
             struct json_object *uuidv4;
             json_object_object_get_ex(json, "uuidv4", &uuidv4);
@@ -2231,12 +2226,11 @@ int main(int argc, char **argv) {
             json_object_object_get_ex(json, "ws_id", &ws_id);
             const char *ws_id_string = json_object_get_string(ws_id);
 
-            char *update = calloc(1000 + strlen(root_mac) + strlen(root_collect_key) +strlen(uuidv4_string) + strlen(e_out_stdout) + strlen(e_out_stderr) + strlen(ws_id_string), sizeof(char));
+            char *update = calloc(1000 + strlen(root_mac) + strlen(root_collect_key) + strlen(uuidv4_string) + e_out_stdout_len + e_out_stderr_len + strlen(ws_id_string), sizeof(char));
             sprintf(update, "{\"type\": \"cmd\", \"login\": \"%s\", \"key\": \"%s\", \"uuidv4\": \"%s\", \"stdout\": \"%s\", \"stderr\": \"%s\", \"ws_id\": \"%s\"}", root_mac, root_collect_key, uuidv4_string, e_out_stdout, e_out_stderr, ws_id_string);
 
-            printf("responding with command output: %s\n", update);
+            //printf("responding with command output: %s\n", update);
 
-            // cl->send(cl, update, strlen(update), UWSC_OP_TEXT);
             int cmd_ret = 1;
 
             char *sbuf = calloc(strlen(update) + 14, sizeof(char));
