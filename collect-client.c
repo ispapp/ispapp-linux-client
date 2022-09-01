@@ -47,7 +47,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <linux/if_link.h>
 #include <linux/kernel.h>
 #include <linux/reboot.h>
-#include <linux/sysinfo.h>
+#include <sys/sysinfo.h>
 #include <mntent.h>
 #include <net/if.h>
 #include <netdb.h>
@@ -115,7 +115,7 @@ char *root_address;
 char *root_port;
 char *root_wlan_if;
 char *root_collect_key;
-char *root_client_info = "collect-client-2.29";
+char *root_client_info = "collect-client-2.30";
 char *root_hardware_make;
 char *root_hardware_model;
 char *root_hardware_model_number;
@@ -1008,7 +1008,7 @@ void *sendLoop(void *input) {
 	// stop the sendLoop() and force a reconnect
       thread_cancel = 0;
       wsocket_kill();
-      return;
+      return 0;
     }
 
     //printf("sendLoop() iteration\n");
@@ -1141,12 +1141,14 @@ void *sendLoop(void *input) {
 
           struct rtnl_link *link;
           struct nl_sock *socket;
+
           uint64_t errors_in, errors_out, dropped_in, dropped_out, kbytes_in, kbytes_out, packets_in, packets_out, tx_carrier_err;
 
           socket = nl_socket_alloc();
           nl_connect(socket, NETLINK_ROUTE);
 
           if (rtnl_link_get_kernel(socket, 0, ifa->ifa_name, &link) >= 0) {
+
             // carrier changes is tx_carrier_err, there is no RTNL_LINK_CARRIER_CHANGES
             tx_carrier_err = rtnl_link_get_stat(link, RTNL_LINK_TX_CARRIER_ERR);
             errors_in = rtnl_link_get_stat(link, RTNL_LINK_RX_ERRORS);
@@ -1157,6 +1159,8 @@ void *sendLoop(void *input) {
             packets_out = rtnl_link_get_stat(link, RTNL_LINK_TX_PACKETS);
             kbytes_in = rtnl_link_get_stat(link, RTNL_LINK_RX_BYTES);
             kbytes_out = rtnl_link_get_stat(link, RTNL_LINK_TX_BYTES);
+
+            // put it back
             rtnl_link_put(link);
           }
 
