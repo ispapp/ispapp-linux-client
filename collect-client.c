@@ -115,7 +115,7 @@ char *root_address;
 char *root_port;
 char *root_wlan_if;
 char *root_collect_key;
-char *root_client_info = "collect-client-2.30";
+char *root_client_info = "collect-client-2.31";
 char *root_hardware_make;
 char *root_hardware_model;
 char *root_hardware_model_number;
@@ -1142,7 +1142,9 @@ void *sendLoop(void *input) {
           struct rtnl_link *link;
           struct nl_sock *socket;
 
-          uint64_t errors_in, errors_out, dropped_in, dropped_out, kbytes_in, kbytes_out, packets_in, packets_out, tx_carrier_err;
+          uint64_t if_mac_count, errors_in, errors_out, dropped_in, dropped_out, kbytes_in, kbytes_out, packets_in, packets_out, tx_carrier_err;
+
+	if_mac_count = 0;
 
           socket = nl_socket_alloc();
           nl_connect(socket, NETLINK_ROUTE);
@@ -1160,6 +1162,68 @@ void *sendLoop(void *input) {
             kbytes_in = rtnl_link_get_stat(link, RTNL_LINK_RX_BYTES);
             kbytes_out = rtnl_link_get_stat(link, RTNL_LINK_TX_BYTES);
 
+	// get number of arp entries
+	FILE * fp;
+	char * line = NULL;
+	size_t len = 0;
+	ssize_t read;
+
+	fp = fopen("/proc/net/arp", "r");
+	if (fp != NULL) {
+
+		int ln = 0;
+		while ((read = getline(&line, &len, fp)) != -1) {
+
+			if (ln == 0) {
+				// skip first line
+				ln++;
+				continue;
+			}
+
+			// remove newline
+			line[strlen(line)-1] = '\0';
+
+			//printf("line length %zu:\n", read);
+			//printf("%s", line);
+			bool is_same_if = false;
+
+			// split by space character
+			char *pch = strtok(line," ");
+			int fn = 0;
+			while (pch != NULL) {
+
+				//printf("%s\n", pch);
+
+				if (fn == 3) {
+					// mac address
+				} else if (fn == 5) {
+					// interface name
+					if (strcmp(pch, ifa->ifa_name) == 0) {
+						// this line is an arp record for this interface
+						is_same_if = true;
+					}
+				}
+
+				pch = strtok(NULL, " ");
+
+				fn++;
+			}
+			free(pch);
+
+			if (is_same_if == true) {
+				if_mac_count++;
+			}
+
+			ln++;
+		}
+
+	}
+
+	fclose(fp);
+	if (line) {
+		free(line);
+	}
+
             // put it back
             rtnl_link_put(link);
           }
@@ -1169,7 +1233,7 @@ void *sendLoop(void *input) {
           if (real_iface_count == 0) {
             // first interface
 
-            sprintf(interface_json_string, "[{\"if\": \"%s\", \"recBytes\": %llu, \"recPackets\": %llu, \"recErrors\": %llu, \"recDrops\": %llu, \"sentBytes\": %llu, \"sentPackets\": %llu, \"sentErrors\": %llu, \"sentDrops\": %llu, \"carrierChanges\": %llu}", ifa->ifa_name, kbytes_in, packets_in, errors_in, dropped_in, kbytes_out, packets_out, errors_out, dropped_out, tx_carrier_err);
+            sprintf(interface_json_string, "[{\"if\": \"%s\", \"recBytes\": %llu, \"recPackets\": %llu, \"recErrors\": %llu, \"recDrops\": %llu, \"sentBytes\": %llu, \"sentPackets\": %llu, \"sentErrors\": %llu, \"sentDrops\": %llu, \"carrierChanges\": %llu, \"macs\": %llu}", ifa->ifa_name, kbytes_in, packets_in, errors_in, dropped_in, kbytes_out, packets_out, errors_out, dropped_out, tx_carrier_err, if_mac_count);
 
           } else {
             // after first interface
@@ -1179,7 +1243,7 @@ void *sendLoop(void *input) {
             // create temporary string
             char *temp = calloc(800, sizeof(char));
 
-            sprintf(temp, ", {\"if\": \"%s\", \"recBytes\": %llu, \"recPackets\": %llu, \"recErrors\": %llu, \"recDrops\": %llu, \"sentBytes\": %llu, \"sentPackets\": %llu, \"sentErrors\": %llu, \"sentDrops\": %llu, \"carrierChanges\": %llu}", ifa->ifa_name, kbytes_in, packets_in, errors_in, dropped_in, kbytes_out, packets_out, errors_out, dropped_out, tx_carrier_err);
+            sprintf(temp, ", {\"if\": \"%s\", \"recBytes\": %llu, \"recPackets\": %llu, \"recErrors\": %llu, \"recDrops\": %llu, \"sentBytes\": %llu, \"sentPackets\": %llu, \"sentErrors\": %llu, \"sentDrops\": %llu, \"carrierChanges\": %llu, \"macs\": %llu}", ifa->ifa_name, kbytes_in, packets_in, errors_in, dropped_in, kbytes_out, packets_out, errors_out, dropped_out, tx_carrier_err, if_mac_count);
 
             strcat(interface_json_string, temp);
             free(temp);
