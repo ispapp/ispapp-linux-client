@@ -2231,7 +2231,7 @@ int main(int argc, char **argv) {
             json_object_object_get_ex(json, "ws_id", &ws_id);
             const char *ws_id_string = json_object_get_string(ws_id);
 
-            char *update = calloc(strlen(uuidv4_string) + strlen(e_out_stdout) + strlen(e_out_stderr) + strlen(ws_id_string) + 200, sizeof(char));
+            char *update = calloc(1000 + strlen(root_mac) + strlen(root_collect_key) +strlen(uuidv4_string) + strlen(e_out_stdout) + strlen(e_out_stderr) + strlen(ws_id_string), sizeof(char));
             sprintf(update, "{\"type\": \"cmd\", \"login\": \"%s\", \"key\": \"%s\", \"uuidv4\": \"%s\", \"stdout\": \"%s\", \"stderr\": \"%s\", \"ws_id\": \"%s\"}", root_mac, root_collect_key, uuidv4_string, e_out_stdout, e_out_stderr, ws_id_string);
 
             printf("responding with command output: %s\n", update);
