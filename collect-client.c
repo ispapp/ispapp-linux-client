@@ -1141,17 +1141,22 @@ void *sendLoop(void *input) {
 
           struct rtnl_link *link;
           struct nl_sock *socket;
-          uint64_t kbytes_in, kbytes_out, packets_in, packets_out;
+          uint64_t errors_in, errors_out, dropped_in, dropped_out, kbytes_in, kbytes_out, packets_in, packets_out, tx_carrier_err;
 
           socket = nl_socket_alloc();
           nl_connect(socket, NETLINK_ROUTE);
 
           if (rtnl_link_get_kernel(socket, 0, ifa->ifa_name, &link) >= 0) {
+            // carrier changes is tx_carrier_err, there is no RTNL_LINK_CARRIER_CHANGES
+            tx_carrier_err = rtnl_link_get_stat(link, RTNL_LINK_TX_CARRIER_ERR);
+            errors_in = rtnl_link_get_stat(link, RTNL_LINK_RX_ERRORS);
+            errors_out = rtnl_link_get_stat(link, RTNL_LINK_TX_ERRORS);
+            dropped_in = rtnl_link_get_stat(link, RTNL_LINK_RX_DROPPED);
+            dropped_out = rtnl_link_get_stat(link, RTNL_LINK_TX_DROPPED);
             packets_in = rtnl_link_get_stat(link, RTNL_LINK_RX_PACKETS);
             packets_out = rtnl_link_get_stat(link, RTNL_LINK_TX_PACKETS);
             kbytes_in = rtnl_link_get_stat(link, RTNL_LINK_RX_BYTES);
             kbytes_out = rtnl_link_get_stat(link, RTNL_LINK_TX_BYTES);
-            // printf("%s: packets_in=%" PRIu64 ",packets_out=%" PRIu64 ",kbytes_in=%" PRIu64 ",kbytes_out=%" PRIu64 "\n", ifa->ifa_name, packets_in, packets_out, kbytes_in, kbytes_out);
             rtnl_link_put(link);
           }
 
@@ -1160,7 +1165,7 @@ void *sendLoop(void *input) {
           if (real_iface_count == 0) {
             // first interface
 
-            sprintf(interface_json_string, "[{\"if\": \"%s\", \"recBytes\": %llu, \"recPackets\": %llu, \"recErrors\": %lu, \"recDrops\": %lu, \"sentBytes\": %llu, \"sentPackets\": %llu, \"sentErrors\": %lu, \"sentDrops\": %lu}", ifa->ifa_name, kbytes_in, packets_in, stats->rx_errors, stats->rx_dropped, kbytes_out, packets_out, stats->tx_errors, stats->tx_dropped);
+            sprintf(interface_json_string, "[{\"if\": \"%s\", \"recBytes\": %llu, \"recPackets\": %llu, \"recErrors\": %llu, \"recDrops\": %llu, \"sentBytes\": %llu, \"sentPackets\": %llu, \"sentErrors\": %llu, \"sentDrops\": %llu, \"carrierChanges\": %llu}", ifa->ifa_name, kbytes_in, packets_in, errors_in, dropped_in, kbytes_out, packets_out, errors_out, dropped_out, tx_carrier_err);
 
           } else {
             // after first interface
@@ -1170,7 +1175,7 @@ void *sendLoop(void *input) {
             // create temporary string
             char *temp = calloc(800, sizeof(char));
 
-            sprintf(temp, ", {\"if\": \"%s\", \"recBytes\": %llu, \"recPackets\": %llu, \"recErrors\": %lu, \"recDrops\": %lu, \"sentBytes\": %llu, \"sentPackets\": %llu, \"sentErrors\": %lu, \"sentDrops\": %lu}", ifa->ifa_name, kbytes_in, packets_in, stats->rx_errors, stats->rx_dropped, kbytes_out, packets_out, stats->tx_errors, stats->tx_dropped);
+            sprintf(temp, ", {\"if\": \"%s\", \"recBytes\": %llu, \"recPackets\": %llu, \"recErrors\": %llu, \"recDrops\": %llu, \"sentBytes\": %llu, \"sentPackets\": %llu, \"sentErrors\": %llu, \"sentDrops\": %llu, \"carrierChanges\": %llu}", ifa->ifa_name, kbytes_in, packets_in, errors_in, dropped_in, kbytes_out, packets_out, errors_out, dropped_out, tx_carrier_err);
 
             strcat(interface_json_string, temp);
             free(temp);
