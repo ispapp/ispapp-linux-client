@@ -1053,6 +1053,7 @@ void *sendLoop(void *input) {
 
 		// get osVersion
 		struct utsname uts;
+		// the operating system version maximum length should not exceed this
 		char *os_version = calloc(400, sizeof(char));
 		int uname_err = uname(&uts);
 		if (uname_err != 0) {
@@ -1111,8 +1112,8 @@ void *sendLoop(void *input) {
 
         }
 
-    // get wan_ip
-    char *wan_ip = calloc(20, sizeof(char));
+    // get wan_ip, length supports IPv6
+    char *wan_ip = calloc(39, sizeof(char));
     get_wan(wan_ip);
     //printf("wan IP %s\n", wan_ip);
 
@@ -1252,9 +1253,10 @@ void *sendLoop(void *input) {
 
     //printf("collectors.disks_json_string (len %u): %s\n", strlen(disks_json_string), disks_json_string);
 
-    // write to system_json_string
-    char *system_json_string = calloc(strlen(disks_json_string) + 400, sizeof(char));
+    // allocate space, 500 bytes for each double
+    char *system_json_string = calloc(strlen(disks_json_string) + 400 + (500 * 3), sizeof(char));
 
+    // write to system_json_string
     sprintf(system_json_string, "{\"load\": {\"one\": %ld, \"five\": %ld, \"fifteen\": %ld, \"processCount\": %llu}, \"memory\": {\"total\": %llu, \"free\": %llu, \"buffers\": %llu, \"cache\": %llu}, \"disks\": %s, \"connDetails\": {\"connectionFailures\": %llu}}", system_info.loads[0], system_info.loads[1], system_info.loads[2], procs, totalram, freeram, bufferram, sharedram, disks_json_string, connection_failures);
 
     //printf("collectors.system json string: %s\n", system_json_string);
@@ -1286,12 +1288,12 @@ void *sendLoop(void *input) {
 
     if (send_col_data == 1) {
 
-      updateString = calloc(600 + strlen(wan_ip) + strlen(wap_json_string) + strlen(ping_json_string) + strlen(system_json_string) + strlen(interface_json_string), sizeof(char));
+      updateString = calloc(1000 + strlen(root_mac) + strlen(root_collect_key) + strlen(wan_ip) + strlen(wap_json_string) + strlen(ping_json_string) + strlen(system_json_string) + strlen(interface_json_string), sizeof(char));
       sprintf(updateString, "{\"type\": \"update\", \"login\": \"%s\", \"key\": \"%s\", \"uptime\": %llu, \"wanIp\": \"%s\", \"collectors\": {\"wap\": %s, \"ping\": %s, \"system\": %s, \"interface\": %s}}", root_mac, root_collect_key, uptime, wan_ip, wap_json_string, ping_json_string, system_json_string, interface_json_string);
 
     } else {
 
-      updateString = calloc(1000, sizeof(char));
+      updateString = calloc(1000 + strlen(root_mac) + strlen(root_collect_key), sizeof(char));
       sprintf(updateString, "{\"type\": \"update\", \"login\": \"%s\", \"key\": \"%s\", \"uptime\": %llu, \"wanIp\": \"%s\"}", root_mac, root_collect_key, uptime, wan_ip);
 
     }
