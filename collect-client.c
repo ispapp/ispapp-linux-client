@@ -115,7 +115,7 @@ char *root_address;
 char *root_port;
 char *root_wlan_if;
 char *root_collect_key;
-char *root_client_info = "collect-client-2.31";
+char *root_client_info = "collect-client-2.32";
 char *root_hardware_make;
 char *root_hardware_model;
 char *root_hardware_model_number;
@@ -2180,9 +2180,11 @@ int main(int argc, char **argv) {
                 // set to listener_outage_interval_seconds
                 update_wait = listener_outage_interval_seconds - lastUpdateOffsetSec_int;
 
-                if (listener_update_interval_seconds - lastColUpdateOffsetSec_int <= update_wait) {
+                if (listener_update_interval_seconds - lastColUpdateOffsetSec_int <= update_wait + 5) {
+		  // the next update response is within this update response plus request response time (5 seconds max, on planet)
                   collector_wait = 0;
                   send_col_data = 1;
+		  // use host.UpdateIntervalSeconds to calculate the sendOffset
                   update_wait = listener_update_interval_seconds - lastColUpdateOffsetSec_int;
                 } else {
                   send_col_data = 0;
