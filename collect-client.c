@@ -115,7 +115,7 @@ char *root_address;
 char *root_port;
 char *root_wlan_if;
 char *root_collect_key;
-char *root_client_info = "collect-client-2.32";
+char *root_client_info = "collect-client-2.33";
 char *root_hardware_make;
 char *root_hardware_model;
 char *root_hardware_model_number;
@@ -936,13 +936,20 @@ void *pingLoop() {
 
     //printf("number of ping hosts: %d\n", num_ping_hosts);
 
-    while (c < num_ping_hosts) {
+    while (c < num_ping_hosts + 1) {
 
       char *ip_addr;
       struct sockaddr_in addr_con;
 
       struct ping_response pr;
-      sprintf(pr.host, "%s", ping_addresses[c]);
+
+      if (c == num_ping_hosts) {
+	// last iteration, ping the instance
+      	sprintf(pr.host, "%s", root_address);
+      } else {
+	// ping host in ping_addresses
+      	sprintf(pr.host, "%s", ping_addresses[c]);
+      }
 
       //printf("pinging %s 5 times.\n", pr.host);
 
@@ -1633,7 +1640,7 @@ int main(int argc, char **argv) {
     }
   }
 
-  ping_addresses = calloc(4, sizeof(char*));
+  ping_addresses = calloc(5, sizeof(char*));
   ping_addresses[0] = "aws-eu-west-2-ping.ispapp.co";
   ping_addresses[1] = "aws-sa-east-1-ping.ispapp.co";
   ping_addresses[2] = "aws-us-east-1-ping.ispapp.co";
