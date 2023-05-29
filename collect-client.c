@@ -115,7 +115,7 @@ char *root_address;
 char *root_port;
 char *root_wlan_if;
 char *root_collect_key;
-char *root_client_info = "collect-client-2.33";
+char *root_client_info = "collect-client-2.34";
 char *root_hardware_make;
 char *root_hardware_model;
 char *root_hardware_model_number;
@@ -1094,14 +1094,14 @@ void *sendLoop(void *input) {
 		if (sbuf_len >= 0) {
 		  while ((config_ret = mbedtls_ssl_write(&ssl, sbuf, sbuf_len)) <= 0) {
 		    if (config_ret != MBEDTLS_ERR_SSL_WANT_READ && config_ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
-		      mbedtls_printf(" failed\n  ! mbedtls_ssl_write returned %d\n\n", config_ret);
+		      mbedtls_printf("config response mbedtls_ssl_write returned %d\n\n", config_ret);
 
 		      free(config_req);
 		      free(os_version);
 		      free(sbuf);
 
 		      thread_cancel = 1;
-		      continue;
+		      break;
 		    }
 		  }
 
@@ -1387,7 +1387,8 @@ void *sendLoop(void *input) {
     if (sbuf_len >= 0) {
       while ((update_ret = mbedtls_ssl_write(&ssl, sbuf, sbuf_len)) <= 0) {
         if (update_ret != MBEDTLS_ERR_SSL_WANT_READ && update_ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
-          mbedtls_printf(" failed\n  ! mbedtls_ssl_write returned %d\n\n", update_ret);
+          mbedtls_printf("update response mbedtls_ssl_write returned %d\n\n", update_ret);
+	  thread_cancel = 1;
           break;
         }
       }
@@ -1796,6 +1797,7 @@ int main(int argc, char **argv) {
     while ((connect_ret = mbedtls_ssl_write(&ssl, reqString, strlen(reqString))) <= 0) {
       if (connect_ret != MBEDTLS_ERR_SSL_WANT_READ && connect_ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
         mbedtls_printf(" failed\n  ! mbedtls_ssl_write returned %d\n\n", connect_ret);
+	// this never gets to the read loop and does not need thread_cancel=1
         goto reconnect;
       }
     }
@@ -2325,27 +2327,9 @@ int main(int argc, char **argv) {
             if (sbuf_len >= 0) {
               while ((cmd_ret = mbedtls_ssl_write(&ssl, sbuf, sbuf_len)) <= 0) {
                 if (cmd_ret != MBEDTLS_ERR_SSL_WANT_READ && cmd_ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
-                  mbedtls_printf(" failed\n  ! mbedtls_ssl_write returned %d\n\n", cmd_ret);
-
-                  free(buf);
-
-                  free(update);
-                  free(sbuf);
-
-                  free(out_stdout);
-                  free(out_stderr);
-                  free(e_out_stdout);
-                  free(e_out_stderr);
-
-                  fclose(f_stdout);
-                  fclose(f_stderr);
-                  pcloseTHREE(pid, pipes);
-
-                  while (json_object_put(json) != 1) {
-                    // keep decrementing the object until the memory it is using is free
-                  }
-
-                  goto reconnect;
+                  mbedtls_printf("command response mbedtls_ssl_write returned %d\n\n", cmd_ret);
+		  thread_cancel = 1;
+                  break;
                 }
               }
 
