@@ -104,7 +104,8 @@ mbedtls_x509_crt cacert;
 pthread_t thread_id = 0;
 pthread_t ping_thread_id = 0;
 char *ping_json_string;
-int thread_cancel = 0;
+int send_loop_errors = 0;
+int force_reconnect_from_send_loop = 0;
 int update_wait;
 int collector_wait = 0;
 int send_col_data = 1;
@@ -115,7 +116,7 @@ char *root_address;
 char *root_port;
 char *root_wlan_if;
 char *root_collect_key;
-char *root_client_info = "collect-client-2.35";
+char *root_client_info = "collect-client-2.36";
 char *root_hardware_make;
 char *root_hardware_model;
 char *root_hardware_model_number;
@@ -1011,10 +1012,10 @@ void *pingLoop() {
 void *sendLoop(void *input) {
 
     while (1) {
-        if (thread_cancel == 1) {
-            // stop the sendLoop()
-            thread_cancel = 0;
-            return 0;
+        if (send_loop_errors > 4) {
+            // force a reconnect
+            force_reconnect_from_send_loop = 1;
+            break;
         }
 
         //printf("sendLoop() iteration\n");
@@ -1047,8 +1048,8 @@ void *sendLoop(void *input) {
         if ((socket_poll <= 0 || time(NULL) - last_response >= update_wait * 4) && update_wait != 0) {
 
             // reconnect
-            thread_cancel = 1;
-            continue;
+            force_reconnect_from_send_loop = 1;
+            break;
         }
 
         if (send_config_request == 1) {
@@ -1094,12 +1095,7 @@ void *sendLoop(void *input) {
                 while ((config_ret = mbedtls_ssl_write(&ssl, sbuf, sbuf_len)) <= 0) {
                     if (config_ret != MBEDTLS_ERR_SSL_WANT_READ && config_ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
                         mbedtls_printf("config response mbedtls_ssl_write returned %d\n\n", config_ret);
-
-                        free(config_req);
-                        free(os_version);
-                        free(sbuf);
-
-                        thread_cancel = 1;
+                        send_loop_errors++;
                         break;
                     }
                 }
@@ -1387,7 +1383,7 @@ void *sendLoop(void *input) {
             while ((update_ret = mbedtls_ssl_write(&ssl, sbuf, sbuf_len)) <= 0) {
                 if (update_ret != MBEDTLS_ERR_SSL_WANT_READ && update_ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
                     mbedtls_printf("update response mbedtls_ssl_write returned %d\n\n", update_ret);
-                    thread_cancel = 1;
+                    send_loop_errors++;
                     break;
                 }
             }
@@ -1796,7 +1792,6 @@ int main(int argc, char **argv) {
         while ((connect_ret = mbedtls_ssl_write(&ssl, reqString, strlen(reqString))) <= 0) {
             if (connect_ret != MBEDTLS_ERR_SSL_WANT_READ && connect_ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
                 mbedtls_printf(" failed\n  ! mbedtls_ssl_write returned %d\n\n", connect_ret);
-                thread_cancel = 1;
                 goto reconnect;
             }
         }
@@ -1804,6 +1799,10 @@ int main(int argc, char **argv) {
         int first_response = 0;
         do {
             //printf("\n\nREAD LOOP\n");
+
+            if (force_reconnect_from_send_loop == 1) {
+                goto reconnect;
+            }
 
             int read_len = 8192;
             unsigned char *buf = calloc(read_len, sizeof(char));
@@ -1952,7 +1951,7 @@ int main(int argc, char **argv) {
 
                 first_response = 1;
 
-                // start a detached thread for sending messages
+                // start a thread for sending messages
                 pthread_create(&thread_id, NULL, sendLoop, NULL);
                 pthread_detach(thread_id);
 
@@ -2327,7 +2326,7 @@ int main(int argc, char **argv) {
                             while ((cmd_ret = mbedtls_ssl_write(&ssl, sbuf, sbuf_len)) <= 0) {
                                 if (cmd_ret != MBEDTLS_ERR_SSL_WANT_READ && cmd_ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
                                     mbedtls_printf("command response mbedtls_ssl_write returned %d\n\n", cmd_ret);
-                                    thread_cancel = 1;
+                                    goto reconnect;
                                     break;
                                 }
                             }
@@ -2364,6 +2363,14 @@ int main(int argc, char **argv) {
 reconnect:
 
         connection_failures++;
+
+        // kill the threads
+        pthread_cancel(thread_id);
+        pthread_cancel(ping_thread_id);
+
+        // reset global variables
+        force_reconnect_from_send_loop = 0;
+        send_loop_errors = 0;
 
         // unallocate all certificate data
         printf("mbedtls_x509_crt_free()\n");
