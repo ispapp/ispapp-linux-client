@@ -1535,10 +1535,18 @@ void sig_handler(int sig) {
     switch (sig) {
     case SIGINT:
 	// ctrl-c
+	exit_program = 1;
+
+	// start program exit
+	wsocket_kill();
 	//printf("SIGINT\n");
 	break;
     case SIGTERM:
 	// kill
+	exit_program = 1;
+
+	// start program exit
+	wsocket_kill();
 	//printf("SIGTERM\n");
 	break;
     case SIGSEGV:
@@ -1546,10 +1554,6 @@ void sig_handler(int sig) {
 	//printf("SIGSEGV\n");
 	break;
     }
-
-	// start program exit
-	exit_program = 1;
-	wsocket_kill();
 
 }
 
