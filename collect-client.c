@@ -114,9 +114,10 @@ int listener_outage_interval_seconds = 300;
 time_t last_response;
 char *root_address;
 char *root_port;
+char root_update_delay;
 char *root_wlan_if;
 char *root_collect_key;
-char *root_client_info = "collect-client-2.36";
+char *root_client_info = "collect-client-3.00";
 char *root_hardware_make;
 char *root_hardware_model;
 char *root_hardware_model_number;
@@ -1611,14 +1612,15 @@ int main(int argc, char **argv) {
         timeout_cmd_detected = 0;
     }
 
-    if (argc != 14) {
+    if (argc != 15) {
         printf("Missing %i arguments.\n", 15 - argc);
-        printf("Usage: ./collect-client ADDRESS PORT WLAN_IF KEY HARDWARE_MAKE HARDWARE_MODEL HARDWARE_MODEL_NUMBER HARDWARE_CPU_INFO HARDWARE_SERIAL OS_BUILD_DATE FIRMWARE ROOT_CERT_PATH CONFIG_OUTPUT_FILE\n");
+        printf("Usage: ./collect-client ADDRESS PORT WLAN_IF KEY HARDWARE_MAKE HARDWARE_MODEL HARDWARE_MODEL_NUMBER HARDWARE_CPU_INFO HARDWARE_SERIAL OS_BUILD_DATE FIRMWARE ROOT_CERT_PATH CONFIG_OUTPUT_FILE UPDATE_DELAY\n");
         printf("\n\tExamples...\n");
         printf("\tADDRESS:\tdev.ispapp.co\t\t(the address of the websocket server)\n");
         printf("\tPORT:\t\t8550\t\t\t(the port of the websocket server)\n");
         printf("\tWLAN_IF:\teth0\t\t\t(login field is set to the mac address of WLAN_IF)\n");
         printf("\tKEY:\t\tauthkey\t\t\t(the collect key)\n\n");
+        printf("\tUPDATE_DELAY:\t\t2\t\t\t(seconds to wait between each fast update)\n\n");
         exit(0);
     } else {
         root_address = escape_string_for_json((char *)argv[1]);
@@ -1634,6 +1636,7 @@ int main(int argc, char **argv) {
         root_fw = escape_string_for_json((char *)argv[11]);
         root_cert_path = escape_string_for_json((char *)argv[12]);
         root_config_file = escape_string_for_json((char *)argv[13]);
+	root_update_delay = atoi(escape_string_for_json((char *)argv[14]));
 
         if (get_mac(root_wlan_if, root_mac)) {
             printf("LOGIN MAC ADDRESS: %s\n", root_mac);
@@ -2174,7 +2177,7 @@ int main(int argc, char **argv) {
                             if (uf_bool == true) {
                                 // server has instructed the client to updateFast
                                 collector_wait = 0;
-                                update_wait = 0;
+                                update_wait = root_update_delay;
                                 send_col_data = 1;
                             } else {
                                 // server has instructed the client to not updateFast
