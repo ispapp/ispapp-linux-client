@@ -117,7 +117,7 @@ char *root_port;
 char root_update_delay;
 char *root_wlan_if;
 char *root_collect_key;
-char *root_client_info = "collect-client-3.00";
+char *root_client_info = "collect-client-3.01";
 char *root_hardware_make;
 char *root_hardware_model;
 char *root_hardware_model_number;
@@ -2368,8 +2368,12 @@ reconnect:
         connection_failures++;
 
         // kill the threads
-        pthread_cancel(thread_id);
-        pthread_cancel(ping_thread_id);
+        if (thread_id != 0) {
+            pthread_cancel(thread_id);
+	}
+        if (ping_thread_id != 0) {
+            pthread_cancel(ping_thread_id);
+	}
 
         // reset global variables
         force_reconnect_from_send_loop = 0;
