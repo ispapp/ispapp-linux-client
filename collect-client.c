@@ -117,7 +117,7 @@ char *root_port;
 char root_update_delay;
 char *root_wlan_if;
 char *root_collect_key;
-char *root_client_info = "collect-client-3.01";
+char *root_client_info = "collect-client-3.02";
 char *root_hardware_make;
 char *root_hardware_model;
 char *root_hardware_model_number;
@@ -1081,8 +1081,8 @@ void *sendLoop(void *input) {
             bool bandwidth_test_support = false;
             bool firmware_upgrade_support = false;
 
-            char *config_req = calloc(strlen(root_mac) + strlen(root_collect_key) + strlen(root_client_info) + strlen(os_version) + strlen(os_version) + strlen(root_hardware_make) + strlen(root_hardware_model) + strlen(root_hardware_model_number) + strlen(root_hardware_cpu_info) + strlen(root_hardware_serial) + strlen(root_os_build_date) + strlen(root_fw) + 800, sizeof(char));
-            sprintf(config_req, "{\"type\": \"config\", \"login\": \"%s\", \"key\": \"%s\", \"clientInfo\": \"%s\", \"os\": \"%s\", \"osVersion\": \"%s\", \"hardwareMake\": \"%s\", \"hardwareModel\": \"%s\", \"hardwareModelNumber\": \"%s\", \"hardwareCpuInfo\": \"%s\", \"hardwareSerialNumber\": \"%s\", \"osBuildDate\": %u, \"fw\": \"%s\", \"hostname\": \"%s\", \"webshellSupport\": %s, \"bandwidthTestSupport\": %s, \"firmwareUpgradeSupport\": %s}", root_mac, root_collect_key, root_client_info, os_version, os_version, root_hardware_make, root_hardware_model, root_hardware_model_number, root_hardware_cpu_info, root_hardware_serial, atoi(root_os_build_date), root_fw, hostname, webshell_support ? "true" : "false", bandwidth_test_support ? "true" : "false", firmware_upgrade_support ? "true" : "false");
+            char *config_req = calloc(strlen(root_client_info) + strlen(os_version) + strlen(os_version) + strlen(root_hardware_make) + strlen(root_hardware_model) + strlen(root_hardware_model_number) + strlen(root_hardware_cpu_info) + strlen(root_hardware_serial) + strlen(root_os_build_date) + strlen(root_fw) + 800, sizeof(char));
+            sprintf(config_req, "{\"type\": \"config\", \"clientInfo\": \"%s\", \"os\": \"%s\", \"osVersion\": \"%s\", \"hardwareMake\": \"%s\", \"hardwareModel\": \"%s\", \"hardwareModelNumber\": \"%s\", \"hardwareCpuInfo\": \"%s\", \"hardwareSerialNumber\": \"%s\", \"osBuildDate\": %u, \"fw\": \"%s\", \"hostname\": \"%s\", \"webshellSupport\": %s, \"bandwidthTestSupport\": %s, \"firmwareUpgradeSupport\": %s}", root_client_info, os_version, os_version, root_hardware_make, root_hardware_model, root_hardware_model_number, root_hardware_cpu_info, root_hardware_serial, atoi(root_os_build_date), root_fw, hostname, webshell_support ? "true" : "false", bandwidth_test_support ? "true" : "false", firmware_upgrade_support ? "true" : "false");
 
             //printf("config req: %s\n", config_req);
 
@@ -1364,13 +1364,13 @@ void *sendLoop(void *input) {
 
         if (send_col_data == 1) {
 
-            updateString = calloc(1000 + strlen(root_mac) + strlen(root_collect_key) + strlen(wan_ip) + strlen(wap_json_string) + strlen(ping_json_string) + strlen(system_json_string) + strlen(interface_json_string), sizeof(char));
-            sprintf(updateString, "{\"type\": \"update\", \"login\": \"%s\", \"key\": \"%s\", \"uptime\": %llu, \"wanIp\": \"%s\", \"collectors\": {\"wap\": %s, \"ping\": %s, \"system\": %s, \"interface\": %s}}", root_mac, root_collect_key, uptime, wan_ip, wap_json_string, ping_json_string, system_json_string, interface_json_string);
+            updateString = calloc(1000 + + strlen(wan_ip) + strlen(wap_json_string) + strlen(ping_json_string) + strlen(system_json_string) + strlen(interface_json_string), sizeof(char));
+            sprintf(updateString, "{\"type\": \"update\", \"uptime\": %llu, \"wanIp\": \"%s\", \"collectors\": {\"wap\": %s, \"ping\": %s, \"system\": %s, \"interface\": %s}}", uptime, wan_ip, wap_json_string, ping_json_string, system_json_string, interface_json_string);
 
         } else {
 
-            updateString = calloc(1000 + strlen(root_mac) + strlen(root_collect_key), sizeof(char));
-            sprintf(updateString, "{\"type\": \"update\", \"login\": \"%s\", \"key\": \"%s\", \"uptime\": %llu, \"wanIp\": \"%s\"}", root_mac, root_collect_key, uptime, wan_ip);
+            updateString = calloc(1000, sizeof(char));
+            sprintf(updateString, "{\"type\": \"update\", \"uptime\": %llu, \"wanIp\": \"%s\"}", uptime, wan_ip);
 
         }
 
@@ -1735,9 +1735,9 @@ int main(int argc, char **argv) {
 
         // printf("\nb64 hash check string: (%i, %i) %s\n", strlen(b64HashCheckString), b64HashCheckStringLen, b64HashCheckString);
 
-        // setup the GET request string
-        char reqString[400];
-        sprintf(reqString, "GET /ws HTTP/1.1\r\nHost: %s\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: %s\r\nSec-WebSocket-Protocol: json\r\nSec-WebSocket-Version: 13\r\n\r\n", root_address, randomB64String);
+        // setup the GET request string with login credentials
+        char reqString[2000];
+        sprintf(reqString, "GET /ws?login=%s&key=%s HTTP/1.1\r\nHost: %s\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: %s\r\nSec-WebSocket-Protocol: json\r\nSec-WebSocket-Version: 13\r\n\r\n", root_mac, root_collect_key, root_address, randomB64String);
 
         // printf("Initial GET request (%i):\n\n%s\n\n", strlen(reqString), reqString);
 
@@ -2315,8 +2315,8 @@ int main(int argc, char **argv) {
                         json_object_object_get_ex(json, "ws_id", &ws_id);
                         const char *ws_id_string = json_object_get_string(ws_id);
 
-                        char *update = calloc(1000 + strlen(root_mac) + strlen(root_collect_key) + strlen(uuidv4_string) + e_out_stdout_len + e_out_stderr_len + strlen(ws_id_string), sizeof(char));
-                        sprintf(update, "{\"type\": \"cmd\", \"login\": \"%s\", \"key\": \"%s\", \"uuidv4\": \"%s\", \"stdout\": \"%s\", \"stderr\": \"%s\", \"ws_id\": \"%s\"}", root_mac, root_collect_key, uuidv4_string, e_out_stdout, e_out_stderr, ws_id_string);
+                        char *update = calloc(1000 + strlen(uuidv4_string) + e_out_stdout_len + e_out_stderr_len + strlen(ws_id_string), sizeof(char));
+                        sprintf(update, "{\"type\": \"cmd\", \"uuidv4\": \"%s\", \"stdout\": \"%s\", \"stderr\": \"%s\", \"ws_id\": \"%s\"}", uuidv4_string, e_out_stdout, e_out_stderr, ws_id_string);
 
                         //printf("responding with command output: %s\n", update);
 
