@@ -47,7 +47,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <linux/if_link.h>
 #include <linux/kernel.h>
 #include <linux/reboot.h>
-#include <sys/sysinfo.h>
+#include <linux/sysinfo.h>
 #include <mntent.h>
 #include <net/if.h>
 #include <netdb.h>
@@ -117,7 +117,7 @@ char *root_port;
 char root_update_delay;
 char *root_wlan_if;
 char *root_collect_key;
-char *root_client_info = "collect-client-3.02";
+char *root_client_info = "collect-client-3.03";
 char *root_hardware_make;
 char *root_hardware_model;
 char *root_hardware_model_number;
@@ -519,17 +519,17 @@ void send_ping(struct sockaddr_in *ping_addr, char *ping_dom, char *ping_ip, cha
     // send icmp packets
     int sent = 0;
     while (sent < 5) {
-        // printf("ping opening socket to '%s' IP: %s\n", pr->host, ping_ip);
+        //printf("ping opening socket to '%s' IP: %s\n", pr->host, ping_ip);
 
         int sockfd;
 
         // root access required to do this
         sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
         if (sockfd < 0) {
-            printf("\nping socket file descriptor not received!! Got %i\n", sockfd);
+            printf("ping socket file descriptor not received!! Got %i\n", sockfd);
             return;
         } else {
-            // printf("\nping socket file descriptor %d received\n", sockfd);
+            //printf("ping socket file descriptor %d received\n", sockfd);
         }
 
         // set the socket options
@@ -538,7 +538,7 @@ void send_ping(struct sockaddr_in *ping_addr, char *ping_dom, char *ping_ip, cha
             close(sockfd);
             return;
         } else {
-            // printf("ping socket set to TTL..\n");
+            //printf("ping socket set to TTL..\n");
         }
 
         // setting timeout of recv setting
@@ -572,7 +572,7 @@ void send_ping(struct sockaddr_in *ping_addr, char *ping_dom, char *ping_ip, cha
         addr_len = sizeof(r_addr);
 
         if (recvfrom(sockfd, &pckt, sizeof(pckt), 0, (struct sockaddr *)&r_addr, (socklen_t *)&addr_len) <= 0 && msg_count > 1) {
-            printf("ping packet receive failed.\n");
+            //printf("ping packet receive failed.\n");
         } else {
             clock_gettime(CLOCK_MONOTONIC, &time_end);
 
@@ -582,7 +582,7 @@ void send_ping(struct sockaddr_in *ping_addr, char *ping_dom, char *ping_ip, cha
             // if packet was not sent, don't receive
             if (flag) {
                 if (pckt.hdr.type == 69) {
-                    // printf("ping: %d bytes from %s (h: %s) (%s) msg_seq=%d ttl=%d rtt = %lf ms\n", PING_PKT_S, ping_dom, hostname_str, ping_ip, msg_count, ttl_val, rtt_msec);
+                    //printf("ping: %d bytes from %s (h: %s) (%s) msg_seq=%d ttl=%d rtt = %lf ms\n", PING_PKT_S, ping_dom, hostname_str, ping_ip, msg_count, ttl_val, rtt_msec);
 
                     // if there was a successful response, set avgRtt to 0 so the average can be calculated correctly
                     if (pr->avgRtt == -1) {
@@ -592,7 +592,7 @@ void send_ping(struct sockaddr_in *ping_addr, char *ping_dom, char *ping_ip, cha
                     // calculate the ping results
                     pr->avgRtt += rtt_msec;
 
-                    // printf("avgRtt=%lf\n", pr->avgRtt);
+                    //printf("avgRtt=%lf\n", pr->avgRtt);
 
                     if (pr->minRtt == 0.0 || pr->minRtt > rtt_msec) {
                         pr->minRtt = rtt_msec;
@@ -609,7 +609,7 @@ void send_ping(struct sockaddr_in *ping_addr, char *ping_dom, char *ping_ip, cha
                 else
 
                 {
-                    printf("ping Error..Packet received with ICMP type %d code %d\n", pckt.hdr.type, pckt.hdr.code);
+                    //printf("ping error.  Packet received with invalid ICMP type %d code %d\n", pckt.hdr.type, pckt.hdr.code);
                 }
             }
         }
@@ -2368,11 +2368,15 @@ reconnect:
         connection_failures++;
 
         // kill the threads
-        if (thread_id != 0) {
-            pthread_cancel(thread_id);
+        if (thread_id > 0) {
+            // pthread_cancel() does not work with uclibc
+            //pthread_cancel(thread_id);
+	    kill((pid_t) thread_id, SIGKILL);
 	}
-        if (ping_thread_id != 0) {
-            pthread_cancel(ping_thread_id);
+        if (ping_thread_id > 0) {
+            // pthread_cancel() does not work with uclibc
+            //pthread_cancel(ping_thread_id);
+	    kill((pid_t) ping_thread_id, SIGKILL);
 	}
 
         // reset global variables

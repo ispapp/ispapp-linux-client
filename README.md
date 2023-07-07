@@ -2,15 +2,13 @@
 
 Learn more at https://ispapp.co
 
-Watch a YouTube video about how ISPApp can help you - https://www.youtube.com/watch?v=BQN8FdMqApo
-
 # about
 
 This is an ISPApp client designed to monitor hosts running Linux.
 
-ISPApp allows you to monitor thousands of hosts or IoT devices quickly and easily with high resolution charts and realtime data.
+ISPApp allows you to monitor, configure and command hosts quickly and easily with high resolution charts and realtime data.
 
-It will automatically monitor a host when `collect-client` is ran on that host and send ISPApp data to generate realtime, daily, weekly, monthly and annual charts for:
+There are realtime, daily, weekly, monthly and yearly charts for:
 
 * All Network Interfaces - Traffic and Packet Rate
 ![Traffic](/img/if-traffic.png)
@@ -30,11 +28,7 @@ It will automatically monitor a host when `collect-client` is ran on that host a
 * Electronic Data - Voltage, Power and Current
 * Request Data - HTTP Request Rate, DNS Request Rate, Rate of Incoming Emails etc (easily added to software with our REST API)
 
-ISPApp also provides outage notifications and maintenance/degradation analysis for each of the monitored data types.
-
-We have ISPApp instances running with tens of thousands of charts and are ready for you to be a customer.
-
-ISPApp instances are private, once we are out of Beta we will not have access to your data like Google and Facebook do.
+ISPApp also provides outage notifications and maintenance/degradation analysis..
 
 # dependencies
 
@@ -97,7 +91,4 @@ We plan to create packages for various distributions targeting:
 * Virtualized Instances
 * IoT Devices
 * Desktops/Laptops
-* Raspberry Pi/Etc
-* Routers (we already have an OpenWRT package, email me for more information)
-
-If you would like to be a package maintainer, please email me via andrew@ispapp.co
+* Routers
