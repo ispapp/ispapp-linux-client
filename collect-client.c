@@ -117,7 +117,7 @@ char *root_port;
 char root_update_delay;
 char *root_wlan_if;
 char *root_collect_key;
-char *root_client_info = "collect-client-3.03";
+char *root_client_info = "collect-client-3.04";
 char *root_hardware_make;
 char *root_hardware_model;
 char *root_hardware_model_number;
@@ -1362,10 +1362,17 @@ void *sendLoop(void *input) {
 
         char *updateString;
 
-        if (send_col_data == 1) {
+	if (send_col_data < 0) {
+		// updates were sent that had no response
+		send_col_data = 1;
+	}
+
+        if (send_col_data >= 0) {
 
             updateString = calloc(1000 + + strlen(wan_ip) + strlen(wap_json_string) + strlen(ping_json_string) + strlen(system_json_string) + strlen(interface_json_string), sizeof(char));
             sprintf(updateString, "{\"type\": \"update\", \"uptime\": %llu, \"wanIp\": \"%s\", \"collectors\": {\"wap\": %s, \"ping\": %s, \"system\": %s, \"interface\": %s}}", uptime, wan_ip, wap_json_string, ping_json_string, system_json_string, interface_json_string);
+
+            send_col_data--;
 
         } else {
 
@@ -2178,7 +2185,7 @@ int main(int argc, char **argv) {
                                 // server has instructed the client to updateFast
                                 collector_wait = 0;
                                 update_wait = root_update_delay;
-                                send_col_data = 1;
+                                send_col_data++;
                             } else {
                                 // server has instructed the client to not updateFast
 
@@ -2197,11 +2204,11 @@ int main(int argc, char **argv) {
                                 if (listener_update_interval_seconds - lastColUpdateOffsetSec_int <= update_wait + 5) {
                                     // the next update response is within this update response plus request response time (5 seconds max, on planet)
                                     collector_wait = 0;
-                                    send_col_data = 1;
+                                    send_col_data++;
                                     // use host.UpdateIntervalSeconds to calculate the sendOffset
                                     update_wait = listener_update_interval_seconds - lastColUpdateOffsetSec_int;
                                 } else {
-                                    send_col_data = 0;
+					// do not increment send_col_data
                                 }
 
                                 if (update_wait < 0) {
