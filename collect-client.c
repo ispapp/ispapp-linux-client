@@ -117,7 +117,7 @@ char *root_port;
 char root_update_delay;
 char *root_wlan_if;
 char *root_collect_key;
-char *root_client_info = "collect-client-3.05";
+char *root_client_info = "collect-client-3.06";
 char *root_hardware_make;
 char *root_hardware_model;
 char *root_hardware_model_number;
@@ -2183,9 +2183,16 @@ int main(int argc, char **argv) {
 
                             if (uf_bool == true) {
                                 // server has instructed the client to updateFast
+
+                                // allow the collector thread to loop
                                 collector_wait = 0;
+
+                                // set the update_wait number of seconds to that configured at runtime
                                 update_wait = root_update_delay;
+
+                                // always send collector data with the next update request when updateFast is true in the update response
                                 send_col_data++;
+
                             } else {
                                 // server has instructed the client to not updateFast
 
@@ -2198,21 +2205,36 @@ int main(int argc, char **argv) {
                                 json_object_object_get_ex(json, "lastColUpdateOffsetSec", &lastColUpdateOffsetSec);
                                 int lastColUpdateOffsetSec_int = json_object_get_int(lastColUpdateOffsetSec);
 
-                                // set to listener_outage_interval_seconds
-                                update_wait = listener_outage_interval_seconds - lastUpdateOffsetSec_int;
+                                // the number of seconds until the next outage update
+                                int outage_update_wait = listener_outage_interval_seconds - lastUpdateOffsetSec_int;
+				int col_update_wait = listener_update_interval_seconds - lastColUpdateOffsetSec_int;
 
-                                if (listener_update_interval_seconds - lastColUpdateOffsetSec_int <= update_wait + 5) {
-                                    // the next update response is within this update response plus request response time (5 seconds max, on planet)
+                                //printf("outage update wait: %d, col update wait: %d\n", outage_update_wait, col_update_wait);
+
+                                if (col_update_wait <= outage_update_wait) {
+                                    // the col update is more or as near as the outage update
+
+                                    // set the update_wait to the number of seconds until the next col update
+                                    update_wait = col_update_wait;
+
+                                    //printf("using col update wait\n");
+
+                                    // allow the collector thread to loop
                                     collector_wait = 0;
+
+                                    // send collector data with the next update request
                                     send_col_data++;
-                                    // use host.UpdateIntervalSeconds to calculate the sendOffset
-                                    update_wait = listener_update_interval_seconds - lastColUpdateOffsetSec_int;
+
                                 } else {
-					// do not increment send_col_data
-                                }
+
+					// set the update_wait to the number of seconds until the next outage update
+					update_wait = outage_update_wait;
+
+				}
 
                                 if (update_wait < 0) {
-                                    update_wait = 0;
+                                    // set the update_wait number of seconds to that configured at runtime
+                                    update_wait = root_update_delay;
                                 }
                             }
 
