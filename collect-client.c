@@ -2212,7 +2212,7 @@ int main(int argc, char **argv) {
                                 //printf("outage update wait: %d, col update wait: %d\n", outage_update_wait, col_update_wait);
 
                                 if (col_update_wait <= outage_update_wait) {
-                                    // the col update is more or as near as the outage update
+                                    // the col update wait is less than the outage update wait
 
                                     // set the update_wait to the number of seconds until the next col update
                                     update_wait = col_update_wait;
