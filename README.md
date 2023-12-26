@@ -1,6 +1,17 @@
+# openwrt-ispapp IPK
+
 ![ISPApp Logo](/img/logo.png)
 
 Learn more at https://ispapp.co
+
+> ~usage:
+
+```
+    /etc/init.d/ispapp start
+```
+```
+    /etc/init.d/ispapp stop
+```
 
 # about
 
