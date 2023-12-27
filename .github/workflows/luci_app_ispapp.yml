@@ -7,8 +7,6 @@ env:
   TZ: America/Los_Angeles
   IPK_NAME: luci-app-ispapp
 
-permissions:
-  contents: write
 jobs:
   matrix:
     runs-on: ubuntu-latest

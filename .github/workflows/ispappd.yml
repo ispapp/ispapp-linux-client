@@ -6,8 +6,7 @@ on:
 env:
   TZ: America/Los_Angeles
   IPK_NAME: ispappd
-permissions:
-  contents: write
+
 jobs:
   matrix:
     runs-on: ubuntu-latest
