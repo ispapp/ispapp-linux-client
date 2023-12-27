@@ -6,8 +6,7 @@ on:
 env:
   TZ: America/Los_Angeles
   IPK_NAME: ispappd
-permissions:
-  contents: write
+
 jobs:
   matrix:
     runs-on: ubuntu-latest
@@ -17,7 +16,7 @@ jobs:
       - name: Detect build target
         id: set-matrix
         env:
-          MATRIX_TARGET: xall
+          MATRIX_TARGET: ""
         run: |
           if [ "x${MATRIX_TARGET}" = "x" -o "x${MATRIX_TARGET}" = "xall" ]; then \
             echo "matrix={\"target\":[\"arm64\", \"x64\", \"mipsel\"]}" >> $GITHUB_OUTPUT; \
