@@ -23,9 +23,9 @@ endef
 define Build/Compile
   $(MAKE) -C $(PKG_BUILD_DIR) all
 endef
-define Package/ispappd/install
+define Package/$(PKG_NAME)/install
 	$(INSTALL_DIR) $(1)/usr/sbin
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ispappd $(1)/usr/sbin
 endef
-
+include $(TOPDIR)/feeds/luci/luci.mk
 $(eval $(call BuildPackage,ispappd))

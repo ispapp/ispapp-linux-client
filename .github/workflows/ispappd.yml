@@ -121,5 +121,5 @@ jobs:
       - name: Upload bin directory
         uses: actions/upload-artifact@main
         with:
-          name: ${{ env.SDK_ARCH }}
+          name: ${{ env.SDK_ARCH }}-${{steps.version.outputs.debug_output}}
           path: ${{ env.SDK_NAME }}/bin/packages/${{ env.SDK_ARCH }}

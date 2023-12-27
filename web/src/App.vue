@@ -48,7 +48,7 @@
                     <div class="cbi-value-field">
                         <div>
                             <input type="text" class="cbi-input-text" name="hostname" v-model.trim="config.login"
-                                placeholder="e.g., 00:00:00:00:00:00">
+                            placeholder="e.g., 00:00:00:00:00:00">
                         </div>
                         <div class="cbi-value-description">
                             Leave empty to use the connection interface MAC.
@@ -56,58 +56,72 @@
                     </div>
                 </div>
 
+                <!-- topDomain -->
+                <div class="cbi-value">
+                    <label class="cbi-value-title">API domain</label>
+                    <div class="cbi-value-field">
+                        <div>
+                            <input type="text" class="cbi-input-text" name="topDomain" v-model.trim="config.topDomain"
+                                placeholder="e.g., sub.ispapp.co">
+                        </div>
+                        <div class="cbi-value-description">
+                            Specify the API server link.
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Top Listener Port -->
                 <div class="cbi-value">
-                    <label class="cbi-value-title">Top Listener Port</label>
+                    <label class="cbi-value-title">Listener Port</label>
                     <div class="cbi-value-field">
                         <div>
                             <input type="text" class="cbi-input-text" name="topListenerPort"
                                 v-model.trim="config.topListenerPort" placeholder="e.g., 8550">
                         </div>
                         <div class="cbi-value-description">
-                            Specify the top listener port.
+                            Specify the listener port.
                         </div>
                     </div>
                 </div>
 
                 <!-- Top SMTP Port -->
                 <div class="cbi-value">
-                    <label class="cbi-value-title">Top SMTP Port</label>
+                    <label class="cbi-value-title">SMTP Port</label>
                     <div class="cbi-value-field">
                         <div>
-                            <input type="text" class="cbi-input-text" name="topSmtpPort" v-model.trim="config.topSmtpPort"
+                            <input type="text"  class="cbi-input-text" name="topSmtpPort" v-model.trim="config.topSmtpPort"
                                 placeholder="e.g., 8465">
                         </div>
                         <div class="cbi-value-description">
-                            Specify the top SMTP port.
+                            Specify the SMTP port.
                         </div>
                     </div>
                 </div>
 
                 <!-- Top Key -->
                 <div class="cbi-value">
-                    <label class="cbi-value-title">Top Key</label>
+                    <label class="cbi-value-title">Key</label>
                     <div class="cbi-value-field">
                         <div>
                             <input type="text" class="cbi-input-text" name="topKey" v-model.trim="config.topKey"
                                 placeholder="e.g., (leave empty)">
                         </div>
                         <div class="cbi-value-description">
-                            Description for the Top Key setting.
+                            Description for the Key setting.
                         </div>
                     </div>
                 </div>
 
                 <!-- IP Band Switch Test Server -->
                 <div class="cbi-value">
-                    <label class="cbi-value-title">IP Band Switch Test Server</label>
+                    <label class="cbi-value-title">IP BTest Server</label>
                     <div class="cbi-value-field">
                         <div>
                             <input type="text" class="cbi-input-text" name="ipbandswtestserver"
                                 v-model.trim="config.ipbandswtestserver" placeholder="e.g., 3.239.254.95">
                         </div>
                         <div class="cbi-value-description">
-                            Specify the IP Band Switch Test Server.
+                            Specify the IP BTest Server.
                         </div>
                     </div>
                 </div>
