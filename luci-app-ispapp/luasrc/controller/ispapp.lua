@@ -91,6 +91,6 @@ function ispappd_status()
 	local http = require "luci.http" 
     -- http.prepare_content("text/plain;charset=utf-8")
 	http.prepare_content("application/json")
-	local text = sys.exec("ispappd status --json")
+	local text = sys.exec("ispappd status")
     http.write(text)
 end
