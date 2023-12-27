@@ -1,15 +1,8 @@
 name: build Openwrt ispappd Ipk
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "ipk version"
-        required: true
-        default: "0.0.1"
-      target:
-        description: 'build target ["arm64", "x64", "mipsel"]'
-        required: true
-        default: "x64"
+  push:
+    branches:
+      - karim
 env:
   TZ: America/Los_Angeles
   IPK_NAME: ispappd
@@ -24,7 +17,7 @@ jobs:
       - name: Detect build target
         id: set-matrix
         env:
-          MATRIX_TARGET: ${{ github.event.inputs.target }}
+          MATRIX_TARGET: xall
         run: |
           if [ "x${MATRIX_TARGET}" = "x" -o "x${MATRIX_TARGET}" = "xall" ]; then \
             echo "matrix={\"target\":[\"arm64\", \"x64\", \"mipsel\"]}" >> $GITHUB_OUTPUT; \
@@ -42,11 +35,21 @@ jobs:
     strategy:
       matrix: ${{fromJson(needs.matrix.outputs.matrix)}}
     steps:
+      - name: Application Version
+        id: version
+        uses: paulhatch/semantic-version@v5.3.0
+        with:
+          change_path: "/ispappd/src"
+          tag_prefix: ""
+          version_format: "${major}.${minor}.${patch}.${increment}"
+          debug: true
       - name: Checkout the code
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
       # https://github.com/marketplace/actions/setup-node-js-environment
       - run: |
-          sed -i  's/PKG_VERSION:=\(.*\)/PKG_VERSION:=${{ inputs.version }}/g' ${IPK_NAME}/Makefile
+          sed -i  's/PKG_VERSION:=\(.*\)/PKG_VERSION:=${{ steps.version.outputs.debug_output }}/g' ${IPK_NAME}/Makefile
 
       - name: Import Env
         env:
