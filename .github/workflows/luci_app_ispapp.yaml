@@ -1,5 +1,4 @@
-# https://github.com/subosito/flutter-action
-name: build Openwrt Ipk
+name: build Openwrt luci-app-ispapp Ipk
 on:
   workflow_dispatch:
     inputs:
