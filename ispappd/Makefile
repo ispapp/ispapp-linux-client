@@ -21,7 +21,7 @@ include $(TOPDIR)/rules.mk
 # Name and release number of this package
 PKG_NAME:=ispappd
 PKG_RELEASE:=1
-
+TARGET:=ispappd
 # This specifies the directory where we're going to build the program.  
 # The root build directory, $(BUILD_DIR), is by default the build_mipsel 
 # directory in your OpenWrt SDK directory
@@ -45,14 +45,15 @@ endef
 
 # Specify what needs to be done to prepare for building the package.
 define Build/Prepare
-	mkdir -p $(PKG_BUILD_DIR)
-	$(CP) ./src/* $(PKG_BUILD_DIR)/
+endef
+
+define Build/Compile
 endef
 
 # Specify where and how to install ispappd
 define Package/ispappd/install
-	$(INSTALL_DIR) $(1)/usr/bin
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ispappd $(1)/usr/bin/
+	$(INSTALL_DIR) $(1)/bin
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ispappd $(1)/bin/
 endef
 
 # This line executes the necessary commands to compile ispappd.
