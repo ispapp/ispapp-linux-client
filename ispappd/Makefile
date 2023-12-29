@@ -50,6 +50,7 @@ define Build/Prepare
 endef
 
 define Build/Compile
+  $(MAKE) -C $(PKG_BUILD_DIR) $(TARGET_CONFIGURE_OPTS) CFLAGS="$(TARGET_CFLAGS)"
 endef
 
 # Specify where and how to install ispappd
