@@ -45,7 +45,7 @@ jobs:
           develop_branch_name: "karim"
           base_version: 1.0.0
           debug: "true"
-          repo_dir: "ispappd"
+          # repo_dir: "ispappd"
       - name: "Created tag"
         run: |
             echo "tag: ${{ steps.semver-tag.outputs.semver_tag }}"
