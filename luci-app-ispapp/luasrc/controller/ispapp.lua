@@ -5,10 +5,10 @@ function index()
 	if not nixio.fs.access("/etc/config/ispapp") then
         return
     end
-	entry({"admin", "services", "ispapp"},				call("ispappd_template"), _("Ispapp"), 21).dependent = true
-	entry({"admin", "services", "ispapp", "config"}, 	call("ispappd_config"))
-	entry({"admin", "services", "ispapp", "status"}, 	call("ispappd_status"))
-	entry({"admin", "services", "ispapp", "logout"}, 	call("ispappd_logout"))
+	entry({"admin", "network", "ispapp"},				call("ispappd_template"), _("Ispapp"), 21).dependent = true
+	entry({"admin", "network", "ispapp", "config"}, 	call("ispappd_config"))
+	entry({"admin", "network", "ispapp", "status"}, 	call("ispappd_status"))
+	entry({"admin", "network", "ispapp", "logout"}, 	call("ispappd_logout"))
 end
 
 function ispappd_template()
