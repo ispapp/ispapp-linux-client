@@ -19,7 +19,7 @@ jobs:
           MATRIX_TARGET: ""
         run: |
           if [ "x${MATRIX_TARGET}" = "x" -o "x${MATRIX_TARGET}" = "xall" ]; then \
-            echo "matrix={\"target\":[\"arm64\", \"x64\", \"x86-generic\", \"mipsel\"]}" >> $GITHUB_OUTPUT; \
+            echo "matrix={\"target\":[\"arm64\", \"x64\", \"x86\"]}" >> $GITHUB_OUTPUT; \
           else \
             targets=""; \
             for target in ${MATRIX_TARGET}; do \
@@ -44,11 +44,9 @@ jobs:
           debug: true
       - name: Checkout the code
         uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
       # https://github.com/marketplace/actions/setup-node-js-environment
-      - run: |
-          sed -i  's/PKG_VERSION:=\(.*\)/PKG_VERSION:=${{ steps.version.outputs.debug_output }}/g' ${IPK_NAME}/Makefile
+      # - run: |
+      #     sed -i  's/PKG_VERSION:=\(.*\)/PKG_VERSION:=${{ steps.version.outputs.debug_output }}/g' ${IPK_NAME}/Makefile
 
       - name: Import Env
         env:
