@@ -27,7 +27,7 @@ PKG_RELEASE:=1
 # This specifies the directory where we're going to build the program.  
 # The root build directory, $(BUILD_DIR), is by default the build_mipsel 
 # directory in your OpenWrt SDK directory
-
+PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-$(PKG_VERSION)
 # Include necessary build system package.mk file
 include $(INCLUDE_DIR)/package.mk
 
@@ -39,12 +39,10 @@ define Package/ispappd
   DEPENDS:=+libpthread +librt
   MAINTAINER:=Karim O. <abdelkarim@ispapp.co>
 endef
-
 # Specify the description for ispappd
 define Package/ispappd/description
 	ISP App Daemon is a sample package for OpenWRT.
 endef
-PKG_BUILD_DIR := $(BUILD_DIR)/$(PKG_NAME)
 # Specify what needs to be done to prepare for building the package.
 define Build/Prepare
 	mkdir -p $(PKG_BUILD_DIR)
@@ -55,9 +53,7 @@ define Build/Compile
 endef
 
 # Specify where and how to install ispappd
-define Package/ispappd/install
-	$(INSTALL_DIR) $(1)/bin
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ispappd $(1)/bin/
+define Package/$(PKG_NAME)/install
 endef
 
 # This line executes the necessary commands to compile ispappd.

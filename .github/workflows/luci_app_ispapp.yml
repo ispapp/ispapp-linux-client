@@ -19,7 +19,7 @@ jobs:
           MATRIX_TARGET: ""
         run: |
           if [ "x${MATRIX_TARGET}" = "x" -o "x${MATRIX_TARGET}" = "xall" ]; then \
-            echo "matrix={\"target\":[\"arm64\", \"x64\", \"mipsel\"]}" >> $GITHUB_OUTPUT; \
+            echo "matrix={\"target\":[\"arm64\", \"x64\", \"x86-generic\", \"mipsel\"]}" >> $GITHUB_OUTPUT; \
           else \
             targets=""; \
             for target in ${MATRIX_TARGET}; do \
