@@ -62,8 +62,8 @@ jobs:
           mkdir ${IPK_NAME}/htdocs
           cp -r web/dist/luci-static ${IPK_NAME}/htdocs
 
-      # - run: |
-      #     sed -i  's/PKG_VERSION:=\(.*\)/PKG_VERSION:=${{ inputs.version }}/g' ${IPK_NAME}/Makefile
+      - run: |
+          sed -i  's/PKG_VERSION:=\(.*\)/PKG_VERSION:=${{ inputs.version }}/g' ${IPK_NAME}/Makefile
 
       - name: Import Env
         env:
