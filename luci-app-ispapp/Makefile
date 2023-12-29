@@ -7,10 +7,17 @@
 include $(TOPDIR)/rules.mk
 
 LUCI_TITLE:=Ispapp Agent
-PKG_VERSION:=20231230
-PKG_RELEASE:=1.0.0
+PKG_VERSION:=1.0.0
+PKG_RELEASE:=20231230
 LUCI_DEPENDS:=+ispappd
 PKGARCH:=all
+define Package/luci-app-ispapp
+	SECTION:=net
+	CATEGORY:=Network
+	TITLE:=LuCI Support of Ispapp.co Agent
+	URL:=https://ispapp.co
+	DEPENDS:=+ispappd
+endef
 define Package/luci-app-ispapp/conffiles
 /etc/config/ispapp
 endef
