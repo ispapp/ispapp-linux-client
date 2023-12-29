@@ -10,7 +10,7 @@ LUCI_TITLE:=Ispapp Agent
 PKG_VERSION:=20231230
 PKG_RELEASE:=1.0.0
 LUCI_DEPENDS:=+ispappd
-
+PKGARCH:=all
 define Package/luci-app-ispapp/conffiles
 /etc/config/ispapp
 endef
