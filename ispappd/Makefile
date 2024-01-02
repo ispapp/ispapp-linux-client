@@ -21,12 +21,6 @@ include $(TOPDIR)/rules.mk
 PKG_NAME:=ispappd
 PKG_VERSION:=1.0.1
 PKG_RELEASE:=1
-# target: ispappd
-# ispappd:
-# 	gcc -g -lpthread  -o ispappd ./src/*.c
-# This specifies the directory where we're going to build the program.  
-# The root build directory, $(BUILD_DIR), is by default the build_mipsel 
-# directory in your OpenWrt SDK directory
 # Include necessary build system package.mk file
 PKG_BUILD_DIR := $(BUILD_DIR)/$(PKG_NAME)
 PKGARCH:=all
