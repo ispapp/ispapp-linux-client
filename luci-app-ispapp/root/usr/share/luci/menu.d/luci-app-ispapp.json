@@ -1,0 +1,26 @@
+{
+    "admin/network/ispapp": {
+        "title": "ISPapp",
+        "order": 90,
+        "action": {
+            "type": "view",
+            "path": "admin/network/ispapp"
+        }
+    },
+    "admin/network/ispapp/config": {
+        "title": "Config",
+        "action": {
+            "type": "function",
+            "module": "luci.controller.admin.ispapp",
+            "function": "config"
+        }
+    },
+    "admin/network/ispapp/status": {
+        "title": "Status",
+        "action": {
+            "type": "function",
+            "module": "luci.controller.admin.ispapp",
+            "function": "status"
+        }
+    }
+}

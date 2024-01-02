@@ -7,10 +7,15 @@
 include $(TOPDIR)/rules.mk
 
 LUCI_TITLE:=Ispapp Agent
+LUCI_DEPENDS:=+ispappd
+LUCI_PKGARCH:=all
+
+PKG_MAINTAINER:=Karim O. <abdelkarim@ispapp.co>
+PKG_NAME:=luci-app-ispapp
 PKG_VERSION:=1.0.0
 PKG_RELEASE:=20231230
-LUCI_DEPENDS:=+ispappd
-PKGARCH:=all
+PKG_LICENSE:=GPLv2
+
 define Package/luci-app-ispapp
 	SECTION:=net
 	CATEGORY:=Network
@@ -43,7 +48,9 @@ define Package/$(PKG_NAME)/install
 	
 	$(INSTALL_DIR) $(1)/usr/lib/lua/luci
 	cp -pR ./luasrc/* $(1)/usr/lib/lua/luci/
-	rm -rf /tmp/luci-indexcache
+	
+	$(INSTALL_DIR) $(1)/usr/share/luci/menu.d/
+	cp -pR ./root/usr/share/luci/menu.d/* $(1)/usr/share/luci/menu.d/
 endef
 
 define Package/$(PKG_NAME)/prerm

@@ -107,5 +107,5 @@ jobs:
         uses: actions/upload-artifact@main
         with:
           name: ${{ env.SDK_ARCH }}
-          path: ${{ env.SDK_NAME }}/bin/packages/**/*.ipk
+          path: ${{ env.SDK_NAME }}/${{ env.IPK }}/*.ipk
           compression-level: 9 # maximum compression
