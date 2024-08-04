@@ -1,0 +1,344 @@
+#!/usr/bin/env lua
+
+local fs = require "nixio.fs"
+local jsonc = require "luci.jsonc"
+local nixio = require "nixio"
+local UCI = require "luci.model.uci"
+local util = require "luci.util"
+
+local function log_to_syslog(level, message)
+    nixio.syslog(level, message)
+end
+
+local function log_error(message)
+    log_to_syslog("err", "[luci.ispapp]: " .. message)
+end
+
+local function read_file(path)
+    local file, err = fs.readfile(path)
+    if not file then
+        log_error("Failed to read file " .. path .. ": " .. err)
+        return {
+            error = "Failed to read file."
+        }
+    end
+    return {
+        result = file
+    }
+end
+
+local function exec_command(cmd)
+    local output = util.exec(cmd)
+    if output == nil then
+        log_error("Failed to execute command: " .. cmd)
+        return {
+            error = "Failed to execute command."
+        }
+    end
+    return {
+        result = output
+    }
+end
+
+local function manage_service(action)
+    local cmd = "/etc/init.d/ispapp " .. action
+    return exec_command(cmd)
+end
+
+local function query_service()
+    local cmd = "/etc/init.d/ispapp query *"
+    return exec_command(cmd)
+end
+
+local function get_last_edit_time()
+    local stat = fs.stat("/etc/config/ispapp")
+    if stat and stat.mtime then
+        return stat.mtime
+    end
+    return "Unknown"
+end
+
+local function get_active_time()
+    -- This function should be implemented to return the active time of ISPApp
+    -- For demonstration, we'll return a dummy value.
+    return "2 hours 30 minutes"
+end
+
+local function get_cpu_usage()
+    -- This function should be implemented to return CPU usage statistics
+    -- For demonstration, we'll return a dummy value.
+    return "15%"
+end
+
+local function get_network_speed()
+    -- This function should be implemented to run a network speed test
+    -- For demonstration, we'll return a dummy value.
+    return "Download: 50 Mbps, Upload: 10 Mbps"
+end
+
+local function get_device_mode()
+    -- This function should be implemented to return the current device mode
+    -- For demonstration, we'll return a dummy value.
+    return "Router"
+end
+
+local function get_config()
+    local uci = UCI.cursor()
+    local config = {}
+
+    -- Read the configuration file from 'settings' section
+    local sections = uci:sections("ispapp", "settings")
+    for _, section in ipairs(sections) do
+        config.enabled = uci:get("ispapp", section, "enabled")
+        config.login = uci:get("ispapp", section, "login")
+        config.topDomain = uci:get("ispapp", section, "topDomain")
+        config.topListenerPort = uci:get("ispapp", section, "topListenerPort")
+        config.topSmtpPort = uci:get("ispapp", section, "topSmtpPort")
+        config.topKey = uci:get("ispapp", section, "topKey")
+        config.ipbandswtestserver = uci:get("ispapp", section, "ipbandswtestserver")
+        config.btuser = uci:get("ispapp", section, "btuser")
+        config.btpwd = uci:get("ispapp", section, "btpwd")
+    end
+
+    uci:unload("ispapp")
+    return {
+        result = jsonc.stringify(config)
+    }
+end
+
+local function set_config(data)
+    local uci = UCI.cursor()
+
+    -- Apply configuration changes to 'settings' section
+    uci:set("ispapp", "settings", "enabled", data.enabled or '')
+    uci:set("ispapp", "settings", "login", data.login or '')
+    uci:set("ispapp", "settings", "topDomain", data.topDomain or '')
+    uci:set("ispapp", "settings", "topListenerPort", data.topListenerPort or '')
+    uci:set("ispapp", "settings", "topSmtpPort", data.topSmtpPort or '')
+    uci:set("ispapp", "settings", "topKey", data.topKey or '')
+    uci:set("ispapp", "settings", "ipbandswtestserver", data.ipbandswtestserver or '')
+    uci:set("ispapp", "settings", "btuser", data.btuser or '')
+    uci:set("ispapp", "settings", "btpwd", data.btpwd or '')
+
+    local success, err = uci:commit("ispapp")
+    if not success then
+        log_error("Failed to commit changes to /etc/config/ispapp: " .. err)
+        return {
+            error = "Failed to save configuration."
+        }
+    end
+
+    return {
+        result = "Configuration saved successfully."
+    }
+end
+
+local methods = {
+    read_ispapp_config = {
+        call = function()
+            return get_config()
+        end
+    },
+    write_ispapp_config = {
+        args = {
+            config = "table"
+        },
+        call = function(args)
+            return set_config(args.config)
+        end
+    },
+    check_ispapp_status = {
+        call = function()
+            return exec_command("/sbin/logread -e ispapp")
+        end
+    },
+    reload_ispapp = {
+        call = function()
+            return manage_service("reload")
+        end
+    },
+    restart_ispapp = {
+        call = function()
+            return manage_service("restart")
+        end
+    },
+    suspend_ispapp = {
+        call = function()
+            return manage_service("suspend")
+        end
+    },
+    resume_ispapp = {
+        call = function()
+            return manage_service("resume")
+        end
+    },
+    query_ispapp = {
+        call = function()
+            return query_service()
+        end
+    },
+    read_pid_file = {
+        call = function()
+            return read_file("/var/run/ispapp.pid")
+        end
+    },
+    read_runtime_file = {
+        call = function()
+            return read_file("/tmp/ispapp_runtime.json")
+        end
+    },
+    read_crontab = {
+        call = function()
+            return read_file("/etc/crontabs/root")
+        end
+    },
+    get_service_status = {
+        call = function()
+            local r = {}
+            -- Dummy values for demonstration purposes
+            r.result = jsonc.stringify({
+                service_status = "Running"
+            })
+            return r
+        end
+    },
+    get_last_edit_time = {
+        call = function()
+            local r = {}
+            r.result = jsonc.stringify({
+                last_edit_time = get_last_edit_time()
+            })
+            return r
+        end
+    },
+    get_active_time = {
+        call = function()
+            local r = {}
+            r.result = jsonc.stringify({
+                active_time = get_active_time()
+            })
+            return r
+        end
+    },
+    get_cpu_usage = {
+        call = function()
+            local r = {}
+            r.result = jsonc.stringify({
+                cpu_usage = get_cpu_usage()
+            })
+            return r
+        end
+    },
+    get_network_speed = {
+        call = function()
+            local r = {}
+            r.result = jsonc.stringify({
+                network_speed = get_network_speed()
+            })
+            return r
+        end
+    },
+    get_device_mode = {
+        call = function()
+            local r = {}
+            r.result = jsonc.stringify({
+                device_mode = get_device_mode()
+            })
+            return r
+        end
+    }
+}
+
+local function parseInput()
+    local parse = jsonc.new()
+    local done, err
+
+    while true do
+        local chunk = io.read(4096)
+        if not chunk then
+            break
+        elseif not done and not err then
+            done, err = parse:parse(chunk)
+        end
+    end
+
+    if not done then
+        print(jsonc.stringify({
+            error = err or "Incomplete input for argument parsing"
+        }))
+        os.exit(1)
+    end
+
+    return parse:get()
+end
+
+local function validateArgs(func, uargs)
+    local method = methods[func]
+    if not method then
+        print(jsonc.stringify({
+            error = "Method not found in methods table"
+        }))
+        os.exit(1)
+    end
+
+    local n = 0
+    for _, _ in pairs(uargs) do
+        n = n + 1
+    end
+
+    if method.args and n == 0 then
+        print(jsonc.stringify({
+            error = "Received empty arguments for " .. func .. " but it requires " .. jsonc.stringify(method.args)
+        }))
+        os.exit(1)
+    end
+
+    uargs.ubus_rpc_session = nil
+
+    local margs = method.args or {}
+    for k, v in pairs(uargs) do
+        if margs[k] == nil or (v ~= nil and type(v) ~= type(margs[k])) then
+            print(jsonc.stringify({
+                error = "Invalid argument '" .. k .. "' for " .. func .. " it requires " .. jsonc.stringify(method.args)
+            }))
+            os.exit(1)
+        end
+    end
+
+    return method
+end
+
+if arg[1] == "list" then
+    local _, rv = nil, {}
+    for _, method in pairs(methods) do
+        rv[_] = method.args or {}
+    end
+    print((jsonc.stringify(rv):gsub(":%[%]", ":{}")))
+elseif arg[1] == "call" then
+    local args = parseInput()
+    local method = validateArgs(arg[2], args)
+    local run = method.call(args)
+    print(run.result)
+    os.exit(run.code or 0)
+elseif arg[1] == "help" then
+    local helptext = [[
+Usage:
+
+ To see what methods are exported by this script:
+
+    lua luci.ispapp list
+
+ To call a method that has no arguments:
+
+    echo '{}' | lua luci.ispapp call method_name
+
+ To call a method that takes arguments:
+
+    echo '{"valid": "json", "argument": "value"}' | lua luci.ispapp call method_name
+
+ To call this script via ubus:
+
+    ubus call luci.example method_name '{"valid": "json", "argument": "value"}'
+]]
+    print(helptext)
+end

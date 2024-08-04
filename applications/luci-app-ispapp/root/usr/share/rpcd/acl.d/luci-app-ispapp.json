@@ -1,0 +1,29 @@
+{
+  "luci-app-example": {
+    "description": "Grant UCI and RPC access to LuCI app ispapp",
+    "write": {
+      "uci": [
+        "ispappd"
+      ],
+      "file": {
+				"/etc/config/ispapp": ["read", "write"]
+			}
+    },
+    "read": {
+      "cgi-io": [ "exec" ],
+			"file": {
+				"/var/run/ispapp.pid": ["read"],
+				"/tmp/ispapp_runtime.json": ["read"],
+				"/etc/crontabs/root": ["read"],
+				"/sbin/logread -e ispapp": [ "exec" ],
+				"/usr/sbin/logread -e ispapp": [ "exec" ],
+				"/etc/init.d/ispapp reload" : [ "exec" ],
+				"/etc/init.d/ispapp restart" : [ "exec" ],
+				"/etc/init.d/ispapp suspend" : [ "exec" ],
+				"/etc/init.d/ispapp resume" : [ "exec" ],
+				"/etc/init.d/ispapp query *" : [ "exec" ]
+			},
+			"uci": ["ispappd"]
+    }
+  }
+}

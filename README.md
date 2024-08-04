@@ -7,10 +7,10 @@ Learn more at https://ispapp.co
 > ~usage:
 
 ```
-    /etc/init.d/ispapp start
+    /etc/init.d/ispappd start
 ```
 ```
-    /etc/init.d/ispapp stop
+    /etc/init.d/ispappd stop
 ```
 
 # about

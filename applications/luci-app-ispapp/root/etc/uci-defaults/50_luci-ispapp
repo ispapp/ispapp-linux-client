@@ -1,0 +1,20 @@
+#!/bin/sh
+
+rm -f /tmp/luci-indexcache*
+# Create the config file if it doesn't exist
+touch /etc/config/ispapp
+
+# Set UCI configuration values
+uci set settings.enabled='0'
+uci set settings.login='00:00:00:00:00:00'
+uci set settings.topDomain='qwer.ispapp.co'
+uci set settings.topListenerPort='8550'
+uci set settings.topSmtpPort='8465'
+uci set settings.topKey=''
+uci set settings.ipbandswtestserver='3.239.254.95'
+uci set settings.btuser='btest'
+uci set settings.btpwd='0XSYIGkRlP6MUQJMZMdrogi2'
+
+# Commit the changes
+uci commit
+return 0
