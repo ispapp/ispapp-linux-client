@@ -21,9 +21,8 @@ include $(TOPDIR)/rules.mk
 PKG_NAME:=ispappd
 PKG_VERSION:=1.0.1
 PKG_RELEASE:=1
-# Include necessary build system package.mk file
-PKG_BUILD_DIR := $(BUILD_DIR)/$(PKG_NAME)
-PKGARCH:=all
+PKG_LICENSE:=Apache-2.0
+
 include $(INCLUDE_DIR)/package.mk
 
 # Specify package information for ispappd
@@ -31,23 +30,25 @@ define Package/ispappd
 	SECTION:=utils
 	CATEGORY:=Utilities
 	TITLE:=ispappd -- ISPApp Daemon
-  	DEPENDS:=+libpthread
+	DEPENDS:=+libpthread
+  MAINTAINER:=Ouazmir karim <abdelkarim@ispapp.co>
 endef
 # Specify the description for ispappd
 define Package/$(PKG_NAME)/description
 	ISP App Daemon is a sample package for OpenWRT.
 endef
-# Specify what needs to be done to prepare for building the package.
-define Build/Prepare
-	mkdir -p $(PKG_BUILD_DIR)
-	$(CP) ./src/* $(PKG_BUILD_DIR)/
+define Build/Configure
+endef
+
+define Build/Compile
+	$(TARGET_CC) $(TARGET_CFLAGS) \
+		-o $(PKG_BUILD_DIR)/iwcap $(PKG_BUILD_DIR)/iwcap.c
 endef
 
 
-# Specify where and how to install ispappd
-define Package/$(PKG_NAME)/install
-	$(INSTALL_DIR) $(1)/bin
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ispappd $(1)/bin/
+define Package/iwcap/install
+	$(INSTALL_DIR) $(1)/usr/sbin
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/iwcap $(1)/usr/sbin/iwcap
 endef
 
 # This line executes the necessary commands to compile ispappd.
