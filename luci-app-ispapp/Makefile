@@ -14,14 +14,15 @@ PKG_MAINTAINER:=Karim O. <abdelkarim@ispapp.co>
 PKG_NAME:=luci-app-ispapp
 PKG_VERSION:=1.0.0
 PKG_RELEASE:=20231230
-PKG_LICENSE:=GPLv2
+PKG_LICENSE:=Apache-2.0
+PKG_MAINTAINER:=Ouazmir Abdelkarim <abdelkarim@ispapp.co>
 
 define Package/luci-app-ispapp
 	SECTION:=net
 	CATEGORY:=Network
 	TITLE:=LuCI Support of Ispapp.co Agent
 	URL:=https://ispapp.co
-	DEPENDS:=+ispappd
+	DEPENDS:=+ispappd +luci-lua-runtime
 endef
 define Package/luci-app-ispapp/conffiles
 /etc/config/ispapp
