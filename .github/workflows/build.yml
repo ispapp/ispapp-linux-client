@@ -1,0 +1,71 @@
+name: Build ISPAPP OpenWrt Packages
+
+on:
+  pull_request:
+    branches:
+      - karim
+  push:
+    branches:
+      - karim
+
+jobs:
+  build:
+    name: ${{ matrix.arch }} build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch:
+          - aarch64_cortex-a53  # Arm Cortex-A53 64-bit
+          - arm_cortex-a53  # Arm Cortex-A53 32-bit
+          - aarch64_cortex-a72  # Arm Cortex-A72 64-bit
+          - arm_cortex-a9  # Arm Cortex-A9
+          - arm_cortex-a15  # Arm Cortex-A9
+          - arm_cortex-a7  # Arm Cortex-A9
+          - arm_cortex-a15_neon-vfpv4
+          - ipq40xx-mikrotik
+          - ipq40xx-generic
+          - qualcommax-ipq807x
+          - ipq806x-generic
+          - ipq807x-generic
+          - bmips-bcm63268
+          - bmips-bcm6368
+          - bmips-bcm6362
+          - bmips-bcm6358
+          - bmips-bcm6328
+          - bmips-bcm6318
+          - mediatek-mt7623
+          - mediatek-mt7622
+          - mediatek-mt7629
+          - mediatek-filogic
+          - bcm53xx-generic
+          - ramips-rt305x
+          - ramips-mt7620
+          - ramips-mt7621
+          - ar71xx-mikrotik
+          - dm5120
+          - mvebu-cortexa72
+          - rb532-generic
+          - ath79-mikrotik
+          
+    steps:
+      # Checkout the repository
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      # Build packages using OpenWrt SDK
+      - name: Build OpenWrt packages
+        uses: openwrt/gh-action-sdk@main
+        env:
+          ARCH: ${{ matrix.arch }}
+          PACKAGES: "luci-app-ispapp ispappd"  # Specify your package names
+          INDEX: 1
+          V: 1  # Verbosity level for build output
+
+      # Store the generated package artifacts
+      - name: Store packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.arch }}-packages
+          path: bin/packages/${{ matrix.arch }}/packages/*.ipk
+          overwrite: true
