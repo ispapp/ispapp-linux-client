@@ -38,16 +38,16 @@ echo "Building luci-app-ispapp and ispappd packages in SDK..."
 
 docker run --rm -v "$(pwd)"/bin/:"$BUILD_DIR/bin" -v "$(pwd)/$PACKAGE_DIR/":"$BUILD_DIR/$PACKAGE_DIR" $SDK_IMAGE bash -c "
     set -e
-
-    echo 'src-link $FEEDNAME "./$PACKAGE_DIR"' >> feeds.conf.default
-    cat feeds.conf.default
+    echo 'src-link $FEEDNAME "$BUILD_DIR/$PACKAGE_DIR/"' >> feeds.conf
+    echo 'src-git packages https://git.openwrt.org/feed/packages.git' >> feeds.conf
+    echo 'src-git luci https://git.openwrt.org/project/luci.git' >> feeds.conf
+    echo 'src-git routing https://git.openwrt.org/feed/routing.git' >> feeds.conf
+    echo 'src-git telephony https://git.openwrt.org/feed/telephony.git' >> feeds.conf
     # Custom Feeds
-    ALL_CUSTOM_FEEDS='$FEEDNAME'
-    ./scripts/feeds update ispapp luci-app-ispapp
-    ./scripts/feeds install -p $FEEDNAME -f luci-app-ispapp ispappd
+    LC_ALL=C
+    ./scripts/feeds update
+    ./scripts/feeds install -p $FEEDNAME -f
     make defconfig
-    make package/applications/luci-app-ispapp/download V=s
-    make package/utils/ispappd/download V=s
     make package/applications/luci-app-ispapp/compile V=s -j \$(nproc)
     make package/utils/ispappd/compile V=s -j \$(nproc)
     mkdir -p ./packages

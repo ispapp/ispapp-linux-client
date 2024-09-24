@@ -1,76 +1,71 @@
-name: Build ISPAPP OpenWrt Packages
+name: BUILD PACKAGES
 
 on:
-  pull_request:
-    branches:
-      - karim
   push:
     branches:
       - karim
+  
 
 jobs:
-  build:
-    name: ${{ matrix.arch }} build
+  changes:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        arch:
-          # - aarch64_cortex-a53  # Arm Cortex-A53 64-bit
-          # - arm_cortex-a7_neon-vfpv4
-          # - aarch64_cortex-a72  # Arm Cortex-A72 64-bit
-          # - arm_cortex-a9  # Arm Cortex-A9
-          # - arm_cortex-a15_neon-vfpv4  # Arm Cortex-A9
-          # - arm_cortex-a7  # Arm Cortex-A9
-          # - arm_cortex-a15_neon-vfpv4
-          # - ipq40xx-mikrotik
-          # - ipq40xx-generic
-          # - qualcommax-ipq807x
-          # - ipq806x-generic
-          # - ipq807x-generic-23.05.4
-          # - bmips-bcm63268
-          # - bmips-bcm6368
-          # - bmips-bcm6362
-          # - bmips-bcm6358
-          # - bmips-bcm6328
-          # - bmips-bcm6318
-          # - mediatek-mt7623
-          # - mediatek-mt7622
-          # - mediatek-mt7629
-          # - mediatek-filogic
-          # - bcm53xx-generic
-          # - ramips-rt305x
-          # - ramips-mt7620
-          # - ramips-mt7621
-          # - ar71xx-mikrotik-19.07.10
-          # - mvebu-cortexa72
-          # - rb532-generic-19.07.10
-          - ath79-mikrotik
-      
+    outputs:
+      # Expose matched filters as job 'packages' output variable
+      packages: ${{ steps.get_changed.outputs.packages }}
     steps:
-      # Checkout the repository
-      - uses: actions/checkout@v2
+      - name: Checkout
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
-      # Build packages using OpenWrt SDK
-      - name: Build OpenWrt packages
+      # For pull requests it's not necessary to checkout the code
+      - name: Get changed packages
+        id: get_changed
+        continue-on-error: false
+        run: |
+          changed=$(git diff --no-renames --name-only HEAD^1 | paste -sd " " -)
+
+          folders=()
+          for f in $changed; do
+              folder=$(echo "$f" | awk -F "/" '{print $1}')
+              if [ ! -d "$folder" ]; then
+                  echo "Skipping $folder as it is not a folder"
+                  continue
+              fi
+              if [[ "$folder" == ".github" ]]; then
+                  echo "Skipping $folder as it is .github"
+                  continue
+              fi
+              echo "Adding $folder to folders"
+              folders+=($folder)
+          done
+          unique_folders=($(printf "%s\n" "${folders[@]}" | sort -u | tr '\n' ' '))
+          echo "packages=$(jq --compact-output --null-input '$ARGS.positional' --args -- ${unique_folders[@]})" >> $GITHUB_OUTPUT
+
+  build:
+    needs: changes
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch:
+          - mips_24kc
+          - mipsel_24kc
+        package: ${{ fromJSON(needs.changes.outputs.packages) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Build ${{ matrix.package }}-${{ matrix.arch }}
         uses: openwrt/gh-action-sdk@main
         env:
-          ARCH: ${{ matrix.arch }}
-          CONTAINER: openwrt/sdk
-          PACKAGES: "luci-app-ispapp ispappd"  # Specify your package names
-          FEEDNAME: ispapp
-          NO_REFRESH_CHECK: 1
-          NO_SHFMT_CHECK: 1
-          IGNORE_ERRORS: 1
-          FEED_DIR: "$(pwd)/ispapp"
-          INDEX: 1
-          V: 2  # Verbosity level for build output
-      # Store the generated package artifacts
+          NO_REFRESH_CHECK: true
+          FEEDNAME: packages_ci
+          ARCH: ${{ matrix.arch }}-22.03.5
+          PACKAGES: ${{ matrix.package }}
+          V: sc
+
       - name: Store packages
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.arch }}-packages
-          path: bin/packages/${{ matrix.arch }}/packages/*.ipk
-          overwrite: true
+          name: ${{ matrix.package }}-${{ matrix.arch }}
+          path: bin/packages/${{ matrix.arch }}/packages_ci/*.ipk
