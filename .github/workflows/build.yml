@@ -16,35 +16,35 @@ jobs:
       fail-fast: false
       matrix:
         arch:
-          - aarch64_cortex-a53  # Arm Cortex-A53 64-bit
-          - arm_cortex-a7_neon-vfpv4
-          - aarch64_cortex-a72  # Arm Cortex-A72 64-bit
-          - arm_cortex-a9  # Arm Cortex-A9
-          - arm_cortex-a15_neon-vfpv4  # Arm Cortex-A9
-          - arm_cortex-a7  # Arm Cortex-A9
-          - arm_cortex-a15_neon-vfpv4
-          - ipq40xx-mikrotik
-          - ipq40xx-generic
-          - qualcommax-ipq807x
-          - ipq806x-generic
-          - ipq807x-generic-23.05.4
-          - bmips-bcm63268
-          - bmips-bcm6368
-          - bmips-bcm6362
-          - bmips-bcm6358
-          - bmips-bcm6328
-          - bmips-bcm6318
-          - mediatek-mt7623
-          - mediatek-mt7622
-          - mediatek-mt7629
-          - mediatek-filogic
-          - bcm53xx-generic
-          - ramips-rt305x
-          - ramips-mt7620
-          - ramips-mt7621
-          - ar71xx-mikrotik-19.07.10
-          - mvebu-cortexa72
-          - rb532-generic-19.07.10
+          # - aarch64_cortex-a53  # Arm Cortex-A53 64-bit
+          # - arm_cortex-a7_neon-vfpv4
+          # - aarch64_cortex-a72  # Arm Cortex-A72 64-bit
+          # - arm_cortex-a9  # Arm Cortex-A9
+          # - arm_cortex-a15_neon-vfpv4  # Arm Cortex-A9
+          # - arm_cortex-a7  # Arm Cortex-A9
+          # - arm_cortex-a15_neon-vfpv4
+          # - ipq40xx-mikrotik
+          # - ipq40xx-generic
+          # - qualcommax-ipq807x
+          # - ipq806x-generic
+          # - ipq807x-generic-23.05.4
+          # - bmips-bcm63268
+          # - bmips-bcm6368
+          # - bmips-bcm6362
+          # - bmips-bcm6358
+          # - bmips-bcm6328
+          # - bmips-bcm6318
+          # - mediatek-mt7623
+          # - mediatek-mt7622
+          # - mediatek-mt7629
+          # - mediatek-filogic
+          # - bcm53xx-generic
+          # - ramips-rt305x
+          # - ramips-mt7620
+          # - ramips-mt7621
+          # - ar71xx-mikrotik-19.07.10
+          # - mvebu-cortexa72
+          # - rb532-generic-19.07.10
           - ath79-mikrotik
       
     steps:
@@ -64,7 +64,7 @@ jobs:
           NO_REFRESH_CHECK: 1
           NO_SHFMT_CHECK: 1
           IGNORE_ERRORS: 1
-          FEED_DIR: ispapp
+          FEED_DIR: "$(pwd)/ispapp"
           INDEX: 1
           V: 2  # Verbosity level for build output
       # Store the generated package artifacts

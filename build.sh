@@ -36,20 +36,20 @@ ROOTFS_CONTAINER="openwrt_instance"
 # Prepare environment for feeds and packages
 echo "Building luci-app-ispapp and ispappd packages in SDK..."
 
-docker run --rm -v "$PACKAGE_DIR":"$BUILD_DIR/$PACKAGE_DIR" -w $BUILD_DIR $SDK_IMAGE bash -c "
+docker run --rm -v "$(pwd)"/bin/:"$BUILD_DIR/bin" -v "$(pwd)/$PACKAGE_DIR/":"$BUILD_DIR/$PACKAGE_DIR" $SDK_IMAGE bash -c "
     set -e
-     
-    echo 'src-link $FEEDNAME "./$PACKAGE_DIR"' >> feeds.conf.default
 
+    echo 'src-link $FEEDNAME "./$PACKAGE_DIR"' >> feeds.conf.default
+    cat feeds.conf.default
     # Custom Feeds
     ALL_CUSTOM_FEEDS='$FEEDNAME'
-    ./scripts/feeds update -a
+    ./scripts/feeds update ispapp luci-app-ispapp
     ./scripts/feeds install -p $FEEDNAME -f luci-app-ispapp ispappd
     make defconfig
-    make package/luci-app-ispapp/download V=s
-    make package/ispappd/download V=s
-    make package/luci-app-ispapp/compile V=s -j \$(nproc)
-    make package/ispappd/compile V=s -j \$(nproc)
+    make package/applications/luci-app-ispapp/download V=s
+    make package/utils/ispappd/download V=s
+    make package/applications/luci-app-ispapp/compile V=s -j \$(nproc)
+    make package/utils/ispappd/compile V=s -j \$(nproc)
     mkdir -p ./packages
     cp bin/packages/x86_64/*ispapp*.ipk ./packages/
 "
