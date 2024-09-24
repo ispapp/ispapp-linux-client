@@ -57,6 +57,7 @@ jobs:
         uses: openwrt/gh-action-sdk@main
         env:
           ARCH: ${{ matrix.arch }}
+          CONTAINER: docker.io/openwrt/sdk
           PACKAGES: "luci-app-ispapp ispappd"  # Specify your package names
           INDEX: 1
           V: 1  # Verbosity level for build output
