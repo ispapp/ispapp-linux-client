@@ -26,7 +26,7 @@ jobs:
           - ipq40xx-generic
           - qualcommax-ipq807x
           - ipq806x-generic
-          - ipq807x-generic
+          - ipq807x-generic-23.05.4
           - bmips-bcm63268
           - bmips-bcm6368
           - bmips-bcm6362
@@ -57,7 +57,7 @@ jobs:
         uses: openwrt/gh-action-sdk@main
         env:
           ARCH: ${{ matrix.arch }}
-          CONTAINER: docker.io/openwrt/sdk
+          CONTAINER: openwrt/sdk
           PACKAGES: "luci-app-ispapp ispappd"  # Specify your package names
           INDEX: 1
           V: 1  # Verbosity level for build output
