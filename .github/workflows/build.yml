@@ -16,10 +16,10 @@ jobs:
       matrix:
         arch:
           - aarch64_cortex-a53  # Arm Cortex-A53 64-bit
-          - arm_cortex-a53  # Arm Cortex-A53 32-bit
+          - arm_cortex-a7_neon-vfpv4
           - aarch64_cortex-a72  # Arm Cortex-A72 64-bit
           - arm_cortex-a9  # Arm Cortex-A9
-          - arm_cortex-a15  # Arm Cortex-A9
+          - arm_cortex-a15_neon-vfpv4  # Arm Cortex-A9
           - arm_cortex-a7  # Arm Cortex-A9
           - arm_cortex-a15_neon-vfpv4
           - ipq40xx-mikrotik
@@ -41,10 +41,9 @@ jobs:
           - ramips-rt305x
           - ramips-mt7620
           - ramips-mt7621
-          - ar71xx-mikrotik
-          - dm5120
+          - ar71xx-mikrotik-19.07.10
           - mvebu-cortexa72
-          - rb532-generic
+          - rb532-generic-19.07.10
           - ath79-mikrotik
           
     steps:
