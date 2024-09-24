@@ -3,7 +3,6 @@
 rm -f /tmp/luci-indexcache*
 # Create the config file if it doesn't exist
 touch /etc/config/ispapp
-
 # Set UCI configuration values
 uci set settings.enabled='0'
 uci set settings.login='00:00:00:00:00:00'

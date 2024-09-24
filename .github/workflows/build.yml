@@ -74,9 +74,7 @@ jobs:
           - ramips-rt305x
           - ramips-mt7620
           - ramips-mt7621
-          - ar71xx-mikrotik-19.07.10
           - mvebu-cortexa72
-          - rb532-generic-19.07.10
           - ath79-mikrotik
         package: ${{ fromJSON(needs.changes.outputs.packages) }}
     steps:

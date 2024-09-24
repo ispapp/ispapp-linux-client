@@ -47,7 +47,7 @@ jobs:
           git config --local user.email "actions@github.com"
           git add index.md
           git commit -m "Update artifacts list"
-          git push origin master  # Ensure this matches your default branch
+          git push origin karim  # Ensure this matches your default branch
 
   # Single deploy job since we're just deploying
   deploy:

@@ -174,6 +174,7 @@ void startService()
     printf("BT Password: %s\n", shared_config.btpwd);
 
     // Start threads
+    
     pthread_create(&updates_thread_id, NULL, updates_thread, NULL);
     pthread_create(&configs_thread_id, NULL, configs_thread, NULL);
     pthread_create(&healthcheck_thread_id, NULL, healthcheck_thread, NULL);
