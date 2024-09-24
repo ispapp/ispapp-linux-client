@@ -13,6 +13,7 @@ jobs:
     name: ${{ matrix.arch }} build
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         arch:
           - aarch64_cortex-a53  # Arm Cortex-A53 64-bit
@@ -45,7 +46,7 @@ jobs:
           - mvebu-cortexa72
           - rb532-generic-19.07.10
           - ath79-mikrotik
-          
+      
     steps:
       # Checkout the repository
       - uses: actions/checkout@v2
@@ -60,8 +61,7 @@ jobs:
           CONTAINER: openwrt/sdk
           PACKAGES: "luci-app-ispapp ispappd"  # Specify your package names
           INDEX: 1
-          V: 1  # Verbosity level for build output
-
+          V: 2  # Verbosity level for build output
       # Store the generated package artifacts
       - name: Store packages
         uses: actions/upload-artifact@v4
