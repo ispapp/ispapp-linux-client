@@ -48,8 +48,8 @@ docker run --rm -v "$(pwd)"/bin/:"$BUILD_DIR/bin" -v "$(pwd)/$PACKAGE_DIR/":"$BU
     ./scripts/feeds update
     ./scripts/feeds install -p $FEEDNAME -f
     make defconfig
-    make package/applications/luci-app-ispapp/compile V=s -j \$(nproc)
-    make package/utils/ispappd/compile V=s -j \$(nproc)
+    make package/luci-app-ispapp/compile V=s -j \$(nproc)
+    make package/ispappd/compile V=s -j \$(nproc)
     mkdir -p ./packages
     cp bin/packages/x86_64/*ispapp*.ipk ./packages/
 "

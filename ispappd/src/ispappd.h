@@ -9,6 +9,10 @@
 #include <curl/curl.h>
 #include <jansson.h>
 
+/*
+    requirements for ubuntu
+    sudo apt install libjansson-dev libcurl4-openssl-dev
+*/
 // Configuration structure
 typedef struct
 {
@@ -29,5 +33,12 @@ void stopService();
 void handleCommand(int argc, char *argv[]);
 void *updates_thread(void *arg);
 void *configs_thread(void *arg);
+void *configs_thread(void *arg);
+int isDomainLive(const char *domain);
+void logError(const char *message);
+int isPortOpen(const char *domain, int port);
+static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *userp);
+int checkUuid(const char *domain, int port);
+void *healthcheck_thread(void *arg);
 
 #endif // ISPAPPD_H

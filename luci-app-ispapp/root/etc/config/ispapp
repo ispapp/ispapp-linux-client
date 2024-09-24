@@ -5,6 +5,7 @@ config settings
 	option topListenerPort '8550'
 	option topSmtpPort '8465'
 	option topKey ''
+	option refreshToken ''
 	option ipbandswtestserver '3.239.254.95'
 	option btuser 'btest'
 	option btpwd '0XSYIGkRlP6MUQJMZMdrogi2'
