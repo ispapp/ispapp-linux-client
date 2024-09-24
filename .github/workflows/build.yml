@@ -95,3 +95,4 @@ jobs:
         with:
           name: ${{ matrix.package }}-${{ matrix.arch }}
           path: bin/packages/${{ matrix.arch }}/packages_ci/*.ipk
+          overwrite: true
