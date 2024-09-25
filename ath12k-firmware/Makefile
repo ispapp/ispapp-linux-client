@@ -25,6 +25,7 @@ include $(INCLUDE_DIR)/package.mk
 RSTRIP:=:
 STRIP:=:
 
+
 define Package/ath12k-firmware-default
   SECTION:=firmware
   CATEGORY:=Firmware
