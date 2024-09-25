@@ -38,27 +38,8 @@ $(Package/ath12k-firmware-default)
   TITLE:=IPQ5322 ath12k firmware
 endef
 
-define Package/ath12k-firmware-ipq5322_qcn6432
-$(Package/ath12k-firmware-default)
-  TITLE:=IPQ5322_QCN6432 ath12k firmware
-endef
 
-define Package/ath12k-firmware-ipq5322_qcn6432_qcn6432
-$(Package/ath12k-firmware-default)
-  TITLE:=IPQ5322_QCN6432_QCN6432 ath12k firmware
-endef
-
-define Package/ath12k-firmware-qcn9274_hw1
-$(Package/ath12k-firmware-default)
-  TITLE:=QCN9274 hw1.0 ath12k firmware
-endef
-
-define Package/ath12k-firmware-qcn9274_hw2
-$(Package/ath12k-firmware-default)
-  TITLE:=QCN9274 hw2.0 ath12k firmware
-endef
-
-define Package/ath12k-firmware-qcn9274_hw2_split_phy
+define Package/ath12k-firmware-qcn9274
 $(Package/ath12k-firmware-default)
   TITLE:=QCN9274 hw2.0_split_phy ath12k firmware
 endef
@@ -68,50 +49,18 @@ define Build/Compile
 endef
 
 define Package/ath12k-firmware-ipq5322/install
-	$(INSTALL_DIR) $(1)/lib/firmware/IPQ5322/hw1.0
+	$(INSTALL_DIR) $(1)/lib/firmware/IPQ5332/hw1.0/
 	$(INSTALL_DATA) \
-		$(PKG_BUILD_DIR)/ath12k-firmware/IPQ5322/hw1.0/* \
+		$(PKG_BUILD_DIR)/ath12k-firmware/IPQ5322/hw1.0/1.3.1/WLAN.WBE.1.3.1-00130-QCAHKSWPL_SILICONZ-1/* \
 		$(1)/lib/firmware/IPQ5322/hw1.0/
 endef
 
-define Package/ath12k-firmware-ipq5322_qcn6432/install
-	$(INSTALL_DIR) $(1)/lib/firmware/IPQ5322_QCN6432/hw1.0
-	$(INSTALL_DATA) \
-		$(PKG_BUILD_DIR)/ath12k-firmware/IPQ5322_QCN6432/hw1.0/* \
-		$(1)/lib/firmware/IPQ5322_QCN6432/hw1.0/
-endef
-
-define Package/ath12k-firmware-ipq5322_qcn6432_qcn6432/install
-	$(INSTALL_DIR) $(1)/lib/firmware/IPQ5322_QCN6432_QCN6432/hw1.0
-	$(INSTALL_DATA) \
-		$(PKG_BUILD_DIR)/ath12k-firmware/IPQ5322_QCN6432_QCN6432/hw1.0/* \
-		$(1)/lib/firmware/IPQ5322_QCN6432_QCN6432/hw1.0/
-endef
-
-define Package/ath12k-firmware-qcn9274_hw1/install
-	$(INSTALL_DIR) $(1)/lib/firmware/ath12k/QCN9274/hw1.0
-	$(INSTALL_DATA) \
-		$(PKG_BUILD_DIR)/ath12k-firmware/QCN9274/hw1.0/* \
-		$(1)/lib/firmware/ath12k/QCN9274/hw1.0/
-endef
-
-define Package/ath12k-firmware-qcn9274_hw2/install
-	$(INSTALL_DIR) $(1)/lib/firmware/ath12k/QCN9274/hw2.0
-	$(INSTALL_DATA) \
-		$(PKG_BUILD_DIR)/ath12k-firmware/QCN9274/hw2.0/* \
-		$(1)/lib/firmware/ath12k/QCN9274/hw2.0/
-endef
-
-define Package/ath12k-firmware-qcn9274_hw2_split_phy/install
+define Package/ath12k-firmware-qcn9274/install
 	$(INSTALL_DIR) $(1)/lib/firmware/ath12k/QCN9274/hw2.0_split_phy
 	$(INSTALL_DATA) \
-		$(PKG_BUILD_DIR)/ath12k-firmware/QCN9274/hw2.0_split_phy/* \
+		$(PKG_BUILD_DIR)/ath12k-firmware/QCN9274/hw2.0_split_phy/1.3.1/WLAN.WBE.1.3.1-00130-QCAHKSWPL_SILICONZ-1/* \
 		$(1)/lib/firmware/ath12k/QCN9274/hw2.0_split_phy/
 endef
 
 $(eval $(call BuildPackage,ath12k-firmware-ipq5322))
-$(eval $(call BuildPackage,ath12k-firmware-ipq5322_qcn6432))
-$(eval $(call BuildPackage,ath12k-firmware-ipq5322_qcn6432_qcn6432))
-$(eval $(call BuildPackage,ath12k-firmware-qcn9274_hw1))
-$(eval $(call BuildPackage,ath12k-firmware-qcn9274_hw2))
-$(eval $(call BuildPackage,ath12k-firmware-qcn9274_hw2_split_phy))
+$(eval $(call BuildPackage,ath12k-firmware-qcn9274))
