@@ -1,5 +1,5 @@
-# Sample workflow for building and deploying a Jekyll site to GitHub Pages
-name: Deploy Jekyll with GitHub Pages dependencies preinstalled
+# Sample workflow for building and deploying a Jekyll site to GitHub Pages with artifact listing
+name: Deploy Jekyll with GitHub Pages and Artifacts Listing
 
 on:
   # Runs on pushes targeting the default branch
@@ -28,13 +28,31 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
+
+      - name: Fetch Artifacts and Create Table
+        id: fetch_artifacts
+        run: |
+          echo "# Uploaded Artifacts" > artifacts.md
+          echo "| Name | URL | Created At |" >> artifacts.md
+          echo "|------|-----|------------|" >> artifacts.md
+
+          artifacts=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts")
+
+          echo $artifacts | jq -r '.artifacts[] | "| \(.name) | [Download](\(.archive_download_url)) | \(.created_at) |"' >> artifacts.md
+
       - name: Build with Jekyll
         uses: actions/jekyll-build-pages@v1
         with:
           source: ./
           destination: ./_site
+
+      - name: Move Artifacts Table to _site
+        run: mv artifacts.md _site/
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
 

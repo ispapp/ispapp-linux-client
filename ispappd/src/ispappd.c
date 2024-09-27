@@ -6,11 +6,9 @@
 ispapp_config_t shared_config;
 pthread_t updates_thread_id, configs_thread_id, healthcheck_thread_id;
 
-void logError(const char *message)
-{
-    FILE *logFile = fopen("/etc/config/ispapp_logs", "w");  // Open for writing, truncating any existing content
-    if (logFile != NULL)
-    {
+void logError(const char *message) {
+    FILE *logFile = fopen("/etc/config/ispapp_logs", "a");  // Open for appending
+    if (logFile != NULL) {
         fprintf(logFile, "%s\n", message);
         fclose(logFile);
     }
@@ -52,39 +50,6 @@ static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *use
 }
 
 
-int checkUuid(const char *domain, int port)
-{
-    CURL *curl;
-    CURLcode res;
-    char url[256];
-    char response[256] = {0}; 
-    snprintf(url, sizeof(url), "http://%s:%d/auth/uuid", domain, port);
-
-    curl = curl_easy_init();
-    if (curl)
-    {
-        curl_easy_setopt(curl, CURLOPT_URL, url);
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, response);  // Store response in this buffer
-
-        char *response;
-        res = curl_easy_perform(curl);
-        if (res == CURLE_OK)
-        {
-            printf("UUID: %s\n", response);
-            // Assuming response contains a valid UUID
-            // strcpy(shared_config.login, uuid);  // Extracted UUID from response
-            return 1;  // Successful UUID retrieval
-        }
-        else
-        {
-            logError(curl_easy_strerror(res));
-        }
-
-        curl_easy_cleanup(curl);
-    }
-    return 0;  // Failed to check UUID
-}
 
 void loadConfig(ispapp_config_t *config)
 {
@@ -101,6 +66,8 @@ void loadConfig(ispapp_config_t *config)
     {
         if (strstr(line, "option enabled"))
             sscanf(line, " option enabled '%d'", &config->enabled);
+        if (strstr(line, "option connected"))
+            sscanf(line, " option connected '%d'", &config->connected);
         if (strstr(line, "option login"))
             sscanf(line, " option login '%[^']", config->login);
         if (strstr(line, "option topDomain"))
@@ -111,6 +78,10 @@ void loadConfig(ispapp_config_t *config)
             sscanf(line, " option topSmtpPort '%d'", &config->topSmtpPort);
         if (strstr(line, "option topKey"))
             sscanf(line, " option topKey '%[^']", config->topKey);
+        if (strstr(line, "option refreshToken"))
+            sscanf(line, " option refreshToken '%[^']", config->refreshToken);
+        if (strstr(line, "option accessToken"))
+            sscanf(line, " option accessToken '%[^']", config->accessToken);
         if (strstr(line, "option ipbandswtestserver"))
             sscanf(line, " option ipbandswtestserver '%[^']", config->ipbandswtestserver);
         if (strstr(line, "option btuser"))
@@ -249,19 +220,11 @@ void *healthcheck_thread(void *arg)
     while (1)
     {
         // Only run UUID replacement if current UUID is '00:00:00:00:00:00'
-        if (strcmp(shared_config.login, "00:00:00:00:00:00") == 0)
+        if (!isDomainLive(shared_config.topDomain) || !isPortOpen(shared_config.topDomain, shared_config.topListenerPort))
         {
-            if (isDomainLive(shared_config.topDomain))
-            {
-                if (isPortOpen(shared_config.topDomain, shared_config.topListenerPort))
-                {
-                    if (checkUuid(shared_config.topDomain, shared_config.topListenerPort))
-                    {
-                        // Update the login in the configuration file if successful
-                        updateLoginInConfig(shared_config.login);  // Assuming login is updated with the new UUID
-                    }
-                }
-            }
+            stopService();
+            return 0;  // Failed 
+            // todo
         }
 
         sleep(60);  // Periodic health checks every minute
@@ -269,9 +232,149 @@ void *healthcheck_thread(void *arg)
     return NULL;
 }
 
-int main(int argc, char *argv[])
+int isValidUUID(const char *uuid) {
+    // Regular expression pattern for UUID
+    const char *pattern = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$";
+    regex_t regex;
+    
+    // Compile the regex
+    if (regcomp(&regex, pattern, REG_EXTENDED) != 0) {
+        return 0;  // Failed to compile regex
+    }
+
+    // Execute regex
+    int status = regexec(&regex, uuid, 0, NULL, 0);
+    regfree(&regex);  // Free the compiled regex
+
+    return (status == 0);  // Returns non-zero if the UUID matches the pattern
+}
+
+int checkUuid(const char *domain, int port)
 {
+    CURL *curl;
+    CURLcode res;
+    char url[256];
+    char response[256] = {0}; 
+    snprintf(url, sizeof(url), "http://%s:%d/auth/uuid", domain, port);
+
+    curl = curl_easy_init();
+    if (curl)
+    {
+        curl_easy_setopt(curl, CURLOPT_URL, url);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, response);  // Store response in this buffer
+
+        char *response;
+        res = curl_easy_perform(curl);
+        if (res == CURLE_OK)
+        {
+           if (isValidUUID(response)) {
+                printf("Valid UUID: %s\n", response);
+                // Update shared_config with the new UUID
+                strcpy(shared_config.login, response); // Assuming the login should be updated with the new UUID
+                return 1;  // Successful UUID retrieval and validation
+            } else {
+                logError("Invalid UUID format received");
+            }
+        }
+        else
+        {
+            logError(curl_easy_strerror(res));
+        }
+
+        curl_easy_cleanup(curl);
+    }
+    return 0;  // Failed to check UUID
+}
+
+int initConfig() {
+    CURL *curl;
+    CURLcode res;
+    char url[256];
+    char response[1024] = {0};
+    
+    if (strcmp(shared_config.login, "00:00:00:00:00:00") == 0) {
+        if (!checkUuid(shared_config.topDomain, shared_config.topListenerPort)) {
+            return 0;
+        }
+    } else {
+        return 0;
+    }
+    snprintf(url, sizeof(url), "http://%s:%d/initconfig?login=%s&key=%s",
+             shared_config.topDomain, shared_config.topListenerPort,
+             shared_config.login, shared_config.topKey);
+
+    curl = curl_easy_init();
+    if (curl) {
+        curl_easy_setopt(curl, CURLOPT_URL, url);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, response);  // Store response in this buffer
+
+        res = curl_easy_perform(curl);
+        if (res == CURLE_OK) {
+            json_error_t error;
+            json_t *root = json_loads(response, 0, &error);
+            if (root) {
+                json_t *accessTokenJson = json_object_get(root, "accessToken");
+                json_t *refreshTokenJson = json_object_get(root, "refreshToken");
+
+                if (accessTokenJson && refreshTokenJson) {
+                    const char *accessToken = json_string_value(accessTokenJson);
+                    const char *refreshToken = json_string_value(refreshTokenJson);
+
+                    if (accessToken && refreshToken) {
+                        strcpy(shared_config.accessToken, accessToken); // Save accessToken
+                        strcpy(shared_config.refreshToken, refreshToken); // Save refreshToken
+
+                        // Update config and start threads
+                        shared_config.connected = 1;
+                        shared_config.enabled = 1;
+                        saveConfig(&shared_config); // Save updated config to file
+                        json_decref(root); // Decrement reference count
+                        return 1; // Success
+                    }
+                } else {
+                    logError("Missing accessToken or refreshToken in response");
+                }
+                json_decref(root); // Clean up
+            } else {
+                logError("JSON parsing error");
+            }
+        } else {
+            logError(curl_easy_strerror(res));
+        }
+        curl_easy_cleanup(curl);
+    }
+    return 0; // Failure
+}
+
+void saveConfig(const ispapp_config_t *config) {
+    FILE *fp = fopen("/etc/config/ispapp", "w");
+    if (fp != NULL) {
+        fprintf(fp, "option enabled '%d'\n", config->enabled);
+        fprintf(fp, "option connected '%d'\n", config->connected);
+        fprintf(fp, "option login '%s'\n", config->login);
+        fprintf(fp, "option topDomain '%s'\n", config->topDomain);
+        fprintf(fp, "option topListenerPort '%d'\n", config->topListenerPort);
+        fprintf(fp, "option topSmtpPort '%d'\n", config->topSmtpPort);
+        fprintf(fp, "option topKey '%s'\n", config->topKey);
+        fprintf(fp, "option refreshToken '%s'\n", config->refreshToken);
+        fprintf(fp, "option accessToken '%s'\n", config->accessToken);
+        fprintf(fp, "option ipbandswtestserver '%s'\n", config->ipbandswtestserver);
+        fprintf(fp, "option btuser '%s'\n", config->btuser);
+        fprintf(fp, "option btpwd '%s'\n", config->btpwd);
+        fclose(fp);
+    } else {
+        perror("Failed to open config file for writing");
+    }
+}
+
+int main(int argc, char *argv[]) {
     loadConfig(&shared_config);
-    handleCommand(argc, argv);
+    if (initConfig()) {
+        handleCommand(argc, argv);
+    } else {
+        printf("Failed to initialize config\n");
+    }
     return 0;
 }
