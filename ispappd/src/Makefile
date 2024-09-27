@@ -8,7 +8,7 @@ CFLAGS = -Wall -g
 CFLAGS += -I/usr/include
 
 # Linker Flags
-LDFLAGS = -lcurl
+LDFLAGS = -lcurl -ljansson -lpthread
 
 # Source files
 SRCS = ispappd.c

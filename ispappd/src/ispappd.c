@@ -264,7 +264,7 @@ int checkUuid(const char *domain, int port)
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, response);  // Store response in this buffer
 
-        char *response;
+        char *response = NULL;
         res = curl_easy_perform(curl);
         if (res == CURLE_OK)
         {
