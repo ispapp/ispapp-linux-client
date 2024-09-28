@@ -16,13 +16,10 @@ define Package/ispappd
 	SECTION:=utils
 	CATEGORY:=Utilities
 	TITLE:=ispappd -- ISPApp Daemon
-	DEPENDS:=+libpthread +luci-lua-runtime +libcurl +jansson +libc
+	DEPENDS:=+libpthread +libcurl +jansson +libc
 	MAINTAINER:=Ouazmir karim <abdelkarim@ispapp.co>
 endef
 
-define Package/$(PKG_NAME)/conffiles
-$(1)/etc/config/ispapp
-endef
 
 # Specify the description for ispappd
 define Package/$(PKG_NAME)/description
@@ -48,12 +45,6 @@ endef
 define Package/$(PKG_NAME)/install
 	$(INSTALL_DIR) $(1)/usr/sbin
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ispappd $(1)/usr/sbin/ispappd
-
-	# Ensure that the /etc/config directory exists
-	$(INSTALL_DIR) $(1)/etc/config
-	
-	# Install the ispapp config file
-	$(INSTALL_CONF) ./files/ispapp $(1)/etc/config/ispapp
 endef
 
 # This line executes the necessary commands to compile ispappd.

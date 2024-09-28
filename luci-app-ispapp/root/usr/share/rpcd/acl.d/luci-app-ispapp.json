@@ -18,10 +18,9 @@
 				"/sbin/logread -e ispapp": [ "exec" ],
 				"/usr/sbin/logread -e ispapp": [ "exec" ],
 				"/etc/init.d/ispapp reload" : [ "exec" ],
-				"/etc/init.d/ispapp restart" : [ "exec" ],
-				"/etc/init.d/ispapp suspend" : [ "exec" ],
-				"/etc/init.d/ispapp resume" : [ "exec" ],
-				"/etc/init.d/ispapp query *" : [ "exec" ]
+				"/etc/init.d/ispapp start" : [ "exec" ],
+				"/etc/init.d/ispapp stop" : [ "exec" ],
+				"/usr/bin/ispappd query *" : [ "exec" ]
 			},
 			"uci": ["ispappd"]
     }
