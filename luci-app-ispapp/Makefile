@@ -37,6 +37,16 @@ define Package/$(PKG_NAME)/postinst
 }
 endef
 
-include ../../luci.mk
+
+define Package/$(PKG_NAME)/prerm
+#!/bin/sh
+if [ -z "$${IPKG_INSTROOT}" ]; then
+     /etc/init.d/ispapp disable
+     /etc/init.d/ispapp stop
+fi
+exit 0
+endef
+
+include $(TOPDIR)/feeds/luci/luci.mk
 
 # call BuildPackage - OpenWrt buildroot signature
