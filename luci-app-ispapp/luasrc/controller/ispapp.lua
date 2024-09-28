@@ -1,10 +1,21 @@
--- stub lua controller for 19.07 backward compatibility
-
 module("luci.controller.ispapp", package.seeall)
 
+local fs = require("nixio.fs")
+local util  = require("luci.util")
+local templ = require("luci.template")
+local i18n  = require("luci.i18n")
+
 function index()
-	entry({"admin", "ispapp"}, firstchild(), _("ISPApp"), 60)
-	entry({"admin", "ispapp", "overview"}, view("ispapp/overview"), _("Overview"), 10)
-	entry({"admin", "ispapp", "logread"}, view("ispapp/settings"), _("Settings"), 20)
-	entry({"admin", "ispapp", "logread"}, view("ispapp/logread"), _("Log View"), 30)
+    -- Ensure the configuration file exists before proceeding
+    if not fs.access("/etc/config/ispapp") then
+        return
+    end
+
+    -- Top-level menu entry for ISPApp in LuCI
+    entry({"admin", "ispapp"}, firstchild(), _("ISPApp"), 60).dependent = false
+
+    -- Sub-menu entries under ISPApp
+    entry({"admin", "ispapp", "overview"}, cbi("ispapp/overview"), _("Overview"), 10).leaf = true
+    entry({"admin", "ispapp", "settings"}, cbi("ispapp/settings"), _("Settings"), 20).leaf = true
+    entry({"admin", "ispapp", "logread"}, cbi("ispapp/logread"), _("Log View"), 30).leaf = true
 end

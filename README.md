@@ -15,6 +15,11 @@ Learn more at https://ispapp.co
 
 # about
 
+
+## translation
+```
+xgettext --language=Lua --keyword=translate --output=po/ispapp.pot ./luasrc/controller/ispapp.lua ./luasrc/model/cbi/ispapp/overview.lua ./luasrc/model/cbi/ispapp/settings.lua ./luasrc/model/cbi/ispapp/logread.lua
+```
 This is an ISPApp client designed to monitor hosts running Linux.
 
 ISPApp allows you to monitor, configure and command hosts quickly and easily with high resolution charts and realtime data.

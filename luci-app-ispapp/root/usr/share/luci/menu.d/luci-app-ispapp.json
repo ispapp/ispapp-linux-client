@@ -7,12 +7,16 @@
 			"path": "admin/ispapp/overview"
 		},
 		"depends": {
-			"acl": [ "luci-app-ispapp" ],
+			"acl": [
+				"luci-app-ispapp"
+			],
 			"fs": {
 				"/usr/bin/ispappd": "executable",
 				"/etc/init.d/ispapp": "executable"
 			},
-			"uci": { "ispapp": true }
+			"uci": {
+				"ispapp": true
+			}
 		}
 	},
 	"admin/ispapp/overview": {
