@@ -16,7 +16,7 @@ define Package/ispappd
 	SECTION:=utils
 	CATEGORY:=Utilities
 	TITLE:=ispappd -- ISPApp Daemon
-	DEPENDS:=+libpthread +luci-lua-runtime +libcurl +jansson
+	DEPENDS:=+libpthread +luci-lua-runtime +libcurl +jansson +libc
 	MAINTAINER:=Ouazmir karim <abdelkarim@ispapp.co>
 endef
 
