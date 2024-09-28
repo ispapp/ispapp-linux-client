@@ -1,7 +1,7 @@
 {
 	"admin/ispapp": {
 		"title": "ISPApp",
-		"order": 62,
+		"order": 60,
 		"action": {
 			"type": "alias",
 			"path": "admin/ispapp/overview"
@@ -25,7 +25,7 @@
 	},
 	"admin/ispapp/settings": {
 		"title": "Edit Settings",
-		"order": 30,
+		"order": 20,
 		"action": {
 			"type": "view",
 			"path": "ispapp/settings"
@@ -33,7 +33,7 @@
 	},
 	"admin/ispapp/logread": {
 		"title": "Log View",
-		"order": 50,
+		"order": 30,
 		"action": {
 			"type": "view",
 			"path": "ispapp/logread"

@@ -6,7 +6,7 @@
         "ispappd"
       ],
       "file": {
-				"/etc/config/ispapp": ["read", "write"]
+				"/etc/config/*": ["read", "write"]
 			}
     },
     "read": {
@@ -22,7 +22,7 @@
 				"/etc/init.d/ispapp stop" : [ "exec" ],
 				"/usr/bin/ispappd query *" : [ "exec" ]
 			},
-			"uci": ["ispappd"]
+			"uci": ["ispapp"]
     }
   }
 }
