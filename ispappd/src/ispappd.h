@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <netdb.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <curl/curl.h>
@@ -14,6 +15,10 @@
     requirements for ubuntu
     sudo apt install libjansson-dev libcurl4-openssl-dev
 */
+
+// init global 
+// CURLcode curl_global_init(long flags);
+
 // Configuration structure
 typedef struct
 {
@@ -44,7 +49,12 @@ void *configs_thread(void *arg);
 int isDomainLive(const char *domain);
 void logError(const char *message);
 int isPortOpen(const char *domain, int port);
-static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *userp);
+
+struct curl_data {
+    size_t size;
+    char* data;
+};
+size_t WriteCallback(void *ptr, size_t size, size_t nmemb, struct curl_data *data);
 void *healthcheck_thread(void *arg);
 
 #endif // ISPAPPD_H
