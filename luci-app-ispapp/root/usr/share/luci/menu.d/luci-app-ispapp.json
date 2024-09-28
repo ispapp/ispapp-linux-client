@@ -1,7 +1,7 @@
 {
 	"admin/ispapp": {
 		"title": "ISPApp",
-		"order": "60",
+		"order": 62,
 		"action": {
 			"type": "alias",
 			"path": "admin/ispapp/overview"

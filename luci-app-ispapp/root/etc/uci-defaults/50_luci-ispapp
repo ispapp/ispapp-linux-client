@@ -5,16 +5,26 @@ rm -f /tmp/luci-indexcache*
 touch /etc/config/ispapp
 
 # Set UCI configuration values
-uci set settings.enabled='0'
-uci set settings.login='00:00:00:00:00:00'
-uci set settings.topDomain='qwer.ispapp.co'
-uci set settings.topListenerPort='8550'
-uci set settings.topSmtpPort='8465'
-uci set settings.topKey=''
-uci set settings.ipbandswtestserver='3.239.254.95'
-uci set settings.btuser='btest'
-uci set settings.btpwd='0XSYIGkRlP6MUQJMZMdrogi2'
+uci set ispapp.@settings[0].enabled='0'
+uci set ispapp.@settings[0].login='00:00:00:00:00:00'
+uci set ispapp.@settings[0].topDomain='localhost'
+uci set ispapp.@settings[0].topListenerPort='8550'
+uci set ispapp.@settings[0].topSmtpPort='8465'
+uci set ispapp.@settings[0].connected='0'
+uci set ispapp.@settings[0].ipbandswtestserver='3.239.254.95'
+uci set ispapp.@settings[0].btuser='btest'
+uci set ispapp.@settings[0].btpwd='0XSYIGkRlP6MUQJMZMdrogi2'
 
 # Commit the changes
-uci commit
+uci commit ispapp
+
+uci -q batch <<-EOF >/dev/null
+	delete ucitrack.@openai[-1]
+	add ucitrack openai
+	set ucitrack.@openai[-1].init=openai
+	commit ucitrack
+EOF
+
+rm -rf /tmp/luci-*
+exit 0
 return 0

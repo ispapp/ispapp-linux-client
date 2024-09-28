@@ -7,7 +7,7 @@
 include $(TOPDIR)/rules.mk
 
 LUCI_TITLE:=Ispapp Agent
-LUCI_DEPENDS:=+ispappd
+LUCI_DEPENDS:=+ispappd +luci-base
 LUCI_PKGARCH:=all
 
 PKG_MAINTAINER:=Karim O. <abdelkarim@ispapp.co>
@@ -45,13 +45,22 @@ define Package/$(PKG_NAME)/install
 	$(INSTALL_BIN) ./root/etc/init.d/* $(1)/etc/init.d
 
 	$(INSTALL_DIR) $(1)/etc/uci-defaults
-	$(INSTALL_CONF) ./root/etc/uci-defaults/* $(1)/etc/uci-defaults
+	$(INSTALL_CONF) ./root/etc/uci-defaults/* $(1)/etc/uci-defaults/
 	
 	$(INSTALL_DIR) $(1)/usr/lib/lua/luci
 	cp -pR ./luasrc/* $(1)/usr/lib/lua/luci/
 	
 	$(INSTALL_DIR) $(1)/usr/share/luci/menu.d/
 	cp -pR ./root/usr/share/luci/menu.d/* $(1)/usr/share/luci/menu.d/
+endef
+
+
+define Package/$(PKG_NAME)/postinst
+#!/bin/sh
+[ -n "${IPKG_INSTROOT}" ] || {
+	( . /etc/uci-defaults/50_luci-ispapp ) && rm -f /etc/uci-defaults/50_luci-ispapp
+	exit 0
+}
 endef
 
 define Package/$(PKG_NAME)/prerm

@@ -1,6 +1,6 @@
 {
-  "luci-app-example": {
-    "description": "Grant UCI and RPC access to LuCI app ispapp",
+  "luci-app-ispapp": {
+    "description": "Grant UCI and RPC access to LuCI ispapp",
     "write": {
       "uci": [
         "ispappd"
