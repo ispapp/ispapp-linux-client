@@ -17,5 +17,17 @@ function index()
     -- Sub-menu entries under ISPApp
     entry({"admin", "ispapp", "overview"}, cbi("ispapp/overview"), _("Overview"), 10).leaf = true
     entry({"admin", "ispapp", "settings"}, cbi("ispapp/settings"), _("Settings"), 20).leaf = true
-    entry({"admin", "ispapp", "logread"}, cbi("ispapp/logread"), _("Log View"), 30).leaf = true
+    entry({"admin", "ispapp", "logread"}, call("logread"), _("Log View"), 30).leaf = true
 end
+
+function logread()
+	local logfile
+
+	if nixio.fs.access("/etc/config/ispapp_logs") then
+		logfile = util.exec("cat /etc/config/ispapp_logs | grep -F 'ispapp'")
+	else
+		logfile = util.exec("logread -e 'ispapp'")
+	end
+	templ.render("ispapp/logread", {title = i18n.translate("ISPApp agent Logfile"), content = logfile})
+end
+

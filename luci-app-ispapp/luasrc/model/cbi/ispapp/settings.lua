@@ -12,39 +12,39 @@ s.addremove = false
 
 -- Options for each configuration setting
 o = s:option(Flag, "enabled", translate("Enabled"), translate("Enable ISPApp."))
-o.default = luci.sys.exec("ubus call luci.ispapp read_ispapp_config | jsonfilter -e '@.response.enabled'") or '0'
+o.default = luci.sys.exec("ubus call luci-ispapp read_ispapp_config | jsonfilter -e '@.response.enabled'") or '0'
 o.rmempty = false
 
 o = s:option(Value, "login", translate("Login"), translate("MAC address for login."))
-o.default = luci.sys.exec("ubus call luci.ispapp read_ispapp_config | jsonfilter -e '@.response.login'") or ''
+o.default = luci.sys.exec("ubus call luci-ispapp read_ispapp_config | jsonfilter -e '@.response.login'") or ''
 o.rmempty = false
 
 o = s:option(Value, "topDomain", translate("Top Domain"), translate("Domain name for top domain."))
-o.default = luci.sys.exec("ubus call luci.ispapp read_ispapp_config | jsonfilter -e '@.response.topDomain'") or ''
+o.default = luci.sys.exec("ubus call luci-ispapp read_ispapp_config | jsonfilter -e '@.response.topDomain'") or ''
 o.rmempty = false
 
 o = s:option(Value, "topListenerPort", translate("Top Listener Port"), translate("Port for listening."))
-o.default = luci.sys.exec("ubus call luci.ispapp read_ispapp_config | jsonfilter -e '@.response.topListenerPort'") or ''
+o.default = luci.sys.exec("ubus call luci-ispapp read_ispapp_config | jsonfilter -e '@.response.topListenerPort'") or ''
 o.rmempty = false
 
 o = s:option(Value, "topSmtpPort", translate("Top SMTP Port"), translate("SMTP port."))
-o.default = luci.sys.exec("ubus call luci.ispapp read_ispapp_config | jsonfilter -e '@.response.topSmtpPort'") or ''
+o.default = luci.sys.exec("ubus call luci-ispapp read_ispapp_config | jsonfilter -e '@.response.topSmtpPort'") or ''
 o.rmempty = false
 
 o = s:option(Value, "topKey", translate("Top Key"), translate("Key for authentication."))
-o.default = luci.sys.exec("ubus call luci.ispapp read_ispapp_config | jsonfilter -e '@.response.topKey'") or ''
+o.default = luci.sys.exec("ubus call luci-ispapp read_ispapp_config | jsonfilter -e '@.response.topKey'") or ''
 o.rmempty = true
 
 o = s:option(Value, "ipbandswtestserver", translate("IP Bandwidth Test Server"), translate("IP address for bandwidth test server."))
-o.default = luci.sys.exec("ubus call luci.ispapp read_ispapp_config | jsonfilter -e '@.response.ipbandswtestserver'") or ''
+o.default = luci.sys.exec("ubus call luci-ispapp read_ispapp_config | jsonfilter -e '@.response.ipbandswtestserver'") or ''
 o.rmempty = false
 
 o = s:option(Value, "btuser", translate("BT User"), translate("Username for BT."))
-o.default = luci.sys.exec("ubus call luci.ispapp read_ispapp_config | jsonfilter -e '@.response.btuser'") or ''
+o.default = luci.sys.exec("ubus call luci-ispapp read_ispapp_config | jsonfilter -e '@.response.btuser'") or ''
 o.rmempty = false
 
 o = s:option(Value, "btpwd", translate("BT Password"), translate("Password for BT."))
-o.default = luci.sys.exec("ubus call luci.ispapp read_ispapp_config | jsonfilter -e '@.response.btpwd'") or ''
+o.default = luci.sys.exec("ubus call luci-ispapp read_ispapp_config | jsonfilter -e '@.response.btpwd'") or ''
 o.rmempty = false
 
 -- Button for saving and applying settings
@@ -64,7 +64,7 @@ apply.write = function(self, section)
     }
 
     -- Submit the form data via RPC call
-    local cmd = "ubus call luci.ispapp write_ispapp_config '" .. luci.util.serialize_json({ config = data }) .. "'"
+    local cmd = "ubus call luci-ispapp write_ispapp_config '" .. luci.util.serialize_json({ config = data }) .. "'"
     local result = luci.sys.exec(cmd)
     
     if result:match('"error"') then

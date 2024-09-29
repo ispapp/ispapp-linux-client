@@ -1,64 +1,58 @@
+local dsp = require "luci.dispatcher"
 local m, s, o
 
-m = SimpleForm("ispapp_status", translate("ISP App Status"), translate("Displays current status of the ISP App"))
+m = Map("ispapp", translate("ISPApp Overview"), translate("Overview of ISPApp service status and statistics."))
 
--- Define sections and options
-s = m:section(SimpleSection)
-s.title = translate("Service Overview")
+-- Section for displaying service status
+s = m:section(TypedSection, "overview", translate("Service Overview"))
+s.anonymous = true
 
 -- Service Status
-o = s:option(DummyValue, "service_status", translate("Service Status"))
-o.rawhtml = true
-o.cfgvalue = function(self, section)
-    local status = luci.sys.call("ubus call luci.ispapp get_service_status | jsonfilter -e '@.response'")
-    if status:match("Running") then
-        return translate("Running")
-    else
-        return translate("Not Running")
-    end
+local service_status = s:option(DummyValue, "service_status", translate("Service Status"))
+function service_status.va(self, section)
+    local result = util.exec("ubus call luci.ispapp get_service_status")
+    local json_result = jsonc.parse(result)
+    return json_result and json_result.service_status or translate("Unknown")
 end
 
 -- Last Edit Time
-o = s:option(DummyValue, "last_edit_time", translate("Last Edit Time"))
-o.cfgvalue = function(self, section)
-    return luci.sys.exec("ubus call luci.ispapp get_last_edit_time | jsonfilter -e '@.response.last_edit_time'") or "Unknown"
+local last_edit_time = s:option(DummyValue, "last_edit_time", translate("Last Edit Time"))
+function last_edit_time.cfgvalue(self, section)
+    local result = util.exec("ubus call luci.ispapp get_last_edit_time")
+    local json_result = jsonc.parse(result)
+    return json_result and json_result.last_edit_time or translate("Unknown")
 end
 
 -- Active Time
-o = s:option(DummyValue, "active_time", translate("Active Time"))
-o.cfgvalue = function(self, section)
-    return luci.sys.exec("ubus call luci.ispapp get_active_time | jsonfilter -e '@.response.active_time'") or "Unknown"
+local active_time = s:option(DummyValue, "active_time", translate("Active Time"))
+function active_time.cfgvalue(self, section)
+    local result = util.exec("ubus call luci.ispapp get_active_time")
+    local json_result = jsonc.parse(result)
+    return json_result and json_result.active_time or translate("Unknown")
 end
 
 -- CPU Usage
-o = s:option(DummyValue, "cpu_usage", translate("CPU Usage"))
-o.cfgvalue = function(self, section)
-    return luci.sys.exec("ubus call luci.ispapp get_cpu_usage | jsonfilter -e '@.response.cpu_usage'") or "Unknown"
+local cpu_usage = s:option(DummyValue, "cpu_usage", translate("CPU Usage"))
+function cpu_usage.cfgvalue(self, section)
+    local result = util.exec("ubus call luci.ispapp get_cpu_usage")
+    local json_result = jsonc.parse(result)
+    return json_result and json_result.cpu_usage or translate("Unknown")
 end
 
 -- Network Speed
-o = s:option(DummyValue, "network_speed", translate("Network Speed"))
-o.cfgvalue = function(self, section)
-    return luci.sys.exec("ubus call luci.ispapp get_network_speed | jsonfilter -e '@.response.network_speed'") or "Unknown"
+local network_speed = s:option(DummyValue, "network_speed", translate("Network Speed"))
+function network_speed.cfgvalue(self, section)
+    local result = util.exec("ubus call luci.ispapp get_network_speed")
+    local json_result = jsonc.parse(result)
+    return json_result and json_result.network_speed or translate("Unknown")
 end
 
 -- Device Mode
-o = s:option(DummyValue, "device_mode", translate("Device Mode"))
-o.cfgvalue = function(self, section)
-    return luci.sys.exec("ubus call luci.ispapp get_device_mode | jsonfilter -e '@.response.device_mode'") or "Unknown"
-end
-
--- Buttons for actions
-edit_btn = s:option(Button, "_edit", translate("Edit Settings"))
-edit_btn.inputstyle = "apply"
-edit_btn.write = function(self, section)
-    luci.http.redirect(luci.dispatcher.build_url("admin/ispapp/settings"))
-end
-
-sign_in_btn = s:option(Button, "_sign_in", translate("Sign In to ISPApp Cloud"))
-sign_in_btn.inputstyle = "apply"
-sign_in_btn.write = function(self, section)
-    luci.sys.exec("xdg-open 'https://ispapp.co/signin'")
+local device_mode = s:option(DummyValue, "device_mode", translate("Device Mode"))
+function device_mode.cfgvalue(self, section)
+    local result = util.exec("ubus call luci.ispapp get_device_mode")
+    local json_result = jsonc.parse(result)
+    return json_result and json_result.device_mode or translate("Unknown")
 end
 
 return m
