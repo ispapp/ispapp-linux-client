@@ -151,27 +151,34 @@ void updateLoginInConfig(const char *newLogin)
 void startService()
 {
     // Start the service based on the configuration
-    char *operation = "Starting";
-    if (shared_config.enabled != 1)
+    if (initConfig())
     {
-        stopService();
-        return;
-    }
-    printf("%s ispappd with configuration:\n", operation);
-    printf("Enabled: %d\n", shared_config.enabled);
-    printf("Login: %s\n", shared_config.login);
-    printf("Top Domain: %s\n", shared_config.topDomain);
-    printf("Top Listener Port: %d\n", shared_config.topListenerPort);
-    printf("Top SMTP Port: %d\n", shared_config.topSmtpPort);
-    printf("Top Key: %s\n", shared_config.topKey);
-    printf("IP Bandwidth Test Server: %s\n", shared_config.ipbandswtestserver);
-    printf("BT User: %s\n", shared_config.btuser);
-    printf("BT Password: %s\n", shared_config.btpwd);
+        char *operation = "Starting";
+        if (shared_config.enabled != 1)
+        {
+            printf("service already running!\n");
+            return;
+        }
+        printf("%s ispappd with configuration:\n", operation);
+        printf("Enabled: %d\n", shared_config.enabled);
+        printf("Login: %s\n", shared_config.login);
+        printf("Top Domain: %s\n", shared_config.topDomain);
+        printf("Top Listener Port: %d\n", shared_config.topListenerPort);
+        printf("Top SMTP Port: %d\n", shared_config.topSmtpPort);
+        printf("Top Key: %s\n", shared_config.topKey);
+        printf("IP Bandwidth Test Server: %s\n", shared_config.ipbandswtestserver);
+        printf("BT User: %s\n", shared_config.btuser);
+        printf("BT Password: %s\n", shared_config.btpwd);
 
-    // Start threads
-    pthread_create(&updates_thread_id, NULL, updates_thread, NULL);
-    pthread_create(&configs_thread_id, NULL, configs_thread, NULL);
-    pthread_create(&healthcheck_thread_id, NULL, healthcheck_thread, NULL);
+        // Start threads
+        pthread_create(&updates_thread_id, NULL, updates_thread, NULL);
+        pthread_create(&configs_thread_id, NULL, configs_thread, NULL);
+        pthread_create(&healthcheck_thread_id, NULL, healthcheck_thread, NULL);
+    }
+    else
+    {
+        printf("Failed to initialize config\n");
+    }
 }
 
 void stopService()
@@ -214,28 +221,6 @@ void handleCommand(int argc, char *argv[])
     {
         printf("Unknown command: %s\n", argv[1]);
     }
-}
-
-void *updates_thread(void *arg)
-{
-    // Updates thread logic
-    while (1)
-    {
-        // Perform periodic updates
-        sleep(60); // Placeholder: Adjust as needed
-    }
-    return NULL;
-}
-
-void *configs_thread(void *arg)
-{
-    // Configs thread logic
-    while (1)
-    {
-        // Perform periodic config checks
-        sleep(60); // Placeholder: Adjust as needed
-    }
-    return NULL;
 }
 
 void *healthcheck_thread(void *arg)
@@ -356,6 +341,7 @@ int initConfig()
     curl = curl_easy_init();
     if (curl)
     {
+        printf("sending request with login: %s\n", shared_config.login);
         curl_easy_setopt(curl, CURLOPT_URL, url);
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response); // Store response in this buffer
@@ -367,7 +353,7 @@ int initConfig()
         res = curl_easy_perform(curl);
         if (res == CURLE_OK && response.size > 0)
         {
-            printf("req: %s => %s", url, response.data);
+            printf("req: %s => %s \n", url, response.data);
             json_error_t error;
             json_t *root = json_loads(response.data, 0, &error);
             if (root)
@@ -423,7 +409,7 @@ void saveConfig(const ispapp_config_t *config)
         fprintf(fp, "\toption enabled '%d'\n", config->enabled);
         fprintf(fp, "\toption connected '%d'\n", config->connected);
         fprintf(fp, "\toption login '%s'\n", config->login);
-        fprintf(fp, "\toption topDomain '%s'\n", config->topDomain);
+        // fprintf(fp, "\toption topDomain '%s'\n", config->topDomain);
         fprintf(fp, "\toption topListenerPort '%d'\n", config->topListenerPort);
         fprintf(fp, "\toption topSmtpPort '%d'\n", config->topSmtpPort);
         fprintf(fp, "\toption topKey '%s'\n", config->topKey);
@@ -443,13 +429,6 @@ void saveConfig(const ispapp_config_t *config)
 int main(int argc, char *argv[])
 {
     loadConfig(&shared_config);
-    if (initConfig())
-    {
-        handleCommand(argc, argv);
-    }
-    else
-    {
-        printf("Failed to initialize config\n");
-    }
+    handleCommand(argc, argv);
     return 0;
 }

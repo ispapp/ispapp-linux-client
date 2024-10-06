@@ -9,6 +9,10 @@
 				"/etc/config/*": [
 					"read",
 					"write"
+				],
+				"/etc/init.d/ispapp":[
+					"read",
+					"write"
 				]
 			}
 		},

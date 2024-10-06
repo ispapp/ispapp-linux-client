@@ -37,7 +37,7 @@ endef
 # Compilation step
 define Build/Compile
 	$(TARGET_CC) $(TARGET_CFLAGS) -I$(STAGING_DIR)/usr/include \
-		-o $(PKG_BUILD_DIR)/ispappd $(PKG_BUILD_DIR)/ispappd.c \
+		-o $(PKG_BUILD_DIR)/ispappd $(PKG_BUILD_DIR)/*.c \
 		-lcurl -ljansson -lpthread $(TARGET_LDFLAGS)
 endef
 

@@ -41,6 +41,7 @@ void loadConfig(ispapp_config_t *config);
 void saveConfig(const ispapp_config_t *config);
 void startService();
 void stopService();
+int initConfig();
 void handleCommand(int argc, char *argv[]);
 void *updates_thread(void *arg);
 void *configs_thread(void *arg);

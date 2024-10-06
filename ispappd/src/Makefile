@@ -11,7 +11,7 @@ CFLAGS += -I/usr/include
 LDFLAGS = -lcurl -ljansson -lpthread
 
 # Source files
-SRCS = ispappd.c
+SRCS = *.c
 
 # Output executable
 TARGET = ispappd
