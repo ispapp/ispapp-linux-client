@@ -1,6 +1,6 @@
 config settings
 	option enabled '0'
-	option login '00:00:00:00:00:00'
+	option login '00000000-0000-0000-0000-000000000000'
 	option topDomain 'localhost'
 	option topListenerPort '8550'
 	option topSmtpPort '8465'
@@ -11,3 +11,5 @@ config settings
 	option ipbandswtestserver '3.239.254.95'
 	option btuser 'btest'
 	option btpwd '0XSYIGkRlP6MUQJMZMdrogi2'
+config overview
+	# option none

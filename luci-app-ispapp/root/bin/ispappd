@@ -1,0 +1,189 @@
+#!/usr/bin/env lua
+-- ispapp daemon
+
+local nixio = require "nixio"
+local uci = require "luci.model.uci".cursor()
+
+-- Variables to manage threads and their respective sleep times
+local threads = {}
+local running = false
+local sleep_times = {
+    wisp_monitor = 10,  -- Default sleep time for WISP monitor (10s minimum)
+    connection_manager = 10,  -- Default sleep time for connection manager (10s minimum)
+    status_reporter = 10  -- Default sleep time for status reporter (10s minimum)
+}
+local pid_file = "/var/run/ispappd.pid"
+local log_file = "/var/log/ispapp"
+local max_log_size = 0.1 * 1024 * 1024 -- 1 MB
+
+-- Function to log messages to the log file with rotation
+local function log(message)
+    local file = io.open(log_file, "a") -- Open log file in append mode
+    if file then
+        -- Check the file size
+        local current_size = file:seek("end")
+        if current_size > max_log_size then
+            -- Rotate the log file
+            file:close()
+            os.rename(log_file, log_file .. "." .. os.date("%Y%m%d%H%M%S"))
+            file = io.open(log_file, "a") -- Create a new log file
+        end
+        -- Write the message to the log file
+        if file then
+            file:write(os.date("%Y-%m-%d %H:%M:%S") .. " - " .. message .. "\n")
+            file:close()
+        end
+    else
+        -- If unable to open log file, print to stderr
+        io.stderr:write("Error: Unable to open log file\n")
+    end
+end
+
+-- Function to load configuration and get sleep times for each thread
+local function load_config()
+    local config_wisp_monitor = uci:get("ispapp", "settings", "wisp_monitor_delay")
+    local config_connection_manager = uci:get("ispapp", "settings", "connection_manager_delay")
+    local config_status_reporter = uci:get("ispapp", "settings", "status_reporter_delay")
+
+    -- Ensure minimum 10s and assign to variables
+    if config_wisp_monitor then
+        config_wisp_monitor = tonumber(config_wisp_monitor)
+        if config_wisp_monitor and config_wisp_monitor >= 10 then
+            sleep_times.wisp_monitor = config_wisp_monitor
+        else
+            sleep_times.wisp_monitor = 10
+        end
+    else
+        uci:set("ispapp", "settings", "wisp_monitor_delay", 10)  -- Save default if missing
+    end
+
+    if config_connection_manager then
+        config_connection_manager = tonumber(config_connection_manager)
+        if config_connection_manager and config_connection_manager >= 10 then
+            sleep_times.connection_manager = config_connection_manager
+        else
+            sleep_times.connection_manager = 10
+        end
+    else
+        uci:set("ispapp", "settings", "connection_manager_delay", 10)  -- Save default if missing
+    end
+
+    if config_status_reporter then
+        config_status_reporter = tonumber(config_status_reporter)
+        if config_status_reporter and config_status_reporter >= 10 then
+            sleep_times.status_reporter = config_status_reporter
+        else
+            sleep_times.status_reporter = 10
+        end
+    else
+        uci:set("ispapp", "settings", "status_reporter_delay", 10)  -- Save default if missing
+    end
+
+    -- Commit the changes if defaults were saved
+    uci:commit("ispapp")
+end
+
+-- Thread 1: WISP monitoring task
+local function thread_wisp_monitor()
+    while running do
+        log("Monitoring WISP status...")
+        nixio.nanosleep(sleep_times.wisp_monitor, 0) -- Sleep for the configured time
+        coroutine.yield() -- Yield execution back to the manager
+    end
+end
+
+-- Thread 2: Connection management task
+local function thread_connection_manager()
+    while running do
+        log("Managing WISP connections...")
+        nixio.nanosleep(sleep_times.connection_manager, 0) -- Sleep for the configured time
+        coroutine.yield() -- Yield execution back to the manager
+    end
+end
+
+-- Thread 3: Status reporting task
+local function thread_status_reporter()
+    while running do
+        log("Reporting WISP status...")
+        nixio.nanosleep(sleep_times.status_reporter, 0) -- Sleep for the configured time
+        coroutine.yield() -- Yield execution back to the manager
+    end
+end
+
+-- Function to start the daemon and all coroutines
+local function start_daemon()
+    running = true
+    log("Starting ispappd daemon...")
+
+    -- Load the sleep times from config
+    load_config()
+    log("Thread Sleep Times: WISP Monitor = " .. sleep_times.wisp_monitor .. " s, "
+          .. "Connection Manager = " .. sleep_times.connection_manager .. " s, "
+          .. "Status Reporter = " .. sleep_times.status_reporter .. " s")
+
+    -- Create coroutines (threads)
+    threads[1] = coroutine.create(thread_wisp_monitor)
+    threads[2] = coroutine.create(thread_connection_manager)
+    threads[3] = coroutine.create(thread_status_reporter)
+
+    -- Manage threads in a round-robin fashion
+    while running do
+        for _, thread in ipairs(threads) do
+            if coroutine.status(thread) == "suspended" then
+                coroutine.resume(thread)
+            end
+        end
+        nixio.nanosleep(0, 100000000) -- Short sleep to avoid tight loop
+    end
+end
+
+-- Function to stop the daemon
+local function stop_daemon()
+    running = false
+    log("Stopping ispappd daemon...")
+end
+
+-- Function to daemonize the process
+local function daemonize()
+    local pid = nixio.fork()
+    if pid > 0 then
+        -- Parent process: exit to let the child run in the background
+        os.exit(0)
+    else
+        -- Child process: become session leader and fork again
+        nixio.setsid()
+        pid = nixio.fork()
+        if pid > 0 then
+            -- Exit the first child to allow the second to run in the background
+            os.exit(0)
+        end
+    end
+
+    -- In the final child process, write the PID to a file
+    local pid_file_handle = io.open(pid_file, "w")
+    if pid_file_handle then
+        pid_file_handle:write(nixio.getpid())
+        pid_file_handle:close()
+    end
+end
+
+-- Function to restart the daemon
+local function restart_daemon()
+    stop_daemon()
+    nixio.nanosleep(1, 0) -- Sleep for 1 second before restarting
+    start_daemon()
+end
+
+-- Main execution logic for init.d and service management
+local action = arg[1]
+if action == "start" then
+    -- Start the service by daemonizing it
+    -- daemonize()
+    start_daemon()
+elseif action == "stop" then
+    stop_daemon()
+elseif action == "restart" then
+    restart_daemon()
+else
+    log("Usage: ispappd {start|stop|restart}")
+end

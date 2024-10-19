@@ -1,3 +1,5 @@
+-- /usr/lib/lua/luci/controller
+---@diagnostic disable-next-line: deprecated
 module("luci.controller.ispapp", package.seeall)
 
 local fs = require("nixio.fs")
@@ -23,8 +25,8 @@ end
 function logread()
 	local logfile
 
-	if nixio.fs.access("/etc/config/ispapp_logs") then
-		logfile = util.exec("cat /etc/config/ispapp_logs | grep -F 'ispapp'")
+	if nixio.fs.access("/tmp/log/ispapp") then
+		logfile = util.exec("cat /tmp/log/ispapp | grep -F 'ispapp'")
 	else
 		logfile = util.exec("logread -e 'ispapp'")
 	end

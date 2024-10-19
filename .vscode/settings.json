@@ -1,5 +1,18 @@
 {
     "files.associations": {
         "string.h": "c"
-    }
+    },
+    "Lua.diagnostics.globals": [
+        "index",
+        "entry",
+        "firstchild",
+        "logread",
+        "nixio",
+        "cbi",
+        "call",
+        "_",
+        "translate",
+        "Map",
+        "TypedSection"
+    ]
 }
