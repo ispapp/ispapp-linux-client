@@ -1,5 +1,6 @@
 #!/usr/bin/env lua
 -- ispapp daemon
+-- path: /bin/ispappd
 
 local nixio = require "nixio"
 local uci = require "luci.model.uci".cursor()
@@ -17,26 +18,10 @@ local log_file = "/var/log/ispapp"
 local max_log_size = 0.1 * 1024 * 1024 -- 1 MB
 
 -- Function to log messages to the log file with rotation
+local function log_to_syslog(level, message) nixio.syslog(level, message) end
+-- priority Priority ["emerg", "alert", "crit", "err", "warning", "notice", "info", "debug"] 
 local function log(message)
-    local file = io.open(log_file, "a") -- Open log file in append mode
-    if file then
-        -- Check the file size
-        local current_size = file:seek("end")
-        if current_size > max_log_size then
-            -- Rotate the log file
-            file:close()
-            os.rename(log_file, log_file .. "." .. os.date("%Y%m%d%H%M%S"))
-            file = io.open(log_file, "a") -- Create a new log file
-        end
-        -- Write the message to the log file
-        if file then
-            file:write(os.date("%Y-%m-%d %H:%M:%S") .. " - " .. message .. "\n")
-            file:close()
-        end
-    else
-        -- If unable to open log file, print to stderr
-        io.stderr:write("Error: Unable to open log file\n")
-    end
+    log_to_syslog("debug", "[ispappd]: " .. message)
 end
 
 -- Function to load configuration and get sleep times for each thread

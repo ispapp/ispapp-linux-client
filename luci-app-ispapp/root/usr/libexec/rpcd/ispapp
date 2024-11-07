@@ -1,5 +1,7 @@
 #!/usr/bin/env lua
 -- ispapp ubus api
+-- path: /usr/libexec/rpcd/ispapp
+
 local jsonc = require "luci.jsonc"
 local nixio = require "nixio"
 local fs = require "nixio.fs"
@@ -109,38 +111,63 @@ end
 -- run verify_configs function to make sure all ok
 verify_config()
 
-local sys = require("luci.sys") -- Make sure to import sys
+-- local sys = require("luci.sys") -- Make sure to import sys
 
-local function get_cpu_usage()
-    -- Get the PID of the ispappd process
-    local pid = sys.exec("pidof ispappd"):match("%d+")
-    
-    if not pid then
-        return "ispappd is not running"
-    end
+-- Function to get formatted process info by PID
+local function get_process_info(pid)
+    -- Read /proc/[pid]/statm for memory information
+    local statm_file = string.format("/proc/%s/statm", pid)
+    local statm_content = sys.exec(string.format("cat %s", statm_file))
 
-    -- Read the CPU usage stats for the specific PID from /proc/[pid]/stat
+    -- Read /proc/[pid]/stat for CPU usage
     local stat_file = string.format("/proc/%s/stat", pid)
-    local proc_stat = sys.exec(string.format("cat %s", stat_file))
+    local stat_content = sys.exec(string.format("cat %s", stat_file))
 
-    -- Extract the necessary values from the stat file
-    local utime, stime = proc_stat:match("%S+ %S+ %S+ %S+ %S+ %S+ %S+ %S+ %S+ %S+ %S+ (%d+) (%d+)")
+    -- Memory information fields from /proc/[pid]/statm
+    local size, resident, shared, text, lib, data, dt = statm_content:match("(%d+) (%d+) (%d+) (%d+) (%d+) (%d+) (%d+)")
 
-    -- Convert to numbers
-    utime = tonumber(utime) or 0 -- User mode time
-    stime = tonumber(stime) or 0 -- Kernel mode time
+    -- Convert memory pages to KB (assuming 4 KB page size)
+    local page_size_kb = 4
+    local mem_size_kb = tonumber(size) * page_size_kb
+    local resident_mem_kb = tonumber(resident) * page_size_kb
+    local shared_mem_kb = tonumber(shared) * page_size_kb
+    local text_mem_kb = tonumber(text) * page_size_kb
+    local data_mem_kb = tonumber(data) * page_size_kb
 
-    -- Total time spent on the process in clock ticks
-    local total_time = utime + stime
+    -- CPU usage fields from /proc/[pid]/stat
+    local utime, stime, starttime = stat_content:match("%S+ %S+ %S+ %S+ %S+ %S+ %S+ %S+ %S+ %S+ %S+ (%d+) (%d+) %S+ %S+ %S+ %S+ %S+ %S+ (%d+)")
+    utime = tonumber(utime) or 0 -- Time spent in user mode
+    stime = tonumber(stime) or 0 -- Time spent in kernel mode
+    starttime = tonumber(starttime) or 0 -- Start time since boot
 
-    -- Get the system's clock ticks per second
-    local clock_ticks_per_second = tonumber(sys.exec("getconf CLK_TCK"))
+    -- Total CPU time spent in clock ticks
+    local total_cpu_time = utime + stime
 
-    -- Calculate CPU time in seconds
-    local cpu_time_seconds = total_time / clock_ticks_per_second
+    -- Hardcode clock ticks per second (CLK_TCK)
+    local clock_ticks_per_second = 100 -- Common default value for most Linux systems
 
-    -- Format the CPU usage for ispappd
-    return string.format("ispappd CPU Usage: %.2f seconds", cpu_time_seconds)
+    -- Get system uptime from /proc/uptime
+    local uptime = tonumber(sys.exec("cat /proc/uptime | awk '{print $1}'"))
+
+    -- CPU time in seconds and process lifetime in seconds
+    local cpu_time_seconds = total_cpu_time / clock_ticks_per_second
+    local process_lifetime_seconds = uptime - (starttime / clock_ticks_per_second)
+
+    -- CPU usage percentage calculation
+    local cpu_usage_percent = (cpu_time_seconds / process_lifetime_seconds) * 100
+
+    -- Return result as an object (table)
+    local result = {
+        memory_size_kb = mem_size_kb,
+        resident_memory_kb = resident_mem_kb,
+        shared_memory_kb = shared_mem_kb,
+        text_memory_kb = text_mem_kb,
+        data_memory_kb = data_mem_kb,
+        cpu_usage_percent = cpu_usage_percent,
+        cpu_time_seconds = cpu_time_seconds
+    }
+
+    return result
 end
 
 
@@ -697,6 +724,46 @@ local function host_signup()
     return {token = token, _req = _req}
 end
 
+local function get_cpu_usage()
+    -- Get the PID of the ispappd process
+    local path = "/var/run/ispapp.pid"
+    local pid, err = fs.readfile(path)
+    if not pid then
+        log_error("Failed to read file " .. path .. "(ispappd is not running): " .. err)
+        return "ispappd is not running"
+    end
+
+    local stat_file = "/proc/" .. pid .. "/stat"
+
+    -- Open the file and read the line
+    local file = io.open(stat_file, "r")
+    if file then
+        local stat_line = file:read("*l")
+        file:close()
+    
+        -- Use pattern matching to extract the 14th and 15th fields (utime and stime)
+        local utime, stime = stat_line:match("^(%S+%s+%S+%s+%S+%s+%S+%s+%S+%s+%S+%s+%S+%s+%S+%s+%S+%s+%S+%s+%S+%s+%S+%s+%S+%s+%S+%s+)(%d+)%s+(%d+)")
+    
+        -- Convert the values to numbers
+        utime = tonumber(utime)
+        stime = tonumber(stime)
+        -- Total time spent on the process in clock ticks
+        local total_time = utime + stime
+        -- Get the system's clock ticks per second
+        local clock_ticks_per_second = 100
+        -- Calculate CPU time in seconds
+        local cpu_time_seconds = total_time / clock_ticks_per_second
+        -- Print the values (for debugging or further calculation)
+        log_error("utime:"..utime .. ", stime:"..stime)
+        -- Format the CPU usage for ispappd
+        return string.format("%.2f", cpu_time_seconds)
+    else
+        log_error("Could not open file: "..stat_file)
+        return "(N/A)%"
+    end
+end
+
+
 local function TestMe()
     local upt, idle = get_uptime()
     local responce = {["results"] = math.floor(upt)}
@@ -714,6 +781,7 @@ local methods = {
     demo = {call = TestMe},
     test = {call = SignUp},
     collect_configs = {call = CollectConfigs},
+    get_cpu_usage = {call = get_cpu_usage},
 
     read_ispapp_config = {call = function() return get_config() end},
     write_ispapp_config = {
@@ -721,12 +789,11 @@ local methods = {
         call = function(args) return set_config(args.config) end
     },
     check_ispapp_status = {
-        call = function() return exec_command("/sbin/logread -e ispapp") end
+        call = function() return exec_command("cat /proc/"..sys.exec("cat /var/run/ispapp.pid").."/status") end
     },
-    reload_ispapp = {call = function() return manage_service("reload") end},
+    reload_ispapp = {call = function() return manage_service("restart") end},
     restart_ispapp = {call = function() return manage_service("restart") end},
-    suspend_ispapp = {call = function() return manage_service("suspend") end},
-    resume_ispapp = {call = function() return manage_service("resume") end},
+    suspend_ispapp = {call = function() return manage_service("stop") end},
     query_ispapp = {call = function() return query_service() end},
     read_pid_file = {
         call = function() return read_file("/var/run/ispapp.pid") end
@@ -751,10 +818,10 @@ local methods = {
             return r
         end
     },
-    get_cpu_usage = {
+    get_process_info = {
         call = function()
             local r = {}
-            r.result = jsonc.stringify({cpu_usage = get_cpu_usage()})
+            r.result = jsonc.stringify({cpu_usage = get_process_info(pif)})
             return r
         end
     },

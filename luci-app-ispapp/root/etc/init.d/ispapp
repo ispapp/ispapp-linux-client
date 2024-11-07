@@ -1,5 +1,6 @@
 #!/bin/sh /etc/rc.common
 ## ispapp service manager ##
+## path: /etc/init.d/ispapp
 
 START=99
 STOP=10
@@ -8,12 +9,32 @@ LUA_SCRIPT="/bin/ispappd"
 
 start() {
     echo "Starting ispappd..."
-    
-    # Start the Lua script in the background and save the PID
-    /usr/bin/env lua $LUA_SCRIPT start &
-    echo $! > $PID_FILE
 
-    echo "ispappd started with PID $(cat $PID_FILE)"
+    # Check if the PID file exists
+    if [ -f "$PID_FILE" ]; then
+        # Read the PID from the file
+        PID=$(cat "$PID_FILE")
+        
+        # Check if the process is still running
+        if ps -p $PID > /dev/null 2>&1; then
+            echo "ispappd is already running with PID $PID. Stopping it first..."
+            kill $PID
+            
+            # Wait for the process to terminate
+            wait $PID 2>/dev/null
+            
+            echo "Stopped existing instance of ispappd."
+        else
+            echo "Stale PID file found. Removing it."
+            rm -f "$PID_FILE"
+        fi
+    fi
+
+    # Start the Lua script in the background and save the new PID
+    /usr/bin/env lua "$LUA_SCRIPT" start &
+    echo $! > "$PID_FILE"
+
+    echo "ispappd started with PID $(cat "$PID_FILE")"
 }
 
 stop() {

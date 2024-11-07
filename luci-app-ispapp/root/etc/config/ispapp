@@ -1,15 +1,14 @@
+
 config settings
-	option enabled '0'
 	option login '00000000-0000-0000-0000-000000000000'
 	option topDomain 'localhost'
 	option topListenerPort '8550'
 	option topSmtpPort '8465'
-	option topKey ''
-	option accessToken ''
-	option refreshToken ''
 	option connected '0'
 	option ipbandswtestserver '3.239.254.95'
 	option btuser 'btest'
 	option btpwd '0XSYIGkRlP6MUQJMZMdrogi2'
+	option topKey 'N/A22122222222222'
+	option enabled '1'
+
 config overview
-	# option none
