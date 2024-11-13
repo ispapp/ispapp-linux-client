@@ -8,9 +8,9 @@ on:
 jobs:
   changes:
     runs-on: ubuntu-latest
-    outputs:
+    # outputs:
       # Expose matched filters as job 'packages' output variable
-      packages: ${{ steps.get_changed.outputs.packages }}
+      # packages: ${{ steps.get_changed.outputs.packages }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -110,7 +110,7 @@ jobs:
         env:
           NO_REFRESH_CHECK: true
           IGNORE_ERRORS: true
-          FEEDNAME: ${{ github.workspace }}
+          FEED_DIR: ${{ github.workspace }}
           ARCH: ${{ matrix.arch }}
           # PACKAGES: ${{ matrix.package }}
           PACKAGES: luci-app-ispapp
