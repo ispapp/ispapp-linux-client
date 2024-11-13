@@ -45,8 +45,8 @@ jobs:
         id: create_arch_device_json
         run: |
           curl -o toh.json https://openwrt.org/toh.json
-          arch_device_map=$(jq '[.entries[] 
-            | select(.[42] == ${{ matrix.arch }}) 
+          arch_device_map=$(jq --arg arch "${{ matrix.arch }}" '[.entries[] 
+            | select(.[42] == $arch) 
             | {
                 Brand: .[5],
                 CPU: .[7],
