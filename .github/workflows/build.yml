@@ -48,6 +48,7 @@ jobs:
     needs: changes
     runs-on: ubuntu-latest
     strategy:
+      max-parallel: 10
       matrix:
         arch:
           - aarch64_cortex-a53  # Arm Cortex-A53 64-bit
@@ -106,7 +107,6 @@ jobs:
       # - name: Build ${{ matrix.package }}-${{ matrix.arch }}
       - name: Build luci-app-ispapp-${{ matrix.arch }}
         uses: openwrt/gh-action-sdk@main
-        continue-on-error: true
         env:
           NO_REFRESH_CHECK: true
           FEEDNAME: packages_ci
@@ -120,6 +120,7 @@ jobs:
         with:
           files: |
             bin/packages/**/packages_ci/*.ipk
+            bin/targets/**/packages_ci/*.ipk
             arch_device_map.json
           tag_name: latest
           overwrite: true
