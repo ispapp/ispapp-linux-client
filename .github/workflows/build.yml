@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - karim
-  
 
 jobs:
   changes:
@@ -41,6 +40,28 @@ jobs:
           done
           unique_folders=($(printf "%s\n" "${folders[@]}" | sort -u | tr '\n' ' '))
           echo "packages=$(jq --compact-output --null-input '$ARGS.positional' --args -- ${unique_folders[@]})" >> $GITHUB_OUTPUT
+
+      - name: Create arch-device JSON
+        id: create_arch_device_json
+        run: |
+          curl -o toh.json https://openwrt.org/toh.json
+          arch_device_map=$(jq '[.entries[] 
+            | select(.[42] == ${{ matrix.arch }}) 
+            | {
+                Brand: .[5],
+                CPU: .[7],
+                "Device Type": .[18],
+                Model: .[37],
+                Target: .[59]
+              }
+          ]' toh.json)
+          if [ -f arch_device_map.json ]; then
+          jq --argjson new_entry "$arch_device_map" --arg arch "${{ matrix.arch }}" \
+            '.[$arch] = $new_entry' arch_device_map.json > tmp.json && mv tmp.json arch_device_map.json
+          else
+          jq --argjson new_entry "$arch_device_map" --arg arch "${{ matrix.arch }}" \
+            --null-input '{($arch): $new_entry}' > arch_device_map.json
+          fi
 
   build:
     needs: changes
@@ -83,6 +104,7 @@ jobs:
 
       - name: Build ${{ matrix.package }}-${{ matrix.arch }}
         uses: openwrt/gh-action-sdk@main
+        continue-on-error: true
         env:
           NO_REFRESH_CHECK: true
           FEEDNAME: packages_ci
@@ -91,8 +113,10 @@ jobs:
           V: sc
 
       - name: Store packages
-        uses: actions/upload-artifact@v4
+        uses: softprops/action-gh-release@v2
         with:
-          name: ${{ matrix.package }}-${{ matrix.arch }}
-          path: bin/packages/**/packages_ci/*.ipk
+          files: |
+            bin/packages/**/packages_ci/*.ipk
+            arch_device_map.json
+          tag_name: latest
           overwrite: true
