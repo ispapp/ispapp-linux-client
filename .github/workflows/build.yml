@@ -90,11 +90,11 @@ jobs:
           arch_device_map=$(jq --arg arch "${{ matrix.arch }}" '[.entries[] 
             | select(.[42] == $arch) 
             | {
-                Brand: .[5],
-                CPU: .[7],
+                "Brand": .[5],
+                "CPU": .[7],
                 "Device Type": .[18],
-                Model: .[37],
-                Target: .[59]
+                "Model": .[37],
+                "Target": .[59]
               }
           ]' toh.json)
           if [ -f arch_device_map.json ]; then
@@ -118,7 +118,8 @@ jobs:
 
       - name: Find and echo all .ipk files
         run: |
-          find bin/ -name "*.ipk" -print
+            sudo apt-get install -y tree
+            tree -R
 
       - name: Store packages
         uses: softprops/action-gh-release@v2
@@ -126,5 +127,5 @@ jobs:
           files: |
             bin/packages/${{ matrix.arch }}/packages/*.ipk
             arch_device_map.json
-          tag_name: latest
-          overwrite: true
+          tag_name: ${{ matrix.arch }}
+          make_latest: true
