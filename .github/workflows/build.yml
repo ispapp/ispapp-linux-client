@@ -8,41 +8,11 @@ on:
 jobs:
   changes:
     runs-on: ubuntu-latest
-    # outputs:
-      # Expose matched filters as job 'packages' output variable
-      # packages: ${{ steps.get_changed.outputs.packages }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
-
-      # # For pull requests it's not necessary to checkout the code
-      # - name: Get changed packages
-      #   id: get_changed
-      #   continue-on-error: false
-      #   run: |
-      #     changed=$(git diff --no-renames --name-only HEAD^1 | paste -sd " " -)
-
-      #     folders=()
-      #     for f in $changed; do
-      #         folder=$(echo "$f" | awk -F "/" '{print $1}')
-      #         if [ ! -d "$folder" ]; then
-      #             echo "Skipping $folder as it is not a folder"
-      #             continue
-      #         fi
-      #         if [[ "$folder" == ".github" ]]; then
-      #             echo "Skipping $folder as it is .github"
-      #             continue
-      #         fi
-      #         echo "Adding $folder to folders"
-      #         folders+=($folder)
-      #     done
-      #     unique_folders=($(printf "%s\n" "${folders[@]}" | sort -u | tr '\n' ' '))
-      #     echo "packages=$(jq --compact-output --null-input '$ARGS.positional' --args -- ${unique_folders[@]})" >> $GITHUB_OUTPUT
-      #     if [ -z "${unique_folders[@]}" ]; then
-      #       echo "packages=[]" >> $GITHUB_OUTPUT
-      #     fi
 
   build:
     needs: changes
@@ -51,12 +21,12 @@ jobs:
       max-parallel: 10
       matrix:
         arch:
-          - aarch64_cortex-a53  # Arm Cortex-A53 64-bit
+          - aarch64_cortex-a53
           - arm_cortex-a7_neon-vfpv4
-          - aarch64_cortex-a72  # Arm Cortex-A72 64-bit
-          - arm_cortex-a9  # Arm Cortex-A9
-          - arm_cortex-a15_neon-vfpv4  # Arm Cortex-A9
-          - arm_cortex-a7  # Arm Cortex-A9
+          - aarch64_cortex-a72
+          - arm_cortex-a9
+          - arm_cortex-a15_neon-vfpv4
+          - arm_cortex-a7
           - arm_cortex-a15_neon-vfpv4
           - ipq40xx-mikrotik
           - ipq40xx-generic
@@ -79,7 +49,6 @@ jobs:
           - ramips-mt7621
           - mvebu-cortexa72
           - ath79-mikrotik
-        # package: ${{ fromJSON(needs.changes.outputs.packages) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -97,14 +66,15 @@ jobs:
                 "Target": .[59]
               }
           ]' toh.json)
-          if [ -f arch_device_map.json ]; then
-          jq --argjson new_entry "$arch_device_map" --arg arch "${{ matrix.arch }}" \
-            '.[$arch] = $new_entry' arch_device_map.json > tmp.json && mv tmp.json arch_device_map.json
+          latest_tag=$(git describe --tags `git rev-list --tags --max-count=1`)
+          if [ "$latest_tag" == "latest" ]; then
+            curl -L -o arch_device_map.json https://github.com/${{ github.repository }}/releases/download/latest/arch_device_map.json
+            jq --argjson new_entry "$arch_device_map" --arg arch "${{ matrix.arch }}" \
+              '.[$arch] = $new_entry' arch_device_map.json > tmp.json && mv tmp.json arch_device_map.json
           else
-          jq --argjson new_entry "$arch_device_map" --arg arch "${{ matrix.arch }}" \
-            --null-input '{($arch): $new_entry}' > arch_device_map.json
+            jq --argjson new_entry "$arch_device_map" --arg arch "${{ matrix.arch }}" \
+              --null-input '{($arch): $new_entry}' > arch_device_map.json
           fi
-      # - name: Build ${{ matrix.package }}-${{ matrix.arch }}
       - name: Build luci-app-ispapp-${{ matrix.arch }}
         uses: openwrt/gh-action-sdk@main
         env:
@@ -112,7 +82,6 @@ jobs:
           IGNORE_ERRORS: true
           FEED_DIR: ${{ github.workspace }}
           ARCH: ${{ matrix.arch }}
-          # PACKAGES: ${{ matrix.package }}
           PACKAGES: luci-app-ispapp
           V: s
 
@@ -125,7 +94,14 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            bin/packages/${{ matrix.arch }}/packages/*.ipk
-            arch_device_map.json
+            bin/packages/${{ matrix.arch }}/actions/luci-app-ispapp*.ipk
+            bin/packages/${{ matrix.arch }}/packages/luasec*.ipk
+            bin/packages/${{ matrix.arch }}/packages/luasocket*.ipk
           tag_name: ${{ matrix.arch }}
+      - name: Store arch_device_map
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            arch_device_map.json
+          tag_name: latest
           make_latest: true
