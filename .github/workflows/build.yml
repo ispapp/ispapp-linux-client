@@ -116,6 +116,10 @@ jobs:
           PACKAGES: luci-app-ispapp
           V: s
 
+      - name: Find and echo all .ipk files
+        run: |
+          find bin/ -name "*.ipk" -print
+
       - name: Store packages
         uses: softprops/action-gh-release@v2
         with:

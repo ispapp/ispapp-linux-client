@@ -1,23 +1,92 @@
 #!/usr/bin/env lua
+
 -- ispapp ubus api
 -- path: /usr/libexec/rpcd/ispapp
-
 local jsonc = require "luci.jsonc"
 local nixio = require "nixio"
 local fs = require "nixio.fs"
 local UCI = require "luci.model.uci"
 local util = require "luci.util"
 local sys = require "luci.sys"
-local http = require "luci.http"
+-- local http = require "luci.http"
 local ubus = require "ubus"
 local md5 = require "md5c"
+local https = require("ssl.https")
+local ltn12 = require("ltn12")
 -- local socket = require "socket"
 local conn = ubus.connect()
 
 local function log_to_syslog(level, message) nixio.syslog(level, message) end
-
+-- priority Priority ["emerg", "alert", "crit", "err", "warning", "notice", "info", "debug"] 
 local function log_error(message)
     log_to_syslog("err", "[luci.ispapp]: " .. message)
+end
+local function log_info(message)
+    log_to_syslog("info", "[luci.ispapp]: " .. message)
+end
+local function log_warning(message)
+    log_to_syslog("info", "[luci.ispapp]: " .. message)
+end
+local function log_notice(message)
+    log_to_syslog("info", "[luci.ispapp]: " .. message)
+end
+
+-- Function to make an HTTP request and ignore SSL verification
+local function getRequest(url)
+    local response_body = {}
+    local res, code, headers, status = https.request {
+        url = url,
+        sink = ltn12.sink.table(response_body),
+        protocol = "tlsv1_2",
+        options = "all", -- Allows ignoring SSL checks
+        verify = "none" -- Ignores SSL certificate verification
+    }
+    return table.concat(response_body), code, headers, status
+end
+
+-- Function to make a POST request with optional JSON body, authorization, and parameters
+local function postRequest(url, data, headers)
+    -- Encode data to JSON format if provided
+    local request_body = data and jsonc.stringify(data) or ""
+    -- Example usage
+    -- local url = "http://example.com/api/resource"
+    -- local data = { key1 = "value1", key2 = "value2" }
+    -- local headers = { ["Authorization"] = "Bearer your_token" }
+    -- local params = { query1 = "param1", query2 = "param2" }
+
+    -- Construct optional headers
+    headers = headers or {}
+    headers["Content-Type"] = "application/json"
+    headers["Content-Length"] = #request_body
+
+    -- Response storage
+    local response_body = {}
+
+    -- Make the POST request
+    local res, code, response_headers, status = https.request {
+        url = url,
+        method = "POST",
+        headers = headers,
+        source = ltn12.source.string(request_body),
+        sink = ltn12.sink.table(response_body),
+        protocol = "tlsv1_2",
+        options = "all", -- Allows ignoring SSL checks
+        verify = "none" -- Ignores SSL certificate verification
+    }
+
+    -- Return the response as a concatenated string
+    return table.concat(response_body), code, response_headers, status
+end
+-- check for reponce initconfig status
+local function CheckHostIsAdded(input)
+    -- Check for "not added" or "host added" in the input (case insensitive)
+    if not input then return false end
+    if string.match(input:lower(), "not added") or
+        string.match(input:lower(), "host added") then
+        return false
+    else
+        return true
+    end
 end
 
 local function read_file(path)
@@ -26,7 +95,7 @@ local function read_file(path)
         log_error("Failed to read file " .. path .. ": " .. err)
         return {error = "Failed to read file."}
     end
-    return {result = file}
+    return {result = file, error = err}
 end
 
 local function exec_command(cmd)
@@ -50,7 +119,9 @@ end
 
 local function get_last_edit_time()
     local stat = fs.stat("/etc/config/ispapp")
-    if stat and stat.mtime then return os.date("%Y-%m-%d %H:%M:%S", tonumber(stat.mtime)) end
+    if stat and stat.mtime then
+        return os.date("%Y-%m-%d %H:%M:%S", tonumber(stat.mtime))
+    end
     return "N/A"
 end
 
@@ -62,17 +133,18 @@ end
 local function set_config(data)
     local uci = UCI.cursor()
 
-    -- Apply configuration changes to 'settings' section
-    uci:set("ispapp", "settings", "enabled", data.enabled or '')
-    uci:set("ispapp", "settings", "login", data.login or '')
-    uci:set("ispapp", "settings", "topDomain", data.topDomain or '')
-    uci:set("ispapp", "settings", "topListenerPort", data.topListenerPort or '')
-    uci:set("ispapp", "settings", "topSmtpPort", data.topSmtpPort or '')
-    uci:set("ispapp", "settings", "topKey", data.topKey or '')
-    uci:set("ispapp", "settings", "ipbandswtestserver",
+    -- Apply configuration changes to '@settings[0]' section
+    uci:set("ispapp", "@settings[0]", "enabled", data.enabled or '')
+    uci:set("ispapp", "@settings[0]", "login", data.login or '')
+    uci:set("ispapp", "@settings[0]", "topDomain", data.topDomain or '')
+    uci:set("ispapp", "@settings[0]", "topListenerPort",
+            data.topListenerPort or '')
+    uci:set("ispapp", "@settings[0]", "topSmtpPort", data.topSmtpPort or '')
+    uci:set("ispapp", "@settings[0]", "topKey", data.topKey or '')
+    uci:set("ispapp", "@settings[0]", "ipbandswtestserver",
             data.ipbandswtestserver or '')
-    uci:set("ispapp", "settings", "btuser", data.btuser or '')
-    uci:set("ispapp", "settings", "btpwd", data.btpwd or '')
+    uci:set("ispapp", "@settings[0]", "btuser", data.btuser or '')
+    uci:set("ispapp", "@settings[0]", "btpwd", data.btpwd or '')
 
     local success, err = uci:commit("ispapp")
     if not success then
@@ -85,7 +157,7 @@ end
 -- verify config and make sure it's exist and filled with defaults if necessary
 local function verify_config()
     local config = "ispapp"
-    local section = "settings"
+    local section = "@settings[0]"
     local uci = UCI.cursor()
     -- Check if the ispapp config file and section exists
     if not uci:get(config, section) then
@@ -124,7 +196,8 @@ local function get_process_info(pid)
     local stat_content = sys.exec(string.format("cat %s", stat_file))
 
     -- Memory information fields from /proc/[pid]/statm
-    local size, resident, shared, text, lib, data, dt = statm_content:match("(%d+) (%d+) (%d+) (%d+) (%d+) (%d+) (%d+)")
+    local size, resident, shared, text, lib, data, dt =
+        statm_content:match("(%d+) (%d+) (%d+) (%d+) (%d+) (%d+) (%d+)")
 
     -- Convert memory pages to KB (assuming 4 KB page size)
     local page_size_kb = 4
@@ -135,7 +208,8 @@ local function get_process_info(pid)
     local data_mem_kb = tonumber(data) * page_size_kb
 
     -- CPU usage fields from /proc/[pid]/stat
-    local utime, stime, starttime = stat_content:match("%S+ %S+ %S+ %S+ %S+ %S+ %S+ %S+ %S+ %S+ %S+ (%d+) (%d+) %S+ %S+ %S+ %S+ %S+ %S+ (%d+)")
+    local utime, stime, starttime = stat_content:match(
+                                        "%S+ %S+ %S+ %S+ %S+ %S+ %S+ %S+ %S+ %S+ %S+ (%d+) (%d+) %S+ %S+ %S+ %S+ %S+ %S+ (%d+)")
     utime = tonumber(utime) or 0 -- Time spent in user mode
     stime = tonumber(stime) or 0 -- Time spent in kernel mode
     starttime = tonumber(starttime) or 0 -- Start time since boot
@@ -151,10 +225,12 @@ local function get_process_info(pid)
 
     -- CPU time in seconds and process lifetime in seconds
     local cpu_time_seconds = total_cpu_time / clock_ticks_per_second
-    local process_lifetime_seconds = uptime - (starttime / clock_ticks_per_second)
+    local process_lifetime_seconds = uptime -
+                                         (starttime / clock_ticks_per_second)
 
     -- CPU usage percentage calculation
-    local cpu_usage_percent = (cpu_time_seconds / process_lifetime_seconds) * 100
+    local cpu_usage_percent = (cpu_time_seconds / process_lifetime_seconds) *
+                                  100
 
     -- Return result as an object (table)
     local result = {
@@ -169,7 +245,6 @@ local function get_process_info(pid)
 
     return result
 end
-
 
 local function get_device_mode()
     local mode_count = {}
@@ -200,8 +275,6 @@ local function get_config()
     local sections = uci:get_all("ispapp", "config")
     return sections
 end
-
-
 
 -- Function to check if a command exists
 local function commandExists(command)
@@ -325,8 +398,8 @@ local function getExternalIpInfo()
         region_name = "N/A",
         region_code = "N/A",
         time_zone = "N/A",
-        latitude = "N/A",
-        longitude = "N/A",
+        latitude = 0,
+        longitude = 0,
         country_iso = "N/A"
     }
 
@@ -578,7 +651,8 @@ end
 local function get_uptime()
     local uptime_str = sys.exec("cat /proc/uptime")
     local uptime_seconds, idle_time_seconds = uptime_str:match("^(%S+) (%S+)")
-    return math.floor(tonumber(uptime_seconds) or 0), math.floor(tonumber(idle_time_seconds) or 0)
+    return math.floor(tonumber(uptime_seconds) or 0),
+           math.floor(tonumber(idle_time_seconds) or 0)
 end
 
 -- Function to generate the CollectConfigs response
@@ -618,7 +692,7 @@ local function CollectConfigs()
         wirelessSupport = wirelessSupport()
     }
 
-    return {result = jsonc.stringify(response)}
+    return response
 end
 
 -- Function to generate a unique identifier based on system properties
@@ -689,18 +763,18 @@ end
 
 local function host_signup()
     local uci = UCI.cursor()
-    if not uci.get("ispapp", "config") then return nil end
-    local host = uci.get("ispapp", "settings", "topDomain") or
+    if not uci.get("ispapp", "@settings[0]") then return nil end
+    local host = uci.get("ispapp", "@settings[0]", "topDomain") or
                      "provisioning.ispapp.co"
-    local port = uci.get("ispapp", "settings", "topListenerPort") or "8550"
-    local key = uci.get("ispapp", "settings", "topKey") or ""
+    local port = uci.get("ispapp", "@settings[0]", "topListenerPort") or "8550"
+    local key = uci.get("ispapp", "@settings[0]", "topKey") or ""
     local req = string.format("curl -k https://%s:%s/auth/uuid", host, port)
     local login = ""
-    local uci_login = uci.get("ispapp", "settings", "login")
+    local uci_login = uci.get("ispapp", "@settings[0]", "login")
     local env_login = sys.exec(
                           "fw_printenv | grep login | awk -F '=' '{print $2}'")
     local function set_login(_login)
-        uci.set("ispapp", "settings", "login", login)
+        uci.set("ispapp", "@settings[0]", "login", login)
         uci.commit("ispapp")
     end
     if uci_login and uci_login ~= "00000000-0000-0000-0000-000000000000" then
@@ -714,36 +788,41 @@ local function host_signup()
     end
     local function init_config(configs)
         local _req = string.format(
-                         "curl -k -X POST \"https://%s:%s/initconfig\" -d \"login=%s&key=%s\" -H \"Content-Type: application/json\" -d '%s'",
+                         "curl -k -X POST 'https://%s:%s/initconfig?login=%s&key=%s' --header 'User-Agent: Ispapp Client' --header 'Accept: */*' --header 'Content-Type: application/json' --data-raw '%s'",
                          host, port, login, key, configs)
         local ok, content = pcall(sys.exec, _req)
-        if not ok then return "err" end
-        return content, _req
+        if not ok then return "err", _req end
+        return content, _req, ok
     end
-    local token, _req = init_config(CollectConfigs().result)
-    return {token = token, _req = _req}
+    local _config = CollectConfigs()
+    local res, _req, ok = init_config(_config)
+    return {res = res, ok = ok}
 end
 
 local function get_cpu_usage()
     -- Get the PID of the ispappd process
-    local path = "/var/run/ispapp.pid"
-    local pid, err = fs.readfile(path)
-    if not pid then
-        log_error("Failed to read file " .. path .. "(ispappd is not running): " .. err)
+    local path = "/var/run/ispappd.pid"
+    local pid = read_file(path)
+    if not pid.result then
+        log_error(
+            "Failed to read file " .. path .. "(ispappd is not running): " ..
+            pid.error)
         return "ispappd is not running"
     end
 
-    local stat_file = "/proc/" .. pid .. "/stat"
+    local stat_file = string.format("/proc/%s/stat",pid.result:gsub("%D", ""))
 
     -- Open the file and read the line
     local file = io.open(stat_file, "r")
+    log_error(file)
     if file then
         local stat_line = file:read("*l")
         file:close()
-    
+
         -- Use pattern matching to extract the 14th and 15th fields (utime and stime)
-        local utime, stime = stat_line:match("^(%S+%s+%S+%s+%S+%s+%S+%s+%S+%s+%S+%s+%S+%s+%S+%s+%S+%s+%S+%s+%S+%s+%S+%s+%S+%s+%S+%s+)(%d+)%s+(%d+)")
-    
+        local utime, stime = stat_line:match(
+                                 "^(%S+%s+%S+%s+%S+%s+%S+%s+%S+%s+%S+%s+%S+%s+%S+%s+%S+%s+%S+%s+%S+%s+%S+%s+%S+%s+%S+%s+)(%d+)%s+(%d+)")
+
         -- Convert the values to numbers
         utime = tonumber(utime)
         stime = tonumber(stime)
@@ -754,32 +833,67 @@ local function get_cpu_usage()
         -- Calculate CPU time in seconds
         local cpu_time_seconds = total_time / clock_ticks_per_second
         -- Print the values (for debugging or further calculation)
-        log_error("utime:"..utime .. ", stime:"..stime)
+        log_error("utime:" .. utime .. ", stime:" .. stime)
         -- Format the CPU usage for ispappd
         return string.format("%.2f", cpu_time_seconds)
     else
-        log_error("Could not open file: "..stat_file)
+        log_error("Could not open file: " .. stat_file)
         return "(N/A)%"
     end
 end
 
-
 local function TestMe()
-    local upt, idle = get_uptime()
-    local responce = {["results"] = math.floor(upt)}
+    local uci = UCI.cursor()
+    if uci.get("ispapp", "@settings[0]") == nil then return nil end
+    local host = uci.get("ispapp", "@settings[0]", "topDomain") or
+                     "provisioning.ispapp.co"
+    local port = uci.get("ispapp", "@settings[0]", "topListenerPort") or "8550"
+    local key = uci.get("ispapp", "@settings[0]", "topKey") or ""
+    local getuuidreq = string.format("https://%s:%s/auth/uuid", host, port)
+    local login = ""
+    local uci_login = uci.get("ispapp", "@settings[0]", "login")
+    local env_login = sys.exec(
+                          "fw_printenv | grep login | awk -F '=' '{print $2}'")
+    local function set_login(_login)
+        uci.set("ispapp", "@settings[0]", "login", login)
+        uci.commit("ispapp")
+    end
+    if uci_login and uci_login ~= "00000000-0000-0000-0000-000000000000" then
+        login = uci_login
+    elseif env_login and env_login ~= "00000000-0000-0000-0000-000000000000" then
+        login = env_login
+        set_login(uci_login:gsub("\n", ""))
+    else
+        local body, code = getRequest(getuuidreq)
+        if code == "200" then
+            login = body or gather_unique_id()
+        else
+            login = gather_unique_id()
+        end
+        set_login(login)
+    end
+    local initreq = string.format("https://%s:%s/initconfig?login=%s&key=%s",
+                                  host, port, login:gsub("\n", ""), key)
+    log_info("Host SignUp: " .. initreq)
+    local _config = CollectConfigs()
+    local body = postRequest(initreq, _config, {})
+    local responce = {
+        ["results"] = {status = CheckHostIsAdded(body), responce = body}
+    }
+    log_info("Responce: " .. body)
     return {result = jsonc.stringify(responce)}
 end
 local function SignUp()
     local sd = host_signup()
     if not sd then return {result = ""} end
-    local responce = {["results"] = sd.token}
+    local responce = {["results"] = sd}
     return {result = jsonc.stringify(responce)}
 end
 
 local methods = {
 
-    demo = {call = TestMe},
-    test = {call = SignUp},
+    test = {call = TestMe},
+    -- test = {call = SignUp},
     collect_configs = {call = CollectConfigs},
     get_cpu_usage = {call = get_cpu_usage},
 
@@ -789,7 +903,11 @@ local methods = {
         call = function(args) return set_config(args.config) end
     },
     check_ispapp_status = {
-        call = function() return exec_command("cat /proc/"..sys.exec("cat /var/run/ispapp.pid").."/status") end
+        call = function()
+            return exec_command("cat /proc/" ..
+                                    sys.exec("cat /var/run/ispapp.pid") ..
+                                    "/status")
+        end
     },
     reload_ispapp = {call = function() return manage_service("restart") end},
     restart_ispapp = {call = function() return manage_service("restart") end},
