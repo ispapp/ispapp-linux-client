@@ -109,18 +109,18 @@ jobs:
         uses: openwrt/gh-action-sdk@main
         env:
           NO_REFRESH_CHECK: true
-          FEEDNAME: packages_ci
+          IGNORE_ERRORS: true
+          FEEDNAME: ${{ github.workspace }}
           ARCH: ${{ matrix.arch }}
           # PACKAGES: ${{ matrix.package }}
           PACKAGES: luci-app-ispapp
-          V: sc
+          V: s
 
       - name: Store packages
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            bin/packages/**/packages_ci/*.ipk
-            bin/targets/**/packages_ci/*.ipk
+            bin/packages/${{ matrix.arch }}/packages/*.ipk
             arch_device_map.json
           tag_name: latest
           overwrite: true
