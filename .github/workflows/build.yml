@@ -17,32 +17,32 @@ jobs:
         with:
           fetch-depth: 0
 
-      # For pull requests it's not necessary to checkout the code
-      - name: Get changed packages
-        id: get_changed
-        continue-on-error: false
-        run: |
-          changed=$(git diff --no-renames --name-only HEAD^1 | paste -sd " " -)
+      # # For pull requests it's not necessary to checkout the code
+      # - name: Get changed packages
+      #   id: get_changed
+      #   continue-on-error: false
+      #   run: |
+      #     changed=$(git diff --no-renames --name-only HEAD^1 | paste -sd " " -)
 
-          folders=()
-          for f in $changed; do
-              folder=$(echo "$f" | awk -F "/" '{print $1}')
-              if [ ! -d "$folder" ]; then
-                  echo "Skipping $folder as it is not a folder"
-                  continue
-              fi
-              if [[ "$folder" == ".github" ]]; then
-                  echo "Skipping $folder as it is .github"
-                  continue
-              fi
-              echo "Adding $folder to folders"
-              folders+=($folder)
-          done
-          unique_folders=($(printf "%s\n" "${folders[@]}" | sort -u | tr '\n' ' '))
-          echo "packages=$(jq --compact-output --null-input '$ARGS.positional' --args -- ${unique_folders[@]})" >> $GITHUB_OUTPUT
-          if [ -z "${unique_folders[@]}" ]; then
-            echo "packages=[]" >> $GITHUB_OUTPUT
-          fi
+      #     folders=()
+      #     for f in $changed; do
+      #         folder=$(echo "$f" | awk -F "/" '{print $1}')
+      #         if [ ! -d "$folder" ]; then
+      #             echo "Skipping $folder as it is not a folder"
+      #             continue
+      #         fi
+      #         if [[ "$folder" == ".github" ]]; then
+      #             echo "Skipping $folder as it is .github"
+      #             continue
+      #         fi
+      #         echo "Adding $folder to folders"
+      #         folders+=($folder)
+      #     done
+      #     unique_folders=($(printf "%s\n" "${folders[@]}" | sort -u | tr '\n' ' '))
+      #     echo "packages=$(jq --compact-output --null-input '$ARGS.positional' --args -- ${unique_folders[@]})" >> $GITHUB_OUTPUT
+      #     if [ -z "${unique_folders[@]}" ]; then
+      #       echo "packages=[]" >> $GITHUB_OUTPUT
+      #     fi
 
   build:
     needs: changes
@@ -78,7 +78,7 @@ jobs:
           - ramips-mt7621
           - mvebu-cortexa72
           - ath79-mikrotik
-        package: ${{ fromJSON(needs.changes.outputs.packages) }}
+        # package: ${{ fromJSON(needs.changes.outputs.packages) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -103,14 +103,16 @@ jobs:
           jq --argjson new_entry "$arch_device_map" --arg arch "${{ matrix.arch }}" \
             --null-input '{($arch): $new_entry}' > arch_device_map.json
           fi
-      - name: Build ${{ matrix.package }}-${{ matrix.arch }}
+      # - name: Build ${{ matrix.package }}-${{ matrix.arch }}
+      - name: Build luci-app-ispapp-${{ matrix.arch }}
         uses: openwrt/gh-action-sdk@main
         continue-on-error: true
         env:
           NO_REFRESH_CHECK: true
           FEEDNAME: packages_ci
           ARCH: ${{ matrix.arch }}
-          PACKAGES: ${{ matrix.package }}
+          # PACKAGES: ${{ matrix.package }}
+          PACKAGES: luci-app-ispapp
           V: sc
 
       - name: Store packages
