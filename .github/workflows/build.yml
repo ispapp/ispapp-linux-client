@@ -55,7 +55,6 @@ jobs:
       - name: Create arch-device JSON
         id: create_arch_device_json
         run: |
-          curl -L -o arch_device_map.json https://github.com/${{ github.repository }}/releases/download/latest/arch_device_map.json
           curl -o toh.json https://openwrt.org/toh.json
           arch_device_map=$(jq --arg arch "${{ matrix.arch }}" '[.entries[] 
             | select(.[42] == $arch) 
@@ -99,9 +98,10 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            bin/packages/${{ matrix.arch }}/ispapp/*.ipk
-            bin/packages/${{ matrix.arch }}/packages/luasec*.ipk
-            bin/packages/${{ matrix.arch }}/packages/luasocket*.ipk
+            bin/packages/${{ matrix.arch }}/ispapp/*.apk
+            bin/packages/${{ matrix.arch }}/packages/luasec*.apk
+            bin/packages/${{ matrix.arch }}/packages/luasocket*.apk
+            arch_device_map.json
           tag_name: ${{ matrix.arch }}
       # - name: Store arch_device_map
       #   uses: softprops/action-gh-release@v2
