@@ -96,9 +96,11 @@ jobs:
       #     path: bin/packages/${{ matrix.arch }}/ispapp/*.ipk
         
       - name: Store packages
-        uses: softprops/action-gh-release@v2
+        uses: ncipollo/release-action@v1
         with:
-          files: |
+          allowUpdates: true
+          replacesArtifacts: true
+          artifacts: |
             bin/packages/${{ matrix.arch }}/ispapp/*.apk
             bin/packages/${{ matrix.arch }}/packages/luasec*.apk
             bin/packages/${{ matrix.arch }}/packages/luasocket*.apk
@@ -106,7 +108,7 @@ jobs:
             bin/packages/${{ matrix.arch }}/packages/luasec*.ipk
             bin/packages/${{ matrix.arch }}/packages/luasocket*.ipk
             arch_device_map.json
-          tag_name: ${{ matrix.arch }}
+          tag: ${{ matrix.arch }}
       # - name: Store arch_device_map
       #   uses: softprops/action-gh-release@v2
       #   with:
