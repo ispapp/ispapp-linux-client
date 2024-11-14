@@ -23,10 +23,12 @@ jobs:
         arch:
           - aarch64_cortex-a53
           - arm_cortex-a7_neon-vfpv4
+          - arm_cortex-a7_neon-vfpv4-19.07.10
           - aarch64_cortex-a72
           - arm_cortex-a9
           - arm_cortex-a15_neon-vfpv4
           - arm_cortex-a7
+          - arm_cortex-a7-22.03.5
           - arm_cortex-a15_neon-vfpv4
           - ipq40xx-mikrotik
           - ipq40xx-generic
@@ -80,14 +82,14 @@ jobs:
           IGNORE_ERRORS: true
           FEEDNAME: ispapp
           FEED_DIR: ${{ github.workspace }}
-          ARCH: ${{ matrix.arch }}-23.05-SNAPSHOT
+          ARCH: ${{ matrix.arch }}
           PACKAGES: luci-app-ispapp
           V: s
 
-      - name: Find and echo all .ipk files
-        run: |
-            sudo apt-get install -y tree
-            tree -R
+      # - name: Find and echo all .apk files
+      #   run: |
+      #       sudo apt-get install -y tree
+      #       tree -R
       # - name: Store packages
       #   uses: actions/upload-artifact@v3
       #   with:
@@ -98,6 +100,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
+            bin/packages/${{ matrix.arch }}/ispapp/*.apk
+            bin/packages/${{ matrix.arch }}/packages/luasec*.apk
+            bin/packages/${{ matrix.arch }}/packages/luasocket*.apk
             bin/packages/${{ matrix.arch }}/ispapp/*.ipk
             bin/packages/${{ matrix.arch }}/packages/luasec*.ipk
             bin/packages/${{ matrix.arch }}/packages/luasocket*.ipk
