@@ -80,7 +80,7 @@ jobs:
           IGNORE_ERRORS: true
           FEEDNAME: ispapp
           FEED_DIR: ${{ github.workspace }}
-          ARCH: ${{ matrix.arch }}-23.05.4
+          ARCH: ${{ matrix.arch }}-23.05-SNAPSHOT
           PACKAGES: luci-app-ispapp
           V: s
 
