@@ -23,7 +23,7 @@ jobs:
         arch:
           - aarch64_cortex-a53
           - arm_cortex-a7_neon-vfpv4
-          - arm_cortex-a7_neon-vfpv4-19.07.10
+          # - arm_cortex-a7_neon-vfpv4-19.07.10
           - aarch64_cortex-a72
           - arm_cortex-a9
           - arm_cortex-a15_neon-vfpv4
