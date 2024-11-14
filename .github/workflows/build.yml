@@ -79,6 +79,7 @@ jobs:
         env:
           NO_REFRESH_CHECK: true
           IGNORE_ERRORS: true
+          FEEDNAME: ispapp
           FEED_DIR: ${{ github.workspace }}
           ARCH: ${{ matrix.arch }}
           PACKAGES: luci-app-ispapp
@@ -88,19 +89,24 @@ jobs:
         run: |
             sudo apt-get install -y tree
             tree -R
-
+      - name: Store packages
+        uses: actions/upload-artifact@v3
+        with:
+          name: luci-app-ispapp-${{ matrix.arch }}
+          path: bin/packages/${{ matrix.arch }}/ispapp/*.ipk
+        
       - name: Store packages
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            bin/packages/${{ matrix.arch }}/actions/luci-app-ispapp*.ipk
+            bin/packages/${{ matrix.arch }}/ispapp/*.ipk
             bin/packages/${{ matrix.arch }}/packages/luasec*.ipk
             bin/packages/${{ matrix.arch }}/packages/luasocket*.ipk
           tag_name: ${{ matrix.arch }}
-      - name: Store arch_device_map
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            arch_device_map.json
-          tag_name: latest
-          make_latest: true
+      # - name: Store arch_device_map
+      #   uses: softprops/action-gh-release@v2
+      #   with:
+      #     files: |
+      #       arch_device_map.json
+      #     tag_name: latest
+      #     make_latest: true
