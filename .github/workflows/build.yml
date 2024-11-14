@@ -28,7 +28,6 @@ jobs:
           - arm_cortex-a9
           - arm_cortex-a15_neon-vfpv4
           - arm_cortex-a7
-          - arm_cortex-a7-22.03.5
           - arm_cortex-a15_neon-vfpv4
           - ipq40xx-mikrotik
           - ipq40xx-generic
