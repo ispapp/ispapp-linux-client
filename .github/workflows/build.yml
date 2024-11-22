@@ -101,12 +101,12 @@ jobs:
           allowUpdates: true
           replacesArtifacts: true
           artifacts: |
-            bin/packages/${{ matrix.arch }}/ispapp/*.apk
-            bin/packages/${{ matrix.arch }}/packages/luasec*.apk
-            bin/packages/${{ matrix.arch }}/packages/luasocket*.apk
-            bin/packages/${{ matrix.arch }}/ispapp/*.ipk
-            bin/packages/${{ matrix.arch }}/packages/luasec*.ipk
-            bin/packages/${{ matrix.arch }}/packages/luasocket*.ipk
+            bin/packages/**/ispapp/*.apk
+            bin/packages/**/packages/luasec*.apk
+            bin/packages/**/packages/luasocket*.apk
+            bin/packages/**/ispapp/*.ipk
+            bin/packages/**/packages/luasec*.ipk
+            bin/packages/**/packages/luasocket*.ipk
           tag: ${{ matrix.arch }}
       # - name: Store arch_device_map
       #   uses: softprops/action-gh-release@v2
