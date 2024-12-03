@@ -21,6 +21,7 @@ jobs:
       max-parallel: 10
       matrix:
         arch:
+          - arm_cortex-a7_neon-vfpv4-23.05-SNAPSHOT
           - arm_cortex-a7_vfpv4-23.05-SNAPSHOT
           - arm_cortex-a9-23.05-SNAPSHOT
           - mediatek-filogic-23.05-SNAPSHOT
@@ -110,7 +111,6 @@ jobs:
           # - ipq40xx-generic-23.05-SNAPSHOT
           # - imx-cortexa7-23.05-SNAPSHOT
           # - bcm27xx-bcm2709-23.05-SNAPSHOT
-          # - arm_cortex-a7_neon-vfpv4-23.05-SNAPSHOT
           # - x86-geode-23.05-SNAPSHOT
           # - x86-legacy-23.05-SNAPSHOT
           # - i386_pentium-mmx-23.05-SNAPSHOT
