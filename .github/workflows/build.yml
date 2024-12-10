@@ -45,26 +45,80 @@ jobs:
           - x86_64-23.05-SNAPSHOT
           - arm_cortex-a5_vfpv4-23.05-SNAPSHOT
           - ipq807x-generic-23.05-SNAPSHOT
+          - ramips-rt3883-23.05-SNAPSHOT
+          - bcm47xx-mips74k-23.05-SNAPSHOT
+          - mipsel_74kc-23.05-SNAPSHOT
+          - mips_mips32-23.05-SNAPSHOT
+          - bmips-bcm63268-23.05-SNAPSHOT
+          - bmips-bcm6368-23.05-SNAPSHOT
+          - ipq40xx-mikrotik-23.05-SNAPSHOT
+          - bmips-bcm6362-23.05-SNAPSHOT
+          - i386_pentium4-23.05-SNAPSHOT
+          - mips_24kc-23.05-SNAPSHOT
+          - mips64_octeonplus-23.05-SNAPSHOT
+          - bmips-bcm6358-23.05-SNAPSHOT
+          - bmips-bcm6328-23.05-SNAPSHOT
+          - mipsel_24kc_24kf-23.05-SNAPSHOT
+          - mips_4kec-23.05-SNAPSHOT
+          - ramips-rt3883-23.05-SNAPSHOT
+          - mipsel_74kc-23.05-SNAPSHOT
+          - mediatek-mt7629-23.05-SNAPSHOT
+          - bmips-bcm6318-23.05-SNAPSHOT
+          
+
+          - arm_cortex-a7_neon-vfpv4
+          - arm_cortex-a7_vfpv4
+          - arm_cortex-a9
+          - mediatek-filogic
+          - mipsel_mips32
+          - ath79-mikrotik
+          - mipsel_24kc
+          - x86-generic
+          - arm_cortex-a7
+          - mvebu-cortexa53
+          - x86-64
+          - ath79-generic
+          - mediatek-mt7622
+          - ramips-mt76x8
+          - ramips-mt7620
+          - aarch64_generic
+          - ramips-mt7621
+          - ramips-rt288x
+          - ramips-rt305x
+          - aarch64_cortex-a53
+          - arm_cortex-a15_neon-vfpv4
+          - x86_64
+          - arm_cortex-a5_vfpv4
+          - ipq807x-generic
+          - ramips-rt3883
+          - bcm47xx-mips74k
+          - mipsel_74kc
+          - mips_mips32
+          - bmips-bcm63268
+          - bmips-bcm6368
+          - ipq40xx-mikrotik
+          - bmips-bcm6362
+          - i386_pentium4
+          - mips_24kc
+          - mips64_octeonplus
+          - bmips-bcm6358
+          - bmips-bcm6328
+          - mipsel_24kc_24kf
+          - mips_4kec
+          - ramips-rt3883
+          - mipsel_74kc
+          - mediatek-mt7629
+          - bmips-bcm6318
           # - bcm47xx-legacy-23.05-SNAPSHOT
           # - bcm47xx-generic-23.05-SNAPSHOT
           # - sunxi-cortexa53-23.05-SNAPSHOT
           # - bcm4908-generic-23.05-SNAPSHOT
           # - bcm27xx-bcm2710-23.05-SNAPSHOT
           # - arm_cortex-a9_vfpv3-d16-23.05-SNAPSHOT
-          # - mediatek-mt7629-23.05-SNAPSHOT
           # - armsr-armv7-23.05-SNAPSHOT
           # - lantiq-ase-23.05-SNAPSHOT
-          # - bmips-bcm63268-23.05-SNAPSHOT
-          # - bmips-bcm6368-23.05-SNAPSHOT
-          # - ipq40xx-mikrotik-23.05-SNAPSHOT
-          # - bmips-bcm6362-23.05-SNAPSHOT
-          # - i386_pentium4-23.05-SNAPSHOT
-          # - bmips-bcm6358-23.05-SNAPSHOT
-          # - bmips-bcm6328-23.05-SNAPSHOT
-          # - bmips-bcm6318-23.05-SNAPSHOT
           # - bcm63xx-smp-23.05-SNAPSHOT
           # - bcm63xx-generic-23.05-SNAPSHOT
-          # - mips_mips32-23.05-SNAPSHOT
           # - realtek-rtl931x-23.05-SNAPSHOT
           # - realtek-rtl930x-23.05-SNAPSHOT
           # - realtek-rtl839x-23.05-SNAPSHOT
@@ -74,7 +128,6 @@ jobs:
           # - lantiq-xrx200-23.05-SNAPSHOT
           # - ath79-tiny-23.05-SNAPSHOT
           # - ath79-nand-23.05-SNAPSHOT
-          # - mips_24kc-23.05-SNAPSHOT
           # - at91-sama5-23.05-SNAPSHOT
           # - rockchip-armv8-23.05-SNAPSHOT
           # - octeontx-generic-23.05-SNAPSHOT
@@ -92,7 +145,6 @@ jobs:
           # - arm_arm926ej-s-23.05-SNAPSHOT
           # - at91-sama7-23.05-SNAPSHOT
           # - octeon-generic-23.05-SNAPSHOT
-          # - mips64_octeonplus-23.05-SNAPSHOT
           # - apm821xx-sata-23.05-SNAPSHOT
           # - apm821xx-nand-23.05-SNAPSHOT
           # - powerpc_464fp-23.05-SNAPSHOT
@@ -122,16 +174,12 @@ jobs:
           # - ipq806x-chromium-23.05-SNAPSHOT
           # - ipq806x-generic-23.05-SNAPSHOT
           # - pistachio-generic-23.05-SNAPSHOT
-          # - mipsel_24kc_24kf-23.05-SNAPSHOT
           # - realtek-rtl838x-23.05-SNAPSHOT
-          # - mips_4kec-23.05-SNAPSHOT
           # - kirkwood-generic-23.05-SNAPSHOT
           # - arm_xscale-23.05-SNAPSHOT
           # - gemini-generic-23.05-SNAPSHOT
           # - arm_fa526-23.05-SNAPSHOT
-          # - ramips-rt3883-23.05-SNAPSHOT
           # - bcm47xx-mips74k-23.05-SNAPSHOT
-          # - mipsel_74kc-23.05-SNAPSHOT
           # - bcm53xx-generic-23.05-SNAPSHOT
           # - armvirt-32-23.05-SNAPSHOT
           # - armvirt-64-23.05-SNAPSHOT
