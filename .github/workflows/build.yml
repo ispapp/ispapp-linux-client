@@ -65,7 +65,7 @@ jobs:
           - mediatek-mt7629-23.05-SNAPSHOT
           - bmips-bcm6318-23.05-SNAPSHOT
           
-
+          # new apk
           - arm_cortex-a7_neon-vfpv4
           - arm_cortex-a7_vfpv4
           - arm_cortex-a9
