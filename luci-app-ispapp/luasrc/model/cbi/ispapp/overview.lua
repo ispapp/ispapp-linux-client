@@ -1,10 +1,8 @@
 -- /usr/lib/lua/luci/model/cbi/ispapp/
-
 local dsp = require "luci.dispatcher"
 local util = require("luci.util")
 local jsonc = require "luci.jsonc"
 local sys = require "luci.sys"
-local scheduler = require("luci.scheduler")
 local m, s, o
 
 m = Map("ispapp", translate("ISPApp Overview"),
@@ -16,11 +14,13 @@ s.anonymous = true
 s.rmempty = false
 
 -- Service Status
-local service_status = s:option(DummyValue, "service_status", translate("Service Status"))
+local service_status = s:option(DummyValue, "service_status",
+                                translate("Service Status"))
 service_status.rmempty = false
 service_status.rawhtml = true
 service_status.cfgvalue = function(self, section)
-    local pid_file_check = luci.sys.exec("[ -s /var/run/ispappd.pid ] && echo 'running' || echo 'stopped'")
+    local pid_file_check = luci.sys.exec(
+                               "[ -s /var/run/ispappd.pid ] && echo 'running' || echo 'stopped'")
     if pid_file_check:find("running") then
         return "<span style='color:green'>" .. "Running" .. "</span>"
     else
@@ -45,7 +45,8 @@ stop_button.write = function(self, section)
 end
 
 -- Button for restarting service
-local restart_button = s:option(Button, "_restart", translate("Restart Service"))
+local restart_button =
+    s:option(Button, "_restart", translate("Restart Service"))
 restart_button.inputstyle = "reset"
 restart_button.write = function(self, section)
     luci.sys.exec("/etc/init.d/ispapp restart")
@@ -53,7 +54,8 @@ restart_button.write = function(self, section)
 end
 
 -- Last Edit Time
-local last_edit_time = s:option(DummyValue, "last_edit_time", translate("Last Edit Time"))
+local last_edit_time = s:option(DummyValue, "last_edit_time",
+                                translate("Last Edit Time"))
 last_edit_time.cfgvalue = function(self, section)
     local result = util.exec("ubus call ispapp get_last_edit_time")
     local json_result = jsonc.parse(result)
@@ -61,7 +63,8 @@ last_edit_time.cfgvalue = function(self, section)
 end
 
 -- Active Time
-local active_time = s:option(DummyValue, "active_time", translate("Active Time"))
+local active_time =
+    s:option(DummyValue, "active_time", translate("Active Time"))
 service_status.rmempty = false
 active_time.cfgvalue = function(self, section)
     local result = util.exec("ubus call ispapp get_active_time")
@@ -81,22 +84,20 @@ local function get_cpu_usage()
 end
 
 -- Initial value
-cpu_usage.cfgvalue = function(self, section)
-    return get_cpu_usage()
-end
+cpu_usage.cfgvalue = function(self, section) return get_cpu_usage() end
 
--- Set up periodic updates every 5 seconds (adjust as necessary)
-scheduler.schedule("update_cpu_usage", function()
-    cpu_usage:refresh()
-end, 5)
+-- Button to refresh CPU usage
+local refresh_cpu_button = s:option(Button, "_refresh_cpu",
+                                    translate("Refresh CPU Usage"))
+refresh_cpu_button.inputstyle = "reload"
+refresh_cpu_button.write = function(self, section) cpu_usage:refresh() end
 
 -- To ensure that the value can be refreshed in the UI
-function cpu_usage:refresh()
-    self:set_value(get_cpu_usage())
-end
+function cpu_usage:refresh() self:set_value(get_cpu_usage()) end
 
 -- Device Mode
-local device_mode = s:option(DummyValue, "device_mode", translate("Device Mode"))
+local device_mode =
+    s:option(DummyValue, "device_mode", translate("Device Mode"))
 service_status.rmempty = false
 device_mode.cfgvalue = function(self, section)
     local result = util.exec("ubus call ispapp get_device_mode")
