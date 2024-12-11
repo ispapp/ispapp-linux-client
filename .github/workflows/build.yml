@@ -84,25 +84,13 @@ jobs:
           - arm_cortex-a15_neon-vfpv4
           - x86_64
           - arm_cortex-a5_vfpv4
-          - ipq807x-generic
-          - bcm47xx-mips74k
           - mipsel_74kc
           - mips_mips32
-          - bmips-bcm63268
-          - bmips-bcm6368
-          - ipq40xx-mikrotik
-          - bmips-bcm6362
           - i386_pentium4
           - mips_24kc
-          - mips64_octeonplus
-          - bmips-bcm6358
-          - bmips-bcm6328
           - mipsel_24kc_24kf
           - mips_4kec
-          - ramips-rt3883
           - mipsel_74kc
-          - mediatek-mt7629
-          - bmips-bcm6318
           # - bcm47xx-legacy-23.05-SNAPSHOT
           # - bcm47xx-generic-23.05-SNAPSHOT
           # - sunxi-cortexa53-23.05-SNAPSHOT
