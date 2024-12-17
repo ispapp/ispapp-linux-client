@@ -1,17 +1,16 @@
 #!/usr/bin/env lua
+
 -- ispapp daemon
 -- path: /bin/ispappd
-
 local nixio = require "nixio"
-local uci = require "luci.model.uci".cursor()
-
+local uci = require"luci.model.uci".cursor()
 -- Variables to manage threads and their respective sleep times
 local threads = {}
 local running = false
 local sleep_times = {
-    wisp_monitor = 10,  -- Default sleep time for WISP monitor (10s minimum)
-    connection_manager = 10,  -- Default sleep time for connection manager (10s minimum)
-    status_reporter = 10  -- Default sleep time for status reporter (10s minimum)
+    update_interval = 10, -- Default sleep time for WISP monitor (10s minimum)
+    config_interval = 10, -- Default sleep time for connection manager (10s minimum)
+    heathcheck_interval = 10 -- Default sleep time for status reporter (10s minimum)
 }
 local pid_file = "/var/run/ispappd.pid"
 local log_file = "/var/log/ispapp"
@@ -20,48 +19,26 @@ local max_log_size = 0.1 * 1024 * 1024 -- 1 MB
 -- Function to log messages to the log file with rotation
 local function log_to_syslog(level, message) nixio.syslog(level, message) end
 -- priority Priority ["emerg", "alert", "crit", "err", "warning", "notice", "info", "debug"] 
-local function log(message)
-    log_to_syslog("debug", "[ispappd]: " .. message)
-end
+local function log(message) log_to_syslog("debug", "[ispappd]: " .. message) end
 
 -- Function to load configuration and get sleep times for each thread
 local function load_config()
-    local config_wisp_monitor = uci:get("ispapp", "settings", "wisp_monitor_delay")
-    local config_connection_manager = uci:get("ispapp", "settings", "connection_manager_delay")
-    local config_status_reporter = uci:get("ispapp", "settings", "status_reporter_delay")
+    local UpdateInterval = uci:get("ispapp", "@settings[0]", "updateInterval")
 
     -- Ensure minimum 10s and assign to variables
-    if config_wisp_monitor then
-        config_wisp_monitor = tonumber(config_wisp_monitor)
-        if config_wisp_monitor and config_wisp_monitor >= 10 then
-            sleep_times.wisp_monitor = config_wisp_monitor
+    if UpdateInterval then
+        UpdateInterval = tonumber(UpdateInterval)
+        if UpdateInterval and UpdateInterval >= 10 then
+            sleep_times.update_interval = UpdateInterval
+            sleep_times.config_interval = UpdateInterval
+            sleep_times.heathcheck_interval = UpdateInterval
         else
-            sleep_times.wisp_monitor = 10
+            sleep_times.update_interval = 10
+            sleep_times.config_interval = 10
+            sleep_times.heathcheck_interval = 10
         end
     else
-        uci:set("ispapp", "settings", "wisp_monitor_delay", 10)  -- Save default if missing
-    end
-
-    if config_connection_manager then
-        config_connection_manager = tonumber(config_connection_manager)
-        if config_connection_manager and config_connection_manager >= 10 then
-            sleep_times.connection_manager = config_connection_manager
-        else
-            sleep_times.connection_manager = 10
-        end
-    else
-        uci:set("ispapp", "settings", "connection_manager_delay", 10)  -- Save default if missing
-    end
-
-    if config_status_reporter then
-        config_status_reporter = tonumber(config_status_reporter)
-        if config_status_reporter and config_status_reporter >= 10 then
-            sleep_times.status_reporter = config_status_reporter
-        else
-            sleep_times.status_reporter = 10
-        end
-    else
-        uci:set("ispapp", "settings", "status_reporter_delay", 10)  -- Save default if missing
+        uci:set("ispapp", "@settings[0]", "UpdateInterval", 10) -- Save default if missing
     end
 
     -- Commit the changes if defaults were saved
@@ -69,28 +46,29 @@ local function load_config()
 end
 
 -- Thread 1: WISP monitoring task
-local function thread_wisp_monitor()
+local function Update_thread()
     while running do
-        log("Monitoring WISP status...")
-        nixio.nanosleep(sleep_times.wisp_monitor, 0) -- Sleep for the configured time
+        log("Sending updates ...")
+
+        nixio.nanosleep(sleep_times.update_interval, 0) -- Sleep for the configured time
         coroutine.yield() -- Yield execution back to the manager
     end
 end
 
 -- Thread 2: Connection management task
-local function thread_connection_manager()
+local function Config_thread()
     while running do
-        log("Managing WISP connections...")
-        nixio.nanosleep(sleep_times.connection_manager, 0) -- Sleep for the configured time
+        log("Sending configs...")
+        nixio.nanosleep(sleep_times.config_interval, 0) -- Sleep for the configured time
         coroutine.yield() -- Yield execution back to the manager
     end
 end
 
 -- Thread 3: Status reporting task
-local function thread_status_reporter()
+local function HealthCheck_thread()
     while running do
-        log("Reporting WISP status...")
-        nixio.nanosleep(sleep_times.status_reporter, 0) -- Sleep for the configured time
+        log("Reporting heath check...")
+        nixio.nanosleep(sleep_times.heathcheck_interval, 0) -- Sleep for the configured time
         coroutine.yield() -- Yield execution back to the manager
     end
 end
@@ -102,14 +80,16 @@ local function start_daemon()
 
     -- Load the sleep times from config
     load_config()
-    log("Thread Sleep Times: WISP Monitor = " .. sleep_times.wisp_monitor .. " s, "
-          .. "Connection Manager = " .. sleep_times.connection_manager .. " s, "
-          .. "Status Reporter = " .. sleep_times.status_reporter .. " s")
+    log(
+        "Thread Sleep Times: update interval = " .. sleep_times.update_interval ..
+            " s, " .. "config interval = " .. sleep_times.config_interval ..
+            " s, " .. "heath check interval = " ..
+            sleep_times.heathcheck_interval .. " s")
 
     -- Create coroutines (threads)
-    threads[1] = coroutine.create(thread_wisp_monitor)
-    threads[2] = coroutine.create(thread_connection_manager)
-    threads[3] = coroutine.create(thread_status_reporter)
+    threads[1] = coroutine.create(Update_thread)
+    threads[2] = coroutine.create(Config_thread)
+    threads[3] = coroutine.create(HealthCheck_thread)
 
     -- Manage threads in a round-robin fashion
     while running do

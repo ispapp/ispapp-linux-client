@@ -69,3 +69,36 @@ reload() {
         echo "ispappd is not running or PID file not found."
     fi
 }
+
+status() {
+    if [ -f "$PID_FILE" ]; then
+        PID=$(cat $PID_FILE)
+        if ps -p $PID > /dev/null 2>&1; then
+            echo "ispappd is running with PID $PID."
+        else
+            echo "ispappd is not running, but PID file exists."
+        fi
+    else
+        echo "ispappd is not running."
+    fi
+}
+
+enable() {
+    echo "Enabling ispappd service autostart..."
+    /etc/init.d/ispapp enable
+    echo "ispappd service autostart enabled."
+}
+
+disable() {
+    echo "Disabling ispappd service autostart..."
+    /etc/init.d/ispapp disable
+    echo "ispappd service autostart disabled."
+}
+
+enabled() {
+    if /etc/init.d/ispapp enabled; then
+        echo "ispappd service is enabled to start on boot."
+    else
+        echo "ispappd service is not enabled to start on boot."
+    fi
+}

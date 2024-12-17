@@ -1,7 +1,7 @@
 
 config settings
 	option login '00000000-0000-0000-0000-000000000000'
-	option topDomain 'localhost'
+	option topDomain '192.168.137.1'
 	option topListenerPort '8550'
 	option topSmtpPort '8465'
 	option connected '0'
