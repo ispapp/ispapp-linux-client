@@ -31,11 +31,11 @@ local function load_config()
         UpdateInterval = tonumber(UpdateInterval)
         if UpdateInterval and UpdateInterval >= 10 then
             sleep_times.update_interval = UpdateInterval
-            sleep_times.config_interval = UpdateInterval
+            sleep_times.config_interval = UpdateInterval + 5
             sleep_times.heathcheck_interval = UpdateInterval
         else
             sleep_times.update_interval = 10
-            sleep_times.config_interval = 10
+            sleep_times.config_interval = 15
             sleep_times.heathcheck_interval = 10
         end
     else
