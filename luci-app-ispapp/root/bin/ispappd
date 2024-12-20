@@ -166,7 +166,7 @@ end
 local action = arg[1]
 if action == "start" then
     -- Start the service by daemonizing it
-    daemonize()
+    -- daemonize()
     start_daemon()
 elseif action == "stop" then
     stop_daemon()
