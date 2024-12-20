@@ -1,0 +1,137 @@
+[
+  {
+    "IP_HOST": "ping.online.net",
+    "OPTIONS": "",
+    "GB_S": "100",
+    "COUNTRY": "FR",
+    "SITE": "Île-de-France",
+    "CONTINENT": "Europe",
+    "PROVIDER": "Scaleway"
+  },
+  {
+    "IP_HOST": "iperf3.moji.fr",
+    "OPTIONS": "",
+    "GB_S": "100",
+    "COUNTRY": "FR",
+    "SITE": "Île-de-France",
+    "CONTINENT": "Europe",
+    "PROVIDER": "Moji"
+  },
+  {
+    "IP_HOST": "iperf.par2.as49434.net",
+    "OPTIONS": "",
+    "GB_S": "40",
+    "COUNTRY": "FR",
+    "SITE": "Île-de-France",
+    "CONTINENT": "Europe",
+    "PROVIDER": "Harmony Hosting"
+  },
+  {
+    "IP_HOST": "speedtest.serverius.net",
+    "OPTIONS": "-p 5002",
+    "GB_S": "10",
+    "COUNTRY": "NL",
+    "SITE": "Serverius data center",
+    "CONTINENT": "Europe",
+    "PROVIDER": "Serverius datacenters"
+  },
+  {
+    "IP_HOST": "nl.iperf.014.fr",
+    "OPTIONS": "",
+    "GB_S": "1",
+    "COUNTRY": "NL",
+    "SITE": "NextGenWebs data center",
+    "CONTINENT": "Europe",
+    "PROVIDER": "014.fr"
+  },
+  {
+    "IP_HOST": "ch.iperf.014.fr",
+    "OPTIONS": "",
+    "GB_S": "3",
+    "COUNTRY": "CH",
+    "SITE": "Zurich",
+    "CONTINENT": "Europe",
+    "PROVIDER": "014.fr"
+  },
+  {
+    "IP_HOST": "iperf.eenet.ee",
+    "OPTIONS": "",
+    "GB_S": "",
+    "COUNTRY": "EE",
+    "SITE": "EENet Tartu",
+    "CONTINENT": "Europe",
+    "PROVIDER": "EENet"
+  },
+  {
+    "IP_HOST": "iperf.astra.in.ua",
+    "OPTIONS": "",
+    "GB_S": "10",
+    "COUNTRY": "UA",
+    "SITE": "Lviv",
+    "CONTINENT": "Europe",
+    "PROVIDER": "Астра"
+  },
+  {
+    "IP_HOST": "iperf.volia.net",
+    "OPTIONS": "",
+    "GB_S": "",
+    "COUNTRY": "UA",
+    "SITE": "Kiev",
+    "CONTINENT": "Europe",
+    "PROVIDER": "ВОЛЯ"
+  },
+  {
+    "IP_HOST": "speedtest.uztelecom.uz",
+    "OPTIONS": "",
+    "GB_S": "10",
+    "COUNTRY": "UZ",
+    "SITE": "Tashkent",
+    "CONTINENT": "Asia",
+    "PROVIDER": "Uztelecom"
+  },
+  {
+    "IP_HOST": "iperf.it-north.net",
+    "OPTIONS": "",
+    "GB_S": "1",
+    "COUNTRY": "KZ",
+    "SITE": "Petropavl",
+    "CONTINENT": "Asia",
+    "PROVIDER": "Kazakhtelecom"
+  },
+  {
+    "IP_HOST": "iperf.biznetnetworks.com",
+    "OPTIONS": "",
+    "GB_S": "1",
+    "COUNTRY": "ID",
+    "SITE": "Biznet - Midplaza Cimanggis",
+    "CONTINENT": "Asia",
+    "PROVIDER": "Biznet Networks"
+  },
+  {
+    "IP_HOST": "speedtest-iperf-akl.vetta.online",
+    "OPTIONS": "",
+    "GB_S": "10",
+    "COUNTRY": "NZ",
+    "SITE": "Auckland",
+    "CONTINENT": "Oceania",
+    "PROVIDER": "Vetta Online"
+  },
+  {
+    "IP_HOST": "iperf.scottlinux.com",
+    "OPTIONS": "",
+    "GB_S": "1",
+    "COUNTRY": "US",
+    "SITE": "California",
+    "CONTINENT": "Americas",
+    "PROVIDER": "scottlinux.com"
+  },
+  {
+    "IP_HOST": "iperf.he.net",
+    "OPTIONS": "",
+    "GB_S": "",
+    "COUNTRY": "US",
+    "SITE": "California",
+    "CONTINENT": "Americas",
+    "PROVIDER": "he.net"
+  }
+]

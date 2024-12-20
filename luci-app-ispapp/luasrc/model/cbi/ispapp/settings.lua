@@ -1,7 +1,10 @@
 -- /usr/lib/lua/luci/model/cbi/ispapp/
 local dsp = require "luci.dispatcher"
 local util = require("luci.util")
+local jsonc = require "luci.jsonc"
 local uci = luci.model.uci.cursor()
+local ubus = require "ubus"
+local conn = ubus.connect()
 local m, s, o
 
 -- Map object (the form itself)
@@ -16,17 +19,17 @@ s.rmempty = false
 
 -- Options for each configuration setting
 
--- Enable/Disable ISPApp
-enabled = s:option(Flag, "enabled", translate("Enabled"),
-                   translate("Enable ISPApp."))
-enabled.rmempty = false
-enabled.datatype = "bool"
-enabled.onchange = function()
-    -- Process the value if needed (e.g., trim whitespace)
-    uci:set("ispapp", "@settings[0]", "enabled", m:get(section, "enabled"))
-    uci:commit("ispapp")
-end
-enabled.default = uci:get("ispapp", "@settings[0]", "enabled") or 0
+-- -- Enable/Disable ISPApp
+-- enabled = s:option(Flag, "enabled", translate("Enabled"),
+--                    translate("Enable ISPApp."))
+-- enabled.rmempty = false
+-- enabled.datatype = "bool"
+-- enabled.onchange = function()
+--     -- Process the value if needed (e.g., trim whitespace)
+--     uci:set("ispapp", "@settings[0]", "enabled", m:get(section, "enabled"))
+--     uci:commit("ispapp")
+-- end
+-- enabled.default = uci:get("ispapp", "@settings[0]", "enabled") or 0
 
 -- MAC Address for Login
 login = s:option(Value, "login", translate("Login"),
@@ -159,15 +162,40 @@ connected.readonly = true
 connected.rawhtml = true
 connected.cfgvalue = function(self, section)
     -- Check the connection status from UCI
-    local status = uci:get("ispapp", "@settings[0]", "connected") or '0'
-
+    local connected = conn:call("ispapp", "checkconnection", {})
+    uci:set("ispapp", "@settings[0]", "connected",
+            connected and connected.code == 200)
+    uci:commit("ispapp")
     -- Return HTML string based on connection status
-    if status == '1' then
+    if connected then
         return "<span style='color: green;'>" .. translate("Connected") ..
                    "</span>"
     else
         return "<span style='color: red;'>" .. translate("Disconnected") ..
                    "</span>"
+    end
+end
+
+-- Button for refreshing the refresh token
+local refreshTokenButton = s:option(Button, "_refreshToken",
+                                    translate("Refresh connection"))
+refreshTokenButton.inputstyle = "reload"
+refreshTokenButton.write = function(self, section)
+    -- Call the RPC method to refresh the token
+    local response = conn:call("ispapp", "checkconnection", {})
+    if response and response.code == 200 then
+        local tokens = jsonc.parse(response.body)
+        uci:set("ispapp", "@settings[0]", "refreshToken", tokens.refreshToken)
+        uci:set("ispapp", "@settings[0]", "accessToken", tokens.accessToken)
+        uci:commit("ispapp")
+        luci.http.write(string.format([[
+            <div style="color: green;padding: 8px 10px 12px 10px; margin:0px auto;">%s</div>
+        ]], translate("Refresh token updated successfully.")))
+    else
+        local tokens = response and jsonc.parse(response.body) or {error = nil}
+        luci.http.write(string.format([[
+            <div style="color: red;padding: 8px 10px 12px 10px; margin:0px auto;">%s</div>
+        ]], tokens.error or translate("Failed to update refresh token.")))
     end
 end
 
@@ -179,13 +207,14 @@ updateInterval.datatype = "range(10, 100)"
 updateInterval.default = uci:get("ispapp", "@settings[0]", "updateInterval") or
                              10
 updateInterval.placeholder = "10"
-updateInterval.onchange = function()
+updateInterval.cfgvalue = function(self, section)
     -- Process the value if needed (e.g., trim whitespace)
-    uci:set("ispapp", "@settings[0]", "updateInterval",
-            m:get(section, "updateInterval"))
-    uci:commit("ispapp")
+    return uci:get("ispapp", "@settings[0]", "updateInterval")
 end
-
+updateInterval.write = function(self, section, value)
+    -- Process the value if needed (e.g., trim whitespace)
+    luci.sys.exec("/etc/init.d/ispapp restart")
+end
 -- -- IP Bandwidth Test Server
 -- ipbandswtestserver = s:option(Value, "ipbandswtestserver",
 --                               translate("IP Bandwidth Test Server"), translate(
@@ -221,21 +250,29 @@ end
 -- end
 -- btpwd.default = uci:get("ispapp", "settings", "btpwd") or "N/A"
 -- Button for saving and applying settings
--- local apply = s:option(Button, "_apply", translate("Save and Apply"))
--- apply.inputstyle = "apply"
--- apply.write = function(self, section)
---     uci.set("ispapp", "settings", "enabled", m:get(section, "enabled"))
---     uci.set("ispapp", "settings", "Domain", m:get(section, "Domain"))
---     uci.set("ispapp", "settings", "ListenerPort", m:get(section, "ListenerPort"))
---     uci.set("ispapp", "settings", "topSmtpPort", m:get(section, "topSmtpPort"))
---     uci.set("ispapp", "settings", "Key", m:get(section, "Key"))
---     uci.set("ispapp", "settings", "ipbandswtestserver", m:get(section, "ipbandswtestserver"))
---     uci.set("ispapp", "settings", "btuser", m:get(section, "btuser"))
---     uci.set("ispapp", "settings", "btpwd", m:get(section, "btpwd"))
---     uci.commit("ispapp")
---     -- Submit the form data via RPC call
---     luci.sys.exec("/etc/init.d/ispapp restart")
---     luci.http.redirect(dsp.build_url("admin/ispapp/settings"))
---     luci.http.write(translate("Configuration changes have been saved."))
--- end
+local apply = s:option(Button, "_apply", translate("Test settings"))
+apply.inputstyle = "apply"
+apply.write = function(self, section)
+    local Domain = m:get(section, "Domain")
+    local ListenerPort = m:get(section, "ListenerPort")
+    local Key = m:get(section, "Key")
+    local updateInterval = m:get(section, "updateInterval")
+    uci:set("ispapp", "@settings[0]", "Domain", Domain)
+    uci:set("ispapp", "@settings[0]", "ListenerPort", ListenerPort)
+    uci:set("ispapp", "@settings[0]", "Key", Key)
+    uci:set("ispapp", "@settings[0]", "updateInterval", updateInterval)
+    uci.commit("ispapp")
+    -- Submit the form data via RPC call
+    local responce = conn:call("ispapp", "signup", {})
+    if responce and responce.code == 200 then
+        luci.http.write(string.format([[
+            <div style="color: green;padding: 8px 10px 12px 10px; margin:0px auto;">%s</div>
+        ]], jsonc.parse(responce.body) or "ISPApp is connected."))
+    else
+        luci.http.write(string.format([[
+            <div style="color: red;padding: 8px 10px 12px 10px; margin:0px auto;">%s</div>
+        ]], responce and jsonc.parse(responce.body).error or
+                                          "ISPApp is not connected."))
+    end
+end
 return m

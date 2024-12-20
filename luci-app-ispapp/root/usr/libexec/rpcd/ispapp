@@ -17,6 +17,11 @@ local http = require "socket.http"
 local conn = ubus.connect()
 if not conn then error("Failed to connect to ubus") end
 local uci = UCI.cursor()
+local function count_keys(tbl)
+    local count = 0
+    for _, _ in pairs(tbl) do count = count + 1 end
+    return count
+end
 local function log_to_syslog(level, message) nixio.syslog(level, message) end
 -- priority Priority ["emerg", "alert", "crit", "err", "warning", "notice", "info", "debug"] 
 local function log_error(message)
@@ -33,7 +38,7 @@ local function log_notice(message)
 end
 
 -- Function to make an HTTP request and ignore SSL verification
-local function getRequest(url, timeout)
+local function getRequest(url, timeout, auth)
     local string_sub = string.sub
     local table_concat = table.concat
     http.TIMEOUT = timeout or 5
@@ -41,25 +46,28 @@ local function getRequest(url, timeout)
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/48.0.2564.97 Safari/537.36"
     local b, c, h, s
     local tbody = {}
+    local headers = {
+        ["Accept"] = "*/*",
+        ["Accept-Language"] = "sk;q=0.8,en-US,en;q=0.6,cs;q=0.4",
+        ["Accept-Charset"] = "UTF-8;q=0.8,*;q=0.7"
+    }
+    if auth then
+        local accessToken = uci:get("ispapp", "@settings[0]", "accessToken")
+        if accessToken and accessToken ~= "" then
+            headers["Authorization"] = 'Bearer ' .. accessToken
+        end
+    end
     local https_opt = {
         url = url,
         protocol = "tlsv1_2",
         verify = "none",
-        headers = {
-            ["Accept"] = "*/*",
-            ["Accept-Language"] = "sk;q=0.8,en-US,en;q=0.6,cs;q=0.4",
-            ["Accept-Charset"] = "UTF-8;q=0.8,*;q=0.7"
-        },
+        headers = headers,
         sink = ltn12.sink.table(tbody),
         redirect = false
     }
     local http_opt = {
         url = url,
-        headers = {
-            ["Accept"] = "*/*",
-            ["Accept-Language"] = "sk;q=0.8,en-US,en;q=0.6,cs;q=0.4",
-            ["Accept-Charset"] = "UTF-8;q=0.8,*;q=0.7"
-        },
+        headers = headers,
         sink = ltn12.sink.table(tbody),
         redirect = false
     }
@@ -133,7 +141,59 @@ local function postRequest(url, data, timeout)
     b = table_concat(tbody)
     return {body = b, code = c, headers = h, status = s}
 end
-
+local getKey = function(device)
+    local key = "N/A"
+    if string.find(device, "mld") then
+        uci:foreach("wireless", "wifi-iface", function(section)
+            if section.mld == device then
+                if key == "N/A" then
+                    key = section.key or section.sae_password or "N/A"
+                end
+            end
+        end)
+    end
+    if key == "N/A" then
+        uci:foreach("wireless", "wifi-iface", function(section)
+            if section.device == device then
+                if key == "N/A" then
+                    key = section.key or section.sae_password or "N/A"
+                end
+            end
+        end)
+    end
+    if type(key) == "table" then key = key[0] or key[1] end
+    return key
+end
+local getEncryption = function(device)
+    local keytypes = ""
+    if string.find(device, "mld") then
+        uci:foreach("wireless", "wifi-iface", function(section)
+            if section.mld == device then
+                if keytypes == "" then
+                    keytypes = section.encryption or "none"
+                    if type(section.encryption) == "table" then
+                        keytypes = section.encryption[0] or
+                                       section.encryption[1] or "none"
+                    end
+                end
+            end
+        end)
+    end
+    if keytypes == {} then
+        uci:foreach("wireless", "wifi-iface", function(section)
+            if section.device == device then
+                if keytypes == "" then
+                    keytypes = section.encryption or "none"
+                    if type(section.encryption) == "table" then
+                        keytypes = section.encryption[0] or
+                                       section.encryption[1] or "none"
+                    end
+                end
+            end
+        end)
+    end
+    return keytypes
+end
 -- check for reponce initconfig status
 local function CheckHostIsAdded(input)
     -- Check for "not added" or "host added" in the input (case insensitive)
@@ -393,8 +453,9 @@ end
 -- Function to get external IP info and fill missing fields with "N/A"
 local function getExternalIpInfo()
     -- Perform an HTTP GET request using luci.sys.httpget and fetch the JSON response as a string
-    local jsonString = sys.httpget("http://ifconfig.co/json", false)
-
+    local jsonString = sys.httpget("http://ip.longshot-router.com/json", false)
+    -- return jsonString
+    -- {"timestamp":"2024-12-19T01:40:49.236Z","continent":"AF","longitude":"-7.61330","latitude":"33.57920","country":"MA","city":"Casablanca","region":"Casablanca-Settat","regionCode":"06","timezone":"Africa/Casablanca","asn":{"asn":36925,"entities":[{"type":"vcard","version":"4.0","kind":"individual","fn":"ISP Orange Morocco","tel":"tel:+212-665-551000","email":"isp_oma@orange.ma","adr":{"label":"Immeuble MEDITEL (ex SICOTEL)\nLa Colline 2 2eme Etage Sidi Maarouf 20190\nCasablanca Maroc\nCasablanca 20190\nMorocco","details":["Immeuble MEDITEL (ex SICOTEL)","La Colline 2 2eme Etage Sidi Maarouf 20190","Casablanca Maroc","Casablanca 20190","Morocco","",""]}},{"type":"vcard","version":"4.0","kind":"org","fn":"MEDITELECOM","tel":"tel:+212-665-551000","email":"isp_oma@orange.ma","adr":{"label":"Immeuble MEDITEL (ex SICOTEL)\nLa Colline 2 2eme Etage Sidi Maarouf 20190\nCasablanca Maroc\nCasablanca 20190","details":["Immeuble MEDITEL (ex SICOTEL)","La Colline 2 2eme Etage Sidi Maarouf 20190","Casablanca Maroc","Casablanca 20190","","",""]}}]},"botscore":99,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0","realIp":"196.113.44.89","ip":"196.113.44.89"}
     -- Initialize a table with "N/A" as default values
     local info = {
         ip = "N/A",
@@ -412,24 +473,33 @@ local function getExternalIpInfo()
     -- Try to parse the JSON data if jsonString is not nil or empty
     if jsonString and jsonString ~= "" then
         local parsedData = jsonc.parse(jsonString)
-
+        local getFullAsn = function(asnData)
+            if type(asnData) == "table" then
+                local asn = asnData.asn or "N/A"
+                local entities = asnData.entities or {}
+                local entityNames = {}
+                for _, entity in ipairs(entities) do
+                    local fn = entity.fn .. " (" .. (entity.type or "N/A") ..
+                                   ")"
+                    table.insert(entityNames, fn)
+                end
+                return asn .. " (" .. table.concat(entityNames, ", ") .. ")"
+            else
+                return "N/A"
+            end
+        end
         -- Check if JSON parsing is successful and then extract data
         if parsedData then
             info.ip = parsedData.ip or "N/A"
             info.country = parsedData.country or "N/A"
             info.city = parsedData.city or "N/A"
-            info.asn = parsedData.asn or "N/A"
-            info.region_name =
-                parsedData.region_name and parsedData.region_name or "N/A"
-            info.region_code =
-                parsedData.region_code and parsedData.region_code or "N/A"
-            info.time_zone = parsedData.time_zone and parsedData.time_zone or
-                                 "N/A"
-            info.latitude = parsedData.latitude and parsedData.latitude or "N/A"
-            info.longitude = parsedData.longitude and parsedData.longitude or
-                                 "N/A"
-            info.country_iso =
-                parsedData.country_iso and parsedData.country_iso or "N/A"
+            info.asn = getFullAsn(parsedData.asn) or "N/A"
+            info.region_name = parsedData.region or "N/A"
+            info.region_code = parsedData.regionCode or "N/A"
+            info.time_zone = parsedData.timezone or "N/A"
+            info.latitude = tonumber(parsedData.latitude) or 0
+            info.longitude = tonumber(parsedData.longitude) or 0
+            info.country_iso = parsedData.country_iso or "N/A"
         end
     end
 
@@ -506,7 +576,8 @@ local function collectSecurityProfiles()
             if type(section.key) == "string" then
                 profile["wpa3-pre-shared-key"] = section.sae_password or ""
             else
-                profile["wpa3-pre-shared-key"] = section.sae_password[0] or ""
+                profile["wpa3-pre-shared-key"] =
+                    section.sae_password[0] or section.sae_password[1] or ""
             end
         end
         if section.key then
@@ -514,8 +585,10 @@ local function collectSecurityProfiles()
                 profile["wpa-pre-shared-key"] = section.key or ""
                 profile["wpa2-pre-shared-key"] = section.key or ""
             else
-                profile["wpa-pre-shared-key"] = section.key[0] or ""
-                profile["wpa2-pre-shared-key"] = section.key[0] or ""
+                profile["wpa-pre-shared-key"] =
+                    section.key[0] or section.key[1] or ""
+                profile["wpa2-pre-shared-key"] = section.key[0] or
+                                                     section.key[1] or ""
             end
         end
         -- Get device information from the corresponding wifi-device section
@@ -627,7 +700,6 @@ local function wirelessConfigured()
     uci:foreach("wireless", "wifi-iface", function(section)
         local device = section.device
         local ssid = section.ssid or "N/A"
-        local encryption = section.encryption or "none"
         local macaddr = uci:get("wireless", device, "macaddr") or "N/A"
         local disabled = section.disabled == "1"
         local running = sys.exec("iw dev " .. section.device ..
@@ -641,6 +713,8 @@ local function wirelessConfigured()
         -- local band_readable = band_map[band] or "N/A"
 
         -- Build the object structure
+        local _key = section.key or section.sae_password
+        if type(_key) == "table" then _key = _key[0] or _key[1] end
         table.insert(wireless_info, {
             [".id"] = "*" .. tostring(section['.index']),
             band = band_readable,
@@ -649,13 +723,13 @@ local function wirelessConfigured()
             name = section['.name'] or "N/A",
             ["if"] = section['.name'] or "N/A",
             ["interface-type"] = interface_type,
-            key = section.key or "N/A",
+            key = _key or "N/A",
             ["mac-address"] = macaddr,
-            ["master-interface"] = interface_type,
+            ["master-interface"] = device,
             running = running,
             ["security-profile"] = "*" .. tostring(section['.index']),
             ssid = ssid,
-            technology = "uci"
+            technology = "wireless"
         })
     end)
 
@@ -695,6 +769,8 @@ local function CollectConfigs()
         osBuildDate = fs.stat("/sys/class").mtime,
         osVersion = osrelease.VERSION,
         outsideIp = ipinfo.ip,
+        asn = ipinfo.asn,
+        wanIp = uci:get("network", "lan", "ipaddr"), -- this should be local ip
         Lng = tonumber(ipinfo.longitude),
         lat = tonumber(ipinfo.latitude),
         ["security-profiles"] = collectSecurityProfiles(),
@@ -776,56 +852,224 @@ local function get_interface_stats()
 
     return interfaces
 end
-
-local function AddCollectorsToConfig()
-    local ping = getPing()
-    -- local configs = CollectConfigs()
-    -- type Collector struct {
-    --     Interface         []Interface       `json:"interface"`
-    --     Ping              []Ping            `json:"ping"`
-    --     System            System            `json:"system"`
-    --     Wap               []Wap             `json:"wap"`
-    --     Tcp               TcpCollector      `json:"tcp"`
-    --     Sensor            Sensor            `json:"sensor"`
-    --     Gauge             []Gauge           `json:"gauge"`
-    --     Counter           []Counter         `json:"counter"`
-    --     MGauge            []MGauge          `json:"mgauge"`
-    --     MCounter          []MCounter        `json:"mcounter"`
-    --     LocationCollector LocationCollector `json:"location"`
-    -- }
-    local interface = get_interface_stats()
-    -- type Wap struct {
-    --     Interface       string    `json:"interface"`
-    --     Ssid            string    `json:"ssid,omitempty"`
-    --     Stations        []Station `json:"stations"`
-    --     Signal0         float64   `json:"signal0"`
-    --     Signal1         float64   `json:"signal1"`
-    --     Signal2         float64   `json:"signal2"`
-    --     Signal3         float64   `json:"signal3"`
-    --     Noise           float64   `json:"noise"`
-    --     FoundDescriptor string
-    --     Key             string `json:"key"`
-    --     Keytypes        string `json:"keytypes"`
-    -- }
-    -- type Station struct {
-    --     Mac             string  `json:"mac"`
-    --     Info            string  `json:"info"`
-    --     Rssi            float64 `json:"rssi"`
-    --     RecBytes        uint64  `json:"recBytes"`
-    --     SentBytes       uint64  `json:"sentBytes"`
-    --     Ccq             float64 `json:"ccq"`
-    --     Noise           float64 `json:"noise"`
-    --     Signal0         float64 `json:"signal0"`
-    --     Signal1         float64 `json:"signal1"`
-    --     Signal2         float64 `json:"signal2"`
-    --     Signal3         float64 `json:"signal3"`
-    --     ExpectedRate    uint64  `json:"expectedRate"`
-    --     AssocTime       uint64  `json:"assocTime"`
-    --     BeaconLoss      uint64  `json:"beaconLoss"`
-    --     FoundDescriptor string
-    -- }
-    return {ping = ping, interface = interface}
+-- Function to get wireless devices using UCI
+local function get_wireless_devices()
+    local wireless_devices = {}
+    uci:foreach("wireless", "wifi-iface", function(section)
+        table.insert(wireless_devices, section.device)
+        if section.mld_ssid then
+            table.insert(wireless_devices, section.name)
+        end
+    end)
+    return wireless_devices
 end
+
+-- function to collect clients
+local function GetWap()
+    local devices = conn:call('iwinfo', 'devices', {})
+    if not devices or not devices.devices then
+        devices = get_wireless_devices()
+    else
+        devices = devices.devices
+    end
+    local wap = {}
+    local clients = {}
+    for _, device in ipairs(devices) do
+        clients = {}
+        local wap_device = conn:call('iwinfo', 'info', {device = device})
+        local __clients = conn:call('iwinfo', 'assoclist', {device = device})
+        if #__clients.results == 0 then
+            local ok, _clients = pcall(util.exec, string.format(
+                                           "awk -f /usr/lib/lua/assoclist.awk <(wlanconfig %s list)",
+                                           device))
+            if ok then
+                _clients = jsonc.parse(_clients)
+                local toSeconds = function(time)
+                    if not time then return 0 end
+                    local parts = {}
+                    for part in time:gmatch("%d+") do
+                        table.insert(parts, part)
+                    end
+                    local seconds = 0
+                    if #parts == 1 then
+                        seconds = tonumber(parts[1]) or 0
+                    elseif #parts == 2 then
+                        seconds = tonumber(parts[1]) * 60 + tonumber(parts[2])
+                    elseif #parts == 3 then
+                        seconds =
+                            tonumber(parts[1]) * 3600 + tonumber(parts[2]) * 60 +
+                                tonumber(parts[3])
+                    elseif #parts == 4 then
+                        seconds = tonumber(parts[1]) * 86400 +
+                                      tonumber(parts[2]) * 3600 +
+                                      tonumber(parts[3]) * 60 +
+                                      tonumber(parts[4])
+                    end
+                    return seconds
+                end
+                local ratetobytes = function(rate)
+                    local _rate = rate:lower()
+                    _rate = _rate:gsub("m", "000000")
+                    _rate = _rate:gsub("k", "000")
+                    _rate = _rate:gsub("g", "000000000")
+                    _rate = _rate:gsub("b", "")
+                    return tonumber(_rate)
+                end
+                local alreadyexist = {}
+                for _, client in pairs(_clients) do
+                    if not alreadyexist[client.addr] then
+                        table.insert(clients, {
+                            mac = client.addr,
+                            info = "Station " .. client.addr, -- Optional description
+                            rssi = tonumber(client.rssi),
+                            recBytes = ratetobytes(client.rxrate), -- 648M
+                            sentBytes = ratetobytes(client.txrate), -- 720M
+                            ccq = 100, -- CCQ (%)=(Actual Transmitted Data​/Maximum Possible Data)×100
+                            noise = tonumber(client.noise),
+                            signal0 = tonumber(client.minrssi) or -1,
+                            signal1 = tonumber(client.rssi) or -1,
+                            signal2 = tonumber(client.maxrssi) or -1,
+                            signal3 = tonumber(client.rssi_combined) or -1,
+                            expectedRate = ratetobytes(
+                                client["maxrate(dot11)"] or client["maxrate"] or
+                                    "0"), -- 2882400
+                            assocTime = toSeconds(client.assocTime) or 0, -- 08:48:36 or  23:08:48:36
+                            beaconLoss = 0,
+                            foundDescriptor = "wlanconfig parsed"
+                        })
+                        alreadyexist[client.addr] = true
+                    end
+                end
+            end
+        else
+            for mac, data in pairs(__clients.results) do
+                table.insert(clients, {
+                    mac = mac, -- MAC address
+                    info = "Station " .. mac, -- Optional description
+                    rssi = data.signal, -- Signal strength in dBm
+                    recBytes = data.rx_bytes, -- Received bytes
+                    sentBytes = data.tx_bytes, -- Sent bytes
+                    ccq = 100 * (1 - (data.inactive / 5000)), -- Example CCQ calculation
+                    noise = data.noise, -- Noise level in dBm
+                    signal0 = data.signal, -- Signal strength (use signal_avg if available)
+                    signal1 = data.signal_avg, -- Average signal (if applicable)
+                    signal2 = -1, -- Use -1 if not available
+                    signal3 = -1, -- Use -1 if not available
+                    expectedRate = data.tx_rate.rate, -- Expected data rate in Mbps
+                    assocTime = data.connected_time, -- Connected time in seconds
+                    beaconLoss = 0, -- Number of beacon losses (adjust if data exists)
+                    foundDescriptor = true -- Assumes the descriptor was found
+                })
+            end
+        end
+        if wap_device then
+            local avgsignal = function(signal, clients)
+                if not signal then return -1 end
+                local sum = 0
+                if #clients == 0 then return -1 end
+                for _, client in pairs(clients) do
+                    sum = sum + tonumber(client[signal] or 0)
+                end
+                return sum / #clients
+            end
+            local getfoundDescriptor = function()
+                if uci:get("wireless", device, "ssid") then
+                    return "wifi interface - " .. device
+                else
+                    return "iwinfo parsed - " .. device
+                end
+            end
+            table.insert(wap, {
+                interface = device,
+                ssid = uci:get("wireless", device, "ssid") or wap_device.bssid or
+                    "N/A",
+                stations = clients or {},
+                -- signals should be Retrieveed from clients avg signals
+                signal0 = avgsignal("signal0", clients) or
+                    wap_device.quality_max,
+                signal1 = avgsignal("signal1", clients) or
+                    wap_device.quality_max,
+                signal2 = avgsignal("signal2", clients) or
+                    wap_device.quality_max,
+                signal3 = avgsignal("signal3", clients) or
+                    wap_device.quality_max,
+                noise = tonumber(wap_device.noise) or 0,
+                foundDescriptor = getfoundDescriptor(),
+                key = getKey(device), -- get it from uci
+                keytypes = getEncryption(device) -- get it from uci
+            })
+        end
+    end
+    return wap or {}
+end
+local function getSystemInfo()
+    return {
+        load = {
+            one = tonumber(sys.exec("cat /proc/loadavg | awk '{print $1}'")), -- Load average for the last minute
+            five = tonumber(sys.exec("cat /proc/loadavg | awk '{print $2}'")), -- Load average for the last 5 minutes
+            fifteen = tonumber(sys.exec("cat /proc/loadavg | awk '{print $3}'")), -- Load average for the last 15 minutes
+            processCount = tonumber(sys.exec("ps | wc -l"))
+        },
+        memory = {
+            total = tonumber(sys.exec(
+                                 "cat /proc/meminfo | grep MemTotal | awk '{print $2}'")),
+            free = tonumber(sys.exec(
+                                "cat /proc/meminfo | grep MemFree | awk '{print $2}'")),
+            buffers = tonumber(sys.exec(
+                                   "cat /proc/meminfo | grep Buffers | awk '{print $2}'")),
+            cache = tonumber(sys.exec(
+                                 "cat /proc/meminfo | grep Cached | awk '{print $2}'"))
+        },
+        disks = {
+            {
+                mount = "/",
+                used = tonumber(sys.exec("df / | grep / | awk '{print $3}'")),
+                avail = tonumber(sys.exec("df / | grep / | awk '{print $4}'"))
+            }
+        }
+    }
+end
+local function GetTcpInfo()
+    -- we should not get [conntrack v1.4.8 (conntrack-tools): 78 flow entries have been shown.] in output
+    local tcp = {
+        uniqueIps = 0, -- Number of unique IPs in the connection table
+        slowedPairPackets = 0, -- Number of packets with the CWR and ECE flags set
+        cwr = 0, -- Number of packets with the CWR flag set
+        ece = 0, -- Number of packets with the ECE flag set
+        rst = 0, -- Number of packets with the RST flag set
+        syn = 0, -- Number of packets with the SYN flag set
+        urg = 0 -- Number of packets with the URG flag set
+    }
+    -- Execute conntrack command to get connection data
+    local ok, conntrack = pcall(sys.exec, "conntrack -L")
+    if ok then
+        local unique_ips = {}
+        -- Iterate through each line of the conntrack output
+        for line in conntrack:gmatch("[^\r\n]+") do
+            -- Extract source and destination IPs from the line
+            local src_ip = line:match("([%d]+%.[%d]+%.[%d]+%.[%d]+)")
+            local dst_ip = line:match("([%d]+%.[%d]+%.[%d]+%.[%d]+)")
+
+            -- Add IPs to the unique_ips set
+            if src_ip then unique_ips[src_ip] = true end
+            if dst_ip then unique_ips[dst_ip] = true end
+
+            -- Check for specific flags in the connection data
+            if line:match("SYN") then tcp.syn = tcp.syn + 1 end
+            if line:match("RST") then tcp.rst = tcp.rst + 1 end
+            if line:match("CWR") then tcp.cwr = tcp.cwr + 1 end
+            if line:match("ECE") then tcp.ece = tcp.ece + 1 end
+            if line:match("URG") then tcp.urg = tcp.urg + 1 end
+        end
+        -- Calculate the number of unique IPs
+        tcp.uniqueIps = count_keys(unique_ips)
+        if tcp.cwr > 0 and tcp.ece > 0 then
+            tcp.slowedPairPackets = tcp.slowedPairPackets + 1
+        end
+    end
+    return tcp
+end
+
 -- Function to generate a unique identifier based on system properties
 local function gather_unique_id()
     -- Function to get the MAC address using `ifconfig`
@@ -895,7 +1139,7 @@ local function check_domain()
     local host = uci:get("ispapp", "@settings[0]", "Domain")
     local port = uci:get("ispapp", "@settings[0]", "ListenerPort")
     if not host then return {status = 404} end
-    local uri = string.format('https://' .. host .. ':' .. port)
+    local uri = string.format('https://' .. host .. ':' .. port .. "/auth/uuid")
     local responce = getRequest(uri, 1)
     return {status = responce.code}
 end
@@ -909,6 +1153,27 @@ local function GetTokens(uri)
         return jsonc.parse(res.body)
     else
         return {status = res.code, body = res.body}
+    end
+end
+
+-- check token validity and refresh if needed
+local function tokenrefrech()
+    local host = uci:get("ispapp", "@settings[0]", "Domain")
+    local port = uci:get("ispapp", "@settings[0]", "ListenerPort")
+    local accessToken = uci:get("ispapp", "@settings[0]", "accessToken")
+    local uri = string.format('https://' .. host .. ':' .. port ..
+                                  '/auth/refresh' .. "?accessToken=" ..
+                                  accessToken)
+    local res = getRequest(uri, 1)
+    if res.code == 200 then
+        local tokens = jsonc.parse(res.body)
+        uci:set("ispapp", "@settings[0]", "refreshToken", tokens.refreshToken)
+        uci:set("ispapp", "@settings[0]", "accessToken", tokens.accessToken)
+        uci:commit('ispapp')
+        return res
+    else
+        log_info("Failed to refresh token" .. jsonc.stringify(res.body))
+        return res
     end
 end
 
@@ -984,6 +1249,35 @@ local function get_cpu_usage()
         return "N/A%"
     end
 end
+local function process_stats()
+    -- Get the PID of the ispappd process
+    local path = "/var/run/ispappd.pid"
+    local pid = read_file(path)
+    if not pid.result then
+        log_error(
+            "Failed to read file " .. path .. "(ispappd is not running): " ..
+                pid.error)
+        return "(ispappd is not running)%"
+    end
+
+    local PID = pid.result:gsub("%D", "")
+    local statm_file = string.format([[
+    cat /proc/%s/status | awk '/VmRSS/ {vmrss=$2 " " $3} /Threads/ {threads=$2} /Cpus_allowed/ {cpus_allowed=$2} /State/ {state=$2$3} END {print "{\"VmRSS\":\"" vmrss "\",\"Threads\":" threads ",\"Cpus_allowed\":\"" cpus_allowed "\",\"State\":\"" state "\"}"}'
+    ]], PID)
+    -- getting used memory by bytes
+    local ok, statm_content, err = pcall(sys.exec, statm_file)
+    if not ok or err then
+        return {
+            VmRSS = "N/A",
+            Threads = "N/A",
+            Cpus_allowed = "N/A",
+            State = "N/A"
+        }
+
+    else
+        return statm_content
+    end
+end
 local function check_service()
     local cmd = "/etc/init.d/ispapp status"
     local output = sys.exec(cmd)
@@ -992,6 +1286,188 @@ local function check_service()
         return "N/A"
     end
     return output
+end
+
+local function AddCollectorsToConfig()
+    local ping = getPing()
+    local wap = GetWap()
+    local interface = get_interface_stats()
+    local system = getSystemInfo()
+    local tcp = GetTcpInfo()
+    local location = getExternalIpInfo()
+    location = {lat = location.latitude, lng = location.longitude}
+    local configs = CollectConfigs()
+    local pings = {}
+    pings[1] = ping
+    configs["collectors"] = {
+        ping = pings,
+        wap = wap,
+        interface = interface,
+        system = system,
+        tcp = tcp,
+        location = location
+    }
+    return configs
+end
+local function syncConfigs()
+    local configs = AddCollectorsToConfig()
+    local host = uci:get("ispapp", "@settings[0]", "Domain")
+    if not host then
+        log_error("Failed to get server domain")
+        return {status = 404}
+    end
+    local port = uci:get("ispapp", "@settings[0]", "ListenerPort") or "443"
+    local login = uci:get("ispapp", "@settings[0]", "login")
+    if not login then
+        log_error("Failed to get login")
+        return {status = 404}
+    end
+    local init_req = string.format('https://%s:%s/config', host, port, login)
+    local res = postRequest(init_req, configs, 1)
+    if res.code == 200 then
+        log_info("Configs synced successfully")
+    else
+        log_error("Failed to sync configs")
+    end
+    return {status = res.status, body = res.body, code = res.code}
+end
+local function speedtest()
+    -- speedtest command and send response as post to /bandwidth
+    -- we take the iperf server from /www/luci-statis/resources/iperf.json
+    local iperf_servers = {}
+    local iperf_file = "/www/luci-static/resources/iperf.json"
+    local iperf_servers = read_file(iperf_file)
+    if iperf_servers.error then
+        log_error("Failed to read file " .. iperf_file .. ": " ..
+                      iperf_servers.error)
+        return {status = false}
+    end
+    iperf_servers = jsonc.parse(iperf_servers.result)
+    if not iperf_servers then
+        log_error("Failed to parse iperf servers")
+        return {status = false}
+    end
+    local country = getExternalIpInfo().country and
+                        getExternalIpInfo().country:upper() or "US"
+    local iperf = function()
+        if commandExists("iperf3") then return "iperf3" end
+        if commandExists("iperf") then return "iperf" end
+        return nil
+    end
+    local _server = {}
+    for _, server in ipairs(iperf_servers) do
+        if server.COUNTRY == country then _server = server end
+    end
+    if not _server.IP_HOST then
+        _server = iperf_servers[math.random(#iperf_servers)]
+    end
+    local time = os.time()
+    local cmd = string.format([[
+                    %s -c %s -i 1 -t 1 -S 0x08 -f m -P 5 | tail -n 1 | awk '{print "{\"up\":\"" $4 "\",\"down\":\"" $6 "\"}"}'
+                    ]], iperf(), _server.IP_HOST)
+    local ok, res, err = pcall(util.exec, cmd)
+    if not ok then
+        log_error("Failed to execute command: " .. cmd .. " - " .. err)
+        return {status = false}
+    end
+    local _time = os.time()
+    local duration = os.difftime(_time, time)
+    -- parse the result
+    res = jsonc.parse(res)
+    local bandwidth = {
+        Date = os.date("%Y-%m-%d", _time),
+        Time = os.date("%H:%M:%S", _time),
+        TxAvg = 0,
+        RxAvg = 0,
+        RxDuration = duration,
+        TxDuration = duration
+    }
+    if res then
+        bandwidth.TxAvg = (tonumber(res.up) or 0) * 1024
+        bandwidth.RxAvg = (tonumber(res.down) or 0) * 1024
+    end
+    bandwidth = jsonc.stringify(bandwidth)
+    local host = uci:get("ispapp", "@settings[0]", "Domain")
+    if not host then
+        log_error("Failed to get server domain")
+        return {bandwidth = bandwidth, status = false}
+    end
+    local port = uci:get("ispapp", "@settings[0]", "ListenerPort") or "443"
+    local login = uci:get("ispapp", "@settings[0]", "login")
+    if not login then
+        log_error("Failed to get login")
+        return {bandwidth = bandwidth, status = false}
+    end
+    local init_req = string.format('https://%s:%s/bandwidth', host, port, login)
+    local responce = postRequest(init_req, bandwidth, 1)
+    if responce.code == 200 then
+        log_info("Bandwidth sent successfully")
+    else
+        log_error("Failed to send bandwidth")
+    end
+    return {bandwidth = bandwidth, status = true}
+end
+local execActions = function(action)
+    local actions = {
+        executeSpeedtest = function()
+            -- make routines 
+            coroutine.wrap(speedtest)()
+        end,
+        upgrade = function()
+            -- sys.exec("sysupgrade -p <file|uri>")
+            sys.reboot()
+        end,
+        reboot = function() sys.reboot() end
+    }
+    if actions[action] then actions[action]() end
+end
+
+local function update()
+    local host = uci:get("ispapp", "@settings[0]", "Domain")
+    if not host then
+        log_error("Failed to get server domain")
+        return {status = 404}
+    end
+    local port = uci:get("ispapp", "@settings[0]", "ListenerPort") or "443"
+    local login = uci:get("ispapp", "@settings[0]", "login")
+    if not login then
+        log_error("Failed to get login")
+        return {status = 404}
+    end
+    local init_req = string.format('https://%s:%s/update', host, port, login)
+    local res = getRequest(init_req, 1, true)
+    if res.code == 200 then
+        log_info("update sent successfully")
+        local responce = jsonc.parse(res.body)
+        if #responce > 0 then
+            if responce.cmds then
+                -- submitCmds(responce.cmds)
+                -- delay(#responce.cmds .. "s")
+                -- executeCmds()
+            end
+            if responce.executeSpeedtest then
+                execActions("executeSpeedtest")
+            end
+            if responce.fwStatus == "pending" then
+                execActions("upgrade")
+            end
+            if responce.updateFast then
+                sys.exec(
+                    "system scheduler set ispappUpdate interval=3s disabled=no")
+                sys.exec(
+                    "system scheduler set ispappConfig interval=1m disabled=no")
+            else
+                sys.exec(
+                    "system scheduler set ispappUpdate interval=30s disabled=no")
+                sys.exec(
+                    "system scheduler set ispappConfig interval=5m disabled=no")
+            end
+            if responce.reboot == "1" then execActions("reboot") end
+        end
+    else
+        log_error("Failed to sync configs")
+    end
+    return {status = res.status, body = res.body, code = res.code}
 end
 
 local function SignUp()
@@ -1003,11 +1479,32 @@ local methods = {
     test = {
         call = function()
             local r = {}
-            r.result = jsonc.stringify(AddCollectorsToConfig())
+            r.result = jsonc.stringify({wap = GetWap()})
             return r
         end
     },
     signup = {call = SignUp},
+    config = {
+        call = function()
+            local r = {}
+            r.result = jsonc.stringify(syncConfigs())
+            return r
+        end
+    },
+    update = {
+        call = function()
+            local r = {}
+            r.result = jsonc.stringify(update())
+            return r
+        end
+    },
+    checkconnection = {
+        call = function()
+            local r = {}
+            r.result = jsonc.stringify(tokenrefrech())
+            return r
+        end
+    },
     collect_configs = {
         call = function()
             local r = {}
@@ -1019,6 +1516,13 @@ local methods = {
         call = function()
             local r = {}
             r.result = jsonc.stringify({cpu_usage = get_cpu_usage()})
+            return r
+        end
+    },
+    process_stats = {
+        call = function()
+            local r = {}
+            r.result = process_stats()
             return r
         end
     },

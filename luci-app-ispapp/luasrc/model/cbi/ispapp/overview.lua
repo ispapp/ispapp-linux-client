@@ -1,9 +1,8 @@
 -- /usr/lib/lua/luci/model/cbi/ispapp/
-local dsp = require "luci.dispatcher"
 local util = require("luci.util")
 local jsonc = require "luci.jsonc"
-local sys = require "luci.sys"
-local uci = require"luci.model.uci".cursor()
+local ubus = require "ubus"
+local conn = ubus.connect()
 local m, s, o
 
 m = Map("ispapp", translate("ISPApp Overview"),
@@ -36,7 +35,7 @@ local start_button = s:option(Button, "_start", translate("Start Service"))
 start_button.inputstyle = "apply"
 start_button.write = function(self, section)
     luci.sys.exec("/etc/init.d/ispapp start")
-    -- luci.http.redirect(luci.dispatcher.build_url("admin/ispapp/logread"))
+    luci.http.redirect(luci.dispatcher.build_url("admin/ispapp/overview"))
 end
 
 -- Button for stopping service
@@ -44,7 +43,7 @@ local stop_button = s:option(Button, "_stop", translate("Stop Service"))
 stop_button.inputstyle = "remove"
 stop_button.write = function(self, section)
     luci.sys.exec("/etc/init.d/ispapp stop")
-    -- luci.http.redirect(luci.dispatcher.build_url("admin/ispapp/logread"))
+    luci.http.redirect(luci.dispatcher.build_url("admin/ispapp/overview"))
 end
 
 -- Button for restarting service
@@ -53,7 +52,7 @@ local restart_button =
 restart_button.inputstyle = "reset"
 restart_button.write = function(self, section)
     luci.sys.exec("/etc/init.d/ispapp restart")
-    -- luci.http.redirect(luci.dispatcher.build_url("admin/ispapp/logread"))
+    luci.http.redirect(luci.dispatcher.build_url("admin/ispapp/overview"))
 end
 
 -- Last Edit Time
@@ -61,8 +60,7 @@ local last_edit_time = s:option(DummyValue, "last_edit_time",
                                 translate("Last Edit Time"))
 last_edit_time.rawhtml = true
 last_edit_time.cfgvalue = function(self, section)
-    local result = util.exec("ubus call ispapp get_last_edit_time")
-    local json_result = jsonc.parse(result)
+    local json_result = conn:call("ispapp", "get_last_edit_time", {})
     return "<span style='font-style:italic;'>" ..
                (json_result and json_result.last_edit_time or
                    translate("Unknown")) .. "</span>"
@@ -74,8 +72,7 @@ local active_time =
 active_time.rmempty = false
 active_time.rawhtml = true
 active_time.cfgvalue = function(self, section)
-    local result = util.exec("ubus call ispapp get_active_time")
-    local json_result = jsonc.parse(result)
+    local json_result = conn:call("ispapp", "get_active_time", {})
     return "<span style='font-style:italic;'>" ..
                (json_result and json_result.active_time or "N/A") .. "</span>"
 end
@@ -85,10 +82,55 @@ local cpu_usage = s:option(DummyValue, "cpu_usage", translate("CPU Usage"))
 cpu_usage.rmempty = false
 cpu_usage.rawhtml = true
 cpu_usage.cfgvalue = function(self, section)
-    local result = util.exec("ubus call ispapp get_cpu_usage")
-    local ok, json_result = pcall(jsonc.parse, result)
+    local result = conn:call("ispapp", "get_cpu_usage", {})
     return "<span style='font-style:italic;'>" ..
-               (ok and json_result.cpu_usage or "N/A") .. "</span>"
+               (result and result.cpu_usage or "N/A") .. "</span>"
+end
+local process_stats = conn:call("ispapp", "process_stats", {}) or
+                          {
+        VmRSS = "N/A",
+        Threads = "N/A",
+        Cpus_allowed = "N/A",
+        State = "N/A"
+    }
+-- Memory Usage (VmRSS)
+local memory_usage = s:option(DummyValue, "memory_usage",
+                              translate("Memory Usage (VmRSS)"))
+memory_usage.rmempty = false
+memory_usage.rawhtml = true
+memory_usage.cfgvalue = function(self, section)
+    return "<span style='font-style:italic;'>" ..
+               (process_stats and process_stats.VmRSS or "N/A") .. "</span>"
+end
+
+-- Threads
+local threads = s:option(DummyValue, "threads", translate("Threads"))
+threads.rmempty = false
+threads.rawhtml = true
+threads.cfgvalue = function(self, section)
+    return "<span style='font-style:italic;'>" ..
+               (process_stats and process_stats.Threads or "N/A") .. "</span>"
+end
+
+-- CPU Affinity
+local cpu_affinity = s:option(DummyValue, "cpu_affinity",
+                              translate("CPU Affinity"))
+cpu_affinity.rmempty = false
+cpu_affinity.rawhtml = true
+cpu_affinity.cfgvalue = function(self, section)
+    return "<span style='font-style:italic;'>" ..
+               (process_stats and process_stats.Cpus_allowed or "N/A") ..
+               "</span>"
+end
+
+-- Process State
+local process_state = s:option(DummyValue, "process_state",
+                               translate("Process State"))
+process_state.rmempty = false
+process_state.rawhtml = true
+process_state.cfgvalue = function(self, section)
+    return "<span style='font-style:italic;'>" ..
+               (process_stats and process_stats.State or "N/A") .. "</span>"
 end
 
 -- Device Mode
@@ -97,8 +139,7 @@ local device_mode =
 device_mode.rmempty = false
 device_mode.rawhtml = true
 device_mode.cfgvalue = function(self, section)
-    local result = util.exec("ubus call ispapp get_device_mode")
-    local json_result = jsonc.parse(result)
+    local json_result = conn:call("ispapp", "get_device_mode", {})
     return "<span style='font-style:italic;'>" ..
                (json_result and json_result.device_mode or translate("Unknown")) ..
                "</span>"
@@ -109,8 +150,7 @@ local server_live_status = s:option(DummyValue, "server_live_status",
                                     translate("Server Live Status"))
 server_live_status.rawhtml = true
 server_live_status.cfgvalue = function(self, section)
-    local result = util.exec("ubus call ispapp check_domain")
-    local json_result = jsonc.parse(result)
+    local json_result = conn:call("ispapp", "check_domain", {})
     if json_result and json_result.status == 200 then
         return "<span style='color:green; font-weight:bold;'>" .. "Live" ..
                    "</span>"

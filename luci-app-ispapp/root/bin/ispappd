@@ -4,6 +4,8 @@
 -- path: /bin/ispappd
 local nixio = require "nixio"
 local uci = require"luci.model.uci".cursor()
+local ubus = require "ubus"
+local conn = ubus.connect()
 -- Variables to manage threads and their respective sleep times
 local threads = {}
 local running = false
@@ -24,7 +26,6 @@ local function log(message) log_to_syslog("debug", "[ispappd]: " .. message) end
 -- Function to load configuration and get sleep times for each thread
 local function load_config()
     local UpdateInterval = uci:get("ispapp", "@settings[0]", "updateInterval")
-
     -- Ensure minimum 10s and assign to variables
     if UpdateInterval then
         UpdateInterval = tonumber(UpdateInterval)
@@ -47,9 +48,16 @@ end
 
 -- Thread 1: WISP monitoring task
 local function Update_thread()
+    local count = 0
     while running do
-        log("Sending updates ...")
-
+        count = count + 1
+        log("Sending updates ..." .. " count: " .. count)
+        local update = conn:call("ispapp", "update", {})
+        if update and update.status == 200 then
+            log("Update sent successfully" .. " count: " .. count)
+        else
+            log("Failed to send update" .. " count: " .. count)
+        end
         nixio.nanosleep(sleep_times.update_interval, 0) -- Sleep for the configured time
         coroutine.yield() -- Yield execution back to the manager
     end
@@ -57,8 +65,16 @@ end
 
 -- Thread 2: Connection management task
 local function Config_thread()
+    local count = 0
     while running do
-        log("Sending configs...")
+        count = count + 1
+        log("Sending configs..." .. " count: " .. count)
+        local config = conn:call("ispapp", "config", {})
+        if config and config.status == 200 then
+            log("Config sent successfully" .. " count: " .. count)
+        else
+            log("Failed to send config" .. " count: " .. count)
+        end
         nixio.nanosleep(sleep_times.config_interval, 0) -- Sleep for the configured time
         coroutine.yield() -- Yield execution back to the manager
     end
@@ -66,9 +82,17 @@ end
 
 -- Thread 3: Status reporting task
 local function HealthCheck_thread()
+    local count = 0
     while running do
-        log("Reporting heath check...")
-        nixio.nanosleep(sleep_times.heathcheck_interval, 0) -- Sleep for the configured time
+        count = count + 1
+        log("Reporting heath check..." .. " count: " .. count)
+        local health = conn:call("ispapp", "checkconnection", {})
+        if health and health.status == 200 then
+            log("Health check reported successfully" .. " count: " .. count)
+        else
+            log("Failed to report health check" .. " count: " .. count)
+        end
+        nixio.nanosleep(sleep_times.heathcheck_interval * 360, 0) -- Sleep for the configured time
         coroutine.yield() -- Yield execution back to the manager
     end
 end
@@ -77,7 +101,6 @@ end
 local function start_daemon()
     running = true
     log("Starting ispappd daemon...")
-
     -- Load the sleep times from config
     load_config()
     log(
@@ -143,7 +166,7 @@ end
 local action = arg[1]
 if action == "start" then
     -- Start the service by daemonizing it
-    -- daemonize()
+    daemonize()
     start_daemon()
 elseif action == "stop" then
     stop_daemon()
