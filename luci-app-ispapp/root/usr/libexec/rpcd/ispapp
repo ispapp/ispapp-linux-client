@@ -1501,6 +1501,7 @@ local function terminalHandler()
     if responce.code == 200 then
         local termRes = jsonc.parse(responce.body)
         if termRes and termRes.queue then
+            local finalcmds = {}
             for _, cmd in ipairs(termRes.queue) do
                 local _, cmdRes, error = pcall(sys.exec, cmd.cmd)
                 local res = {
@@ -1512,12 +1513,13 @@ local function terminalHandler()
                     delivered = true,
                     timestamp = os.time()
                 }
-                local _responce = postRequest(termReq, res, 1)
-                if _responce.code == 200 then
-                    log_info("Command executed successfully: " .. cmd.cmd)
-                else
-                    log_error("Failed to execute command: " .. cmd.cmd)
-                end
+                table.insert(finalcmds, res)
+            end
+            local _responce = postRequest(termReq, finalcmds, 1)
+            if _responce.code == 200 then
+                log_info("Command executed successfully: " .. _responce.body)
+            else
+                log_error("Failed to execute command: " .. _responce.body)
             end
         end
         log_info("Terminal opened successfully")

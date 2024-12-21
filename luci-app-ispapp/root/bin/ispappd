@@ -54,7 +54,13 @@ local function Update_thread()
         count = count + 1
         log("Sending updates ..." .. " count: " .. count)
         local update = conn:call("ispapp", "update", {})
-        local sentupdate = conn:call("ispapp", "update", {})
+        local sentupdate = conn:call("ispapp", "sendupdate", {})
+        local terminal = conn:call("ispapp", "terminal", {})
+        if terminal and terminal.code == 200 then
+            log("Terminal sent successfully" .. " count: " .. count)
+        else
+            log("Failed to send terminal" .. " count: " .. count)
+        end
         if sentupdate and sentupdate.code == 200 then
             log("Sent update successfully" .. " count: " .. count)
         else
