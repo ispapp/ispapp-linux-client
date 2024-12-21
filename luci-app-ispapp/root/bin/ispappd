@@ -66,8 +66,8 @@ local function Update_thread()
             log("Failed to retreive update" .. " count: " .. count)
         end
         nixio.nanosleep(sleep_times.update_interval, 0) -- Sleep for the configured time
-        coroutine.yield() -- Yield execution back to the manager
     end
+    coroutine.yield() -- Yield execution back to the manager
 end
 
 -- Thread 2: Connection management task
@@ -83,8 +83,8 @@ local function Config_thread()
             log("Failed to send config" .. " count: " .. count)
         end
         nixio.nanosleep(sleep_times.config_interval, 0) -- Sleep for the configured time
-        coroutine.yield() -- Yield execution back to the manager
     end
+    coroutine.yield() -- Yield execution back to the manager
 end
 
 -- Thread 3: Status reporting task
@@ -101,9 +101,9 @@ local function HealthCheck_thread()
             log("heath error..." ..
                     (health and jsonc.stringify(health) or "no error"))
         end
-        nixio.nanosleep(sleep_times.heathcheck_interval * 360, 0) -- Sleep for the configured time
-        coroutine.yield() -- Yield execution back to the manager
+        nixio.nanosleep(sleep_times.heathcheck_interval * 10, 0) -- Sleep for the configured time
     end
+    coroutine.yield() -- Yield execution back to the manager
 end
 
 -- Function to start the daemon and all coroutines
