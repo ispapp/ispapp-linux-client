@@ -1440,11 +1440,11 @@ local function update()
         log_info("update sent successfully")
         local responce = jsonc.parse(res.body)
         if #responce > 0 then
-            if responce.cmds then
-                -- submitCmds(responce.cmds)
-                -- delay(#responce.cmds .. "s")
-                -- executeCmds()
-            end
+            -- if responce.cmds then
+            --     -- submitCmds(responce.cmds)
+            --     -- delay(#responce.cmds .. "s")
+            --     -- executeCmds()
+            -- end
             if responce.executeSpeedtest then
                 execActions("executeSpeedtest")
             end
@@ -1452,29 +1452,84 @@ local function update()
                 execActions("upgrade")
             end
             if responce.updateFast then
-                sys.exec(
-                    "system scheduler set ispappUpdate interval=3s disabled=no")
-                sys.exec(
-                    "system scheduler set ispappConfig interval=1m disabled=no")
-            else
-                sys.exec(
-                    "system scheduler set ispappUpdate interval=30s disabled=no")
-                sys.exec(
-                    "system scheduler set ispappConfig interval=5m disabled=no")
+                -- update fast
+                uci:set("ispapp", "@settings[0]", "updateInterval", "5")
+                uci:commit("ispapp")
             end
             if responce.reboot == "1" then execActions("reboot") end
         end
     else
-        log_error("Failed to sync configs")
+        log_error("Failed to sync updates")
     end
     return {status = res.status, body = res.body, code = res.code}
+end
+local function sendupdate()
+    local host = uci:get("ispapp", "@settings[0]", "Domain")
+    if not host then
+        log_error("Failed to get server domain")
+        return {code = 404}
+    end
+    local port = uci:get("ispapp", "@settings[0]", "ListenerPort") or "443"
+    local login = uci:get("ispapp", "@settings[0]", "login")
+    if not login then
+        log_error("Failed to get login")
+        return {code = 404}
+    end
+    local init_req = string.format('https://%s:%s/update', host, port, login)
+    local updates = AddCollectorsToConfig()
+    local _responce = postRequest(init_req, updates, 3)
+    if _responce.code == 200 then
+        log_info("Configs synced successfully")
+    else
+        log_error("Failed to sync updates")
+    end
+    return {
+        status = _responce.status,
+        body = _responce.body,
+        code = _responce.code
+    }
+end
+local function terminalHandler()
+    local host = uci:get("ispapp", "@settings[0]", "Domain")
+    if not host then
+        log_error("Failed to get server domain")
+        return {code = 404}
+    end
+    local port = uci:get("ispapp", "@settings[0]", "ListenerPort") or "443"
+    local termReq = string.format('https://%s:%s/terminal', host, port)
+    local responce = postRequest(termReq, {}, 1)
+    if responce.code == 200 then
+        log_info("Terminal opened successfully")
+    else
+        log_error("Failed to open terminal")
+    end
+    return {
+        code = responce.code,
+        status = responce.status,
+        body = responce.body
+    }
 end
 
 local function SignUp()
     local sd = host_signup()
     return {result = jsonc.stringify(sd)}
 end
-
+local CleanUp = function()
+    -- Get the PID of the ispappd process
+    local path = "/var/run/ispappd.pid"
+    local pid = read_file(path)
+    -- no exclude_pid
+    if not pid.result then
+        sys.exec(string.format([[
+         ps | grep '[i]spappd' | awk '{print $1}' | xargs kill -9
+    ]]))
+    end
+    -- running with exclude_pid
+    local PID = pid.result:gsub("%D", "")
+    sys.exec(string.format([[
+         ps | grep '[i]spappd' | awk -v exclude_pid=%d '$1 != exclude_pid {print $1}' | xargs kill -9
+    ]], PID))
+end
 local methods = {
     test = {
         call = function()
@@ -1489,6 +1544,28 @@ local methods = {
             local r = {}
             r.result = jsonc.stringify(syncConfigs())
             return r
+        end
+    },
+    terminal = {
+        call = function()
+            local r = {}
+            r.result = jsonc.stringify(terminalHandler())
+            return r
+        end
+    },
+    sendupdate = {
+        call = function()
+            local r = {}
+            r.result = jsonc.stringify(sendupdate())
+            return r
+        end
+    },
+    cleanup = {
+        call = function()
+            local ok, res, err = pcall(CleanUp)
+            return {
+                result = jsonc.stringify({status = ok, error = err, res = res})
+            }
         end
     },
     update = {

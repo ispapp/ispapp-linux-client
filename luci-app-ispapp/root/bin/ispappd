@@ -5,6 +5,7 @@
 local nixio = require "nixio"
 local uci = require"luci.model.uci".cursor()
 local ubus = require "ubus"
+local jsonc = require "luci.jsonc"
 local conn = ubus.connect()
 -- Variables to manage threads and their respective sleep times
 local threads = {}
@@ -15,8 +16,8 @@ local sleep_times = {
     heathcheck_interval = 10 -- Default sleep time for status reporter (10s minimum)
 }
 local pid_file = "/var/run/ispappd.pid"
-local log_file = "/var/log/ispapp"
-local max_log_size = 0.1 * 1024 * 1024 -- 1 MB
+local log_file = "/var/log/ispapp" -- Log file path no used in this script
+local max_log_size = 0.1 * 1024 * 1024 -- 0.1 MB
 
 -- Function to log messages to the log file with rotation
 local function log_to_syslog(level, message) nixio.syslog(level, message) end
@@ -53,10 +54,16 @@ local function Update_thread()
         count = count + 1
         log("Sending updates ..." .. " count: " .. count)
         local update = conn:call("ispapp", "update", {})
-        if update and update.status == 200 then
-            log("Update sent successfully" .. " count: " .. count)
+        local sentupdate = conn:call("ispapp", "update", {})
+        if sentupdate and sentupdate.code == 200 then
+            log("Sent update successfully" .. " count: " .. count)
         else
             log("Failed to send update" .. " count: " .. count)
+        end
+        if update and update.code == 200 then
+            log("Update retreived successfully" .. " count: " .. count)
+        else
+            log("Failed to retreive update" .. " count: " .. count)
         end
         nixio.nanosleep(sleep_times.update_interval, 0) -- Sleep for the configured time
         coroutine.yield() -- Yield execution back to the manager
@@ -70,7 +77,7 @@ local function Config_thread()
         count = count + 1
         log("Sending configs..." .. " count: " .. count)
         local config = conn:call("ispapp", "config", {})
-        if config and config.status == 200 then
+        if config and config.code == 200 then
             log("Config sent successfully" .. " count: " .. count)
         else
             log("Failed to send config" .. " count: " .. count)
@@ -87,10 +94,12 @@ local function HealthCheck_thread()
         count = count + 1
         log("Reporting heath check..." .. " count: " .. count)
         local health = conn:call("ispapp", "checkconnection", {})
-        if health and health.status == 200 then
+        if health and health.code == 200 then
             log("Health check reported successfully" .. " count: " .. count)
         else
             log("Failed to report health check" .. " count: " .. count)
+            log("heath error..." ..
+                    (health and jsonc.stringify(health) or "no error"))
         end
         nixio.nanosleep(sleep_times.heathcheck_interval * 360, 0) -- Sleep for the configured time
         coroutine.yield() -- Yield execution back to the manager
@@ -154,7 +163,16 @@ local function daemonize()
         pid_file_handle:close()
     end
 end
-
+-- cleanup child process with ps:
+local CleanUp = function()
+    local status = conn:call("ispapp", "cleanup", {})
+    if status and status.status then
+        log("CleanUp successfully")
+    else
+        log("Failed to CleanUp" .. "error: " ..
+                (status and jsonc.stringify(status) or "no error"))
+    end
+end
 -- Function to restart the daemon
 local function restart_daemon()
     stop_daemon()
@@ -167,11 +185,16 @@ local action = arg[1]
 if action == "start" then
     -- Start the service by daemonizing it
     -- daemonize()
+    CleanUp()
     start_daemon()
+    log("ispappd started.")
 elseif action == "stop" then
     stop_daemon()
+    CleanUp()
+    log("ispappd stopped.")
 elseif action == "restart" then
     restart_daemon()
+    log("ispappd restarted.")
 else
     log("Usage: ispappd {start|stop|restart}")
 end

@@ -207,12 +207,11 @@ updateInterval.datatype = "range(10, 100)"
 updateInterval.default = uci:get("ispapp", "@settings[0]", "updateInterval") or
                              10
 updateInterval.placeholder = "10"
-updateInterval.cfgvalue = function(self, section)
+updateInterval.onchange = function(self, section)
     -- Process the value if needed (e.g., trim whitespace)
-    return uci:get("ispapp", "@settings[0]", "updateInterval")
-end
-updateInterval.write = function(self, section, value)
-    -- Process the value if needed (e.g., trim whitespace)
+    uci:set("ispapp", "@settings[0]", "updateInterval",
+            m:get(section, "updateInterval"))
+    uci:commit("ispapp")
     luci.sys.exec("/etc/init.d/ispapp restart")
 end
 -- -- IP Bandwidth Test Server
