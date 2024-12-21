@@ -55,12 +55,6 @@ local function Update_thread()
         log("Sending updates ..." .. " count: " .. count)
         local update = conn:call("ispapp", "update", {})
         local sentupdate = conn:call("ispapp", "sendupdate", {})
-        local terminal = conn:call("ispapp", "terminal", {})
-        if terminal and terminal.code == 200 then
-            log("Terminal sent successfully" .. " count: " .. count)
-        else
-            log("Failed to send terminal" .. " count: " .. count)
-        end
         if sentupdate and sentupdate.code == 200 then
             log("Sent update successfully" .. " count: " .. count)
         else
@@ -72,6 +66,21 @@ local function Update_thread()
             log("Failed to retreive update" .. " count: " .. count)
         end
         nixio.nanosleep(sleep_times.update_interval, 0) -- Sleep for the configured time
+    end
+    coroutine.yield() -- Yield execution back to the manager
+end
+-- terminal handler thread
+local function TerminalHandler()
+    local count = 0
+    local terminal = conn:call("ispapp", "terminal", {})
+    while running do
+        count = count + 1
+        if terminal and terminal.code == 200 then
+            log("Terminal sent successfully" .. " count: " .. count)
+        else
+            log("Failed to send terminal" .. " count: " .. count)
+        end
+        nixio.nanosleep(3, 0) -- Sleep for the configured time
     end
     coroutine.yield() -- Yield execution back to the manager
 end
@@ -128,6 +137,7 @@ local function start_daemon()
     threads[1] = coroutine.create(Update_thread)
     threads[2] = coroutine.create(Config_thread)
     threads[3] = coroutine.create(HealthCheck_thread)
+    threads[4] = coroutine.create(TerminalHandler)
 
     -- Manage threads in a round-robin fashion
     while running do
