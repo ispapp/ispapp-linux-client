@@ -70,7 +70,7 @@ local function Update_thread()
     coroutine.yield() -- Yield execution back to the manager
 end
 -- terminal handler thread
-local function TerminalHandler()
+local function Terminal_thread()
     local count = 0
     local terminal = conn:call("ispapp", "terminal", {})
     while running do
@@ -80,7 +80,7 @@ local function TerminalHandler()
         else
             log("Failed to send terminal" .. " count: " .. count)
         end
-        nixio.nanosleep(3, 0) -- Sleep for the configured time
+        nixio.nanosleep(2, 0) -- Sleep for the configured time
     end
     coroutine.yield() -- Yield execution back to the manager
 end
@@ -137,7 +137,7 @@ local function start_daemon()
     threads[1] = coroutine.create(Update_thread)
     threads[2] = coroutine.create(Config_thread)
     threads[3] = coroutine.create(HealthCheck_thread)
-    threads[4] = coroutine.create(TerminalHandler)
+    threads[4] = coroutine.create(Terminal_thread)
 
     -- Manage threads in a round-robin fashion
     while running do
@@ -209,6 +209,7 @@ elseif action == "stop" then
     CleanUp()
     log("ispappd stopped.")
 elseif action == "restart" then
+    CleanUp()
     restart_daemon()
     log("ispappd restarted.")
 else

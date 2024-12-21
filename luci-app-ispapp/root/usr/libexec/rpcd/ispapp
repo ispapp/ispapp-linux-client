@@ -1542,16 +1542,17 @@ local CleanUp = function()
     local path = "/var/run/ispappd.pid"
     local pid = read_file(path)
     -- no exclude_pid
-    if not pid.result then
+    if pid and pid.result then
+        -- running with exclude_pid
+        local PID = pid.result:gsub("%D", "")
         sys.exec(string.format([[
-         ps | grep '[i]spappd' | awk '{print $1}' | xargs kill -9
-    ]]))
-    end
-    -- running with exclude_pid
-    local PID = pid.result:gsub("%D", "")
-    sys.exec(string.format([[
          ps | grep '[i]spappd' | awk -v exclude_pid=%d '$1 != exclude_pid {print $1}' | xargs kill -9
     ]], PID))
+    else
+        sys.exec(string.format([[
+        ps | grep '[i]spappd' | awk '{print $1}' | xargs kill -9
+   ]]))
+    end
 end
 local methods = {
     test = {

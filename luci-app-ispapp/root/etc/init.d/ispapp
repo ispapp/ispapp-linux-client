@@ -44,6 +44,7 @@ stop() {
         
         # Kill the process and remove the PID file
         kill $PID && rm -f $PID_FILE
+        ps | grep '[i]spappd' | awk '{print $1}' | xargs kill -9
         echo "ispappd stopped."
     else
         echo "ispappd is not running or PID file not found."
