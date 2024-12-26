@@ -36,11 +36,9 @@ jobs:
           - mediatek-mt7622-23.05-SNAPSHOT
           - ramips-mt76x8-23.05-SNAPSHOT
           - ramips-mt7620-23.05-SNAPSHOT
-          - aarch64_generic-23.05-SNAPSHOT
           - ramips-mt7621-23.05-SNAPSHOT
           - ramips-rt288x-23.05-SNAPSHOT
           - ramips-rt305x-23.05-SNAPSHOT
-          - aarch64_cortex-a53-23.05-SNAPSHOT
           - arm_cortex-a15_neon-vfpv4-23.05-SNAPSHOT
           - x86_64-23.05-SNAPSHOT
           - arm_cortex-a5_vfpv4-23.05-SNAPSHOT
@@ -79,8 +77,13 @@ jobs:
           - x86-64
           - ath79-generic
           - mediatek-mt7622
-          - aarch64_generic
           - aarch64_cortex-a53
+          - aarch64_generic
+          # possible working archs for some skynet devices 
+          - aarch64_generic-23.05-SNAPSHOT
+          - aarch64_cortex-a53-23.05-SNAPSHOT
+          - aarch64_cortex-a72-23.05-SNAPSHOT
+          # end
           - arm_cortex-a15_neon-vfpv4
           - x86_64
           - arm_cortex-a5_vfpv4
@@ -152,7 +155,6 @@ jobs:
           # - arm_cortex-a8_vfpv3-23.05-SNAPSHOT
           # - mvebu-cortexa72-23.05-SNAPSHOT
           # - bcm27xx-bcm2711-23.05-SNAPSHOT
-          # - aarch64_cortex-a72-23.05-SNAPSHOT
           # - ipq806x-chromium-23.05-SNAPSHOT
           # - ipq806x-generic-23.05-SNAPSHOT
           # - pistachio-generic-23.05-SNAPSHOT
