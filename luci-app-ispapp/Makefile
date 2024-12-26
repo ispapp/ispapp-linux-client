@@ -11,7 +11,7 @@ PKG_SOURCE_VERSION:=karim/luci-app-ispapp
 PKG_SOURCE:=$(PKG_NAME).tar.gz
 
 LUCI_TITLE:=Ispapp Agent
-LUCI_DEPENDS:=+luci-base +luasocket +luasec +rpcd-mod-iwinfo +rpcd
+LUCI_DEPENDS:=+luci-lua-runtime +luasocket +luasec +rpcd-mod-iwinfo +rpcd
 LUCI_PKGARCH:=all
 PKG_LICENSE:=Apache-2.0
 PKG_MAINTAINER:=kmoz000 <abdelkarim@ispapp.co>

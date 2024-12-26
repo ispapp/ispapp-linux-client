@@ -223,9 +223,11 @@ jobs:
             bin/packages/**/ispapp/*.apk
             bin/packages/**/packages/luasec*.apk
             bin/packages/**/packages/luasocket*.apk
+            bin/packages/**/packages/luci-lua-runtime*.apk
             bin/packages/**/ispapp/*.ipk
             bin/packages/**/packages/luasec*.ipk
             bin/packages/**/packages/luasocket*.ipk
+            bin/packages/**/packages/luci-lua-runtime*.ipk
           tag: ${{ matrix.arch }}
       # - name: Store arch_device_map
       #   uses: softprops/action-gh-release@v2
