@@ -3,7 +3,7 @@ name: BUILD PACKAGES
 on:
   push:
     branches:
-      - karim
+      - feeds
 
 jobs:
   changes:
