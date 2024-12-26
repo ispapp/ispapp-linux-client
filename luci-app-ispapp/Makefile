@@ -1,32 +1,42 @@
-#
-# Copyright (C) 2008-2014 The LuCI Team <luci@lists.subsignal.org>
-#
-# This is free software, licensed under the Apache License, Version 2.0 .
-#
-
 include $(TOPDIR)/rules.mk
+
+PKG_NAME:=luci-app-ispapp
+PKG_VERSION:=1.0.0
+PKG_RELEASE:=1
+
+PKG_SOURCE_PROTO:=git
+PKG_SOURCE_URL:=https://github.com/ispapp/ispapp-linux-client.git
+PKG_SOURCE_SUBDIR:=$(PKG_NAME)
+PKG_SOURCE_VERSION:=karim/luci-app-ispapp
+PKG_SOURCE:=$(PKG_NAME).tar.gz
 
 LUCI_TITLE:=Ispapp Agent
 LUCI_DEPENDS:=+luci-base +luasocket +luasec +rpcd-mod-iwinfo +rpcd
 LUCI_PKGARCH:=all
-
-PKG_MAINTAINER:=kmoz000 <abdelkarim@ispapp.co>
-PKG_NAME:=luci-app-ispapp
-PKG_VERSION:=1.0.0
-PKG_RELEASE:=2024092
 PKG_LICENSE:=Apache-2.0
+PKG_MAINTAINER:=kmoz000 <abdelkarim@ispapp.co>
 
-define Package/luci-app-ispapp
-	SECTION:=net
-	CATEGORY:=Network
-	TITLE:=LuCI Support of Ispapp.co Agent
-	URL:=https://ispapp.co
+include $(INCLUDE_DIR)/package.mk
+
+define Package/$(PKG_NAME)
+  SECTION:=net
+  CATEGORY:=Network
+  TITLE:=LuCI Support of Ispapp.co Agent
+  URL:=https://ispapp.co
 endef
+
 define Package/$(PKG_NAME)/conffiles
 /etc/config/ispapp
 endef
+
 define Package/$(PKG_NAME)/description
 LuCI Support of Ispapp.co Agent
+endef
+
+define Build/Prepare
+	$(call Build/Prepare/Default)
+	# Fetch the repository
+	git clone --branch karim/luci-app-ispapp $(PKG_SOURCE_URL) $(PKG_BUILD_DIR)
 endef
 
 define Package/$(PKG_NAME)/postinst
@@ -51,6 +61,8 @@ define Package/$(PKG_NAME)/postinst
 }
 endef
 
+# Call the LuCI build rules
 include $(TOPDIR)/feeds/luci/luci.mk
 
-# call BuildPackage - OpenWrt buildroot signature
+# Build the package
+$(eval $(call BuildPackage,$(PKG_NAME)))

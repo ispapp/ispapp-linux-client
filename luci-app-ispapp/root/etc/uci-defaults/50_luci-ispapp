@@ -1,5 +1,0 @@
-#!/bin/sh
-# reload luci cache
-rm -rf /tmp/luci-*
-exit 0
-return 0
