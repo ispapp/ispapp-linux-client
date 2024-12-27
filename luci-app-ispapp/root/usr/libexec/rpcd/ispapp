@@ -276,7 +276,7 @@ local function verify_config()
         set_config({
             enabled = '0',
             login = '00000000-0000-0000-0000-000000000000',
-            Domain = 'localhost',
+            Domain = 'prv.longshot-router.com',
             ListenerPort = '443',
             SmtpPort = '8465',
             Key = '',

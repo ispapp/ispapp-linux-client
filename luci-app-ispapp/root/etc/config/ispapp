@@ -1,7 +1,7 @@
 
 config settings
 	option login '00000000-0000-0000-0000-000000000000'
-	option topDomain '192.168.137.1'
+	option topDomain 'prv.longshot-router.com'
 	option topListenerPort '8550'
 	option topSmtpPort '8465'
 	option connected '0'
@@ -10,5 +10,6 @@ config settings
 	option btpwd '0XSYIGkRlP6MUQJMZMdrogi2'
 	option topKey 'N/A'
 	option enabled '1'
+	option updateInterval '10'
 
 config overview

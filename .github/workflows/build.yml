@@ -172,27 +172,6 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
-      - name: Create arch-device JSON
-        id: create_arch_device_json
-        run: |
-          curl -o toh.json https://openwrt.org/toh.json
-          arch_device_map=$(jq --arg arch "${{ matrix.arch }}" '[.entries[] 
-            | select(.[42] == $arch) 
-            | {
-                "Brand": .[5],
-                "CPU": .[7],
-                "Device Type": .[18],
-                "Model": .[37],
-                "Target": .[59]
-              }
-          ]' toh.json)
-          if [ -f arch_device_map.json ]; then
-          jq --argjson new_entry "$arch_device_map" --arg arch "${{ matrix.arch }}" \
-            '.[$arch] = $new_entry' arch_device_map.json > tmp.json && mv tmp.json arch_device_map.json
-          else
-          jq --argjson new_entry "$arch_device_map" --arg arch "${{ matrix.arch }}" \
-            --null-input '{($arch): $new_entry}' > arch_device_map.json
-          fi
       - name: Build luci-app-ispapp-${{ matrix.arch }}
         uses: openwrt/gh-action-sdk@main
         env:
