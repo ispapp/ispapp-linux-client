@@ -1,0 +1,140 @@
+#!/bin/sh
+
+if [ "$#" -lt 1 ]; then
+    echo "Usage: $0 <device_name>"
+    exit 1
+fi
+
+device_name="$1"
+
+if ! command -v wlanconfig >/dev/null 2>&1; then
+    echo "[]"
+    exit 0
+fi
+
+first_station=1
+
+print_station() {
+    if [ "$first_station" -eq 0 ]; then
+        printf ",\n"
+    fi
+    first_station=0
+    printf "{"
+    first_field=1
+    for key in "${!station[@]}"; do
+        if [ "$first_field" -eq 0 ]; then
+            printf ","
+        fi
+        first_field=0
+        printf "\"%s\": \"%s\"" "$key" "${station[$key]}"
+    done
+    printf "}"
+}
+
+parse_station_line() {
+    set -- $1
+    station_addr="$1"
+    station_aid="$2"
+    station_chan="$3"
+    station_txrate="$4"
+    station_rxrate="$5"
+    station_rssi="$6"
+    station_minrssi="$7"
+    station_maxrssi="$8"
+    station_idle="$9"
+    station_txseq="${10}"
+    station_rxseq="${11}"
+    station_caps="${12}"
+    station_xcaps="${13}"
+    station_acaps="${14}"
+    station_erp="${15}"
+    station_state="${16}"
+    station_maxrate_dot11="${17}"
+    station_htcaps="${18}"
+    station_vhtcaps="${19}"
+    station_assoctime="${20}"
+    station_ies="${21}"
+}
+
+parse_additional_info() {
+    line="$1"
+    case "$line" in
+        *"RSSI is combined over chains in dBm"*)
+            station["rssi_combined"]="true"
+            ;;
+        *"Minimum Tx Power"*)
+            station["min_tx_power"]="${line#*: }"
+            ;;
+        *"Maximum Tx Power"*)
+            station["max_tx_power"]="${line#*: }"
+            ;;
+        *"HT Capability"*)
+            station["ht_capability"]="${line#*: }"
+            ;;
+        *"VHT Capability"*)
+            station["vht_capability"]="${line#*: }"
+            ;;
+        *"MU capable"*)
+            station["mu_capable"]="${line#*: }"
+            ;;
+        *"SNR"*)
+            station["snr"]="${line#*: }"
+            ;;
+        *"Operating band"*)
+            station["operating_band"]="${line#*: }"
+            ;;
+        *"Current Operating class"*)
+            station["current_operating_class"]="${line#*: }"
+            ;;
+        *"Supported Operating classes"*)
+            station["supported_operating_classes"]="${line#*: }"
+            ;;
+        *"Supported Rates(Mbps)"*)
+            station["supported_rates"]="${line#*: }"
+            ;;
+        *"Max STA phymode"*)
+            station["max_sta_phymode"]="${line#*: }"
+            ;;
+        *"MLO"*)
+            station["mlo"]="${line#*: }"
+            ;;
+        *"MLD Addr"*)
+            station["mld_addr"]="${line#*: }"
+            ;;
+        *"Num Partner links"*)
+            station["num_partner_links"]="${line#*: }"
+            ;;
+        *"Partner link"*)
+            station["partner_links"]="${station["partner_links"]} ${line#*: }"
+            ;;
+        *"EMLSR capable"*)
+            station["emlsr_capable"]="${line#*: }"
+            ;;
+        *"EMLMR capable"*)
+            station["emlmr_capable"]="${line#*: }"
+            ;;
+        *"STR capable"*)
+            station["str_capable"]="${line#*: }"
+            ;;
+    esac
+}
+
+echo "["
+
+wlanconfig "$device_name" list | while IFS= read -r line; do
+    if echo "$line" | grep -qE '^[0-9a-f]{2}(:[0-9a-f]{2}){5}'; then
+        if [ -n "$station_addr" ]; then
+            print_station
+        fi
+        unset station_addr station_aid station_chan station_txrate station_rxrate station_rssi station_minrssi station_maxrssi station_idle station_txseq station_rxseq station_caps station_xcaps station_acaps station_erp station_state station_maxrate_dot11 station_htcaps station_vhtcaps station_assoctime station_ies
+        parse_station_line "$line"
+    elif [ -n "$station_addr" ]; then
+        parse_additional_info "$line"
+    fi
+done
+
+if [ -n "$station_addr" ]; then
+    print_station
+fi
+
+echo "]"

@@ -1180,7 +1180,7 @@ end
 local function host_signup()
     if not uci:get("ispapp", "@settings[0]") then return nil end
     local host = uci:get("ispapp", "@settings[0]", "Domain") or
-                     "provisioning.ispapp.co"
+                     "prv.cloud.ispapp.co"
     local port = uci:get("ispapp", "@settings[0]", "ListenerPort") or "443"
     local key = uci:get("ispapp", "@settings[0]", "Key") or ""
     local uuid_req = string.format("https://%s:%s/auth/uuid", host, port)
@@ -1329,7 +1329,7 @@ local function syncConfigs()
     else
         log_error("Failed to sync configs")
     end
-    return {status = res.status, body = res.body, code = res.code}
+    return {status = res.status, body = res.body, code = res.code, init_req = init_req}
 end
 local function speedtest()
     -- speedtest command and send response as post to /bandwidth

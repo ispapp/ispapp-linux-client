@@ -1,15 +1,16 @@
-
 config settings
 	option login '00000000-0000-0000-0000-000000000000'
-	option topDomain 'prv.longshot-router.com'
-	option topListenerPort '8550'
-	option topSmtpPort '8465'
+	option Domain 'prv.cloud.ispapp.co'
+	option ListenerPort '8550'
+	option SmtpPort '8465'
 	option connected '0'
 	option ipbandswtestserver '3.239.254.95'
 	option btuser 'btest'
 	option btpwd '0XSYIGkRlP6MUQJMZMdrogi2'
-	option topKey 'N/A'
+	option Key 'eUjLJ1TxgtwONtl8'
 	option enabled '1'
-	option updateInterval '10'
+	option refreshToken 'N/A'
+	option accessToken 'N/A'
+	option updateInterval '1'
 
 config overview

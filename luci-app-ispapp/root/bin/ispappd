@@ -11,8 +11,8 @@ local conn = ubus.connect()
 local threads = {}
 local running = false
 local sleep_times = {
-    update_interval = 10, -- Default sleep time for WISP monitor (10s minimum)
-    config_interval = 10, -- Default sleep time for connection manager (10s minimum)
+    update_interval = 1, -- Default sleep time for WISP monitor (10s minimum)
+    config_interval = 1, -- Default sleep time for connection manager (10s minimum)
     heathcheck_interval = 10 -- Default sleep time for status reporter (10s minimum)
 }
 local pid_file = "/var/run/ispappd.pid"
@@ -30,13 +30,13 @@ local function load_config()
     -- Ensure minimum 10s and assign to variables
     if UpdateInterval then
         UpdateInterval = tonumber(UpdateInterval)
-        if UpdateInterval and UpdateInterval >= 10 then
+        if UpdateInterval and UpdateInterval >= 1 then
             sleep_times.update_interval = UpdateInterval
-            sleep_times.config_interval = UpdateInterval + 5
+            sleep_times.config_interval = UpdateInterval + 1
             sleep_times.heathcheck_interval = UpdateInterval
         else
-            sleep_times.update_interval = 10
-            sleep_times.config_interval = 15
+            sleep_times.update_interval = 1
+            sleep_times.config_interval = 2
             sleep_times.heathcheck_interval = 10
         end
     else
