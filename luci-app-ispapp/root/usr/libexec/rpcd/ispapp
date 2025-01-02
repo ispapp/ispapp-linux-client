@@ -880,9 +880,9 @@ local function GetWap()
         local __clients = conn:call('iwinfo', 'assoclist', {device = device})
         if #__clients.results == 0 then
             local ok, _clients = pcall(util.exec, string.format(
-                                           "awk -f /usr/lib/lua/assoclist.awk <(wlanconfig %s list)",
+                                           "assoclist %s",
                                            device))
-            if ok then
+            if ok and #_clients then
                 _clients = jsonc.parse(_clients)
                 local toSeconds = function(time)
                     if not time then return 0 end
@@ -1562,6 +1562,22 @@ local methods = {
             return r
         end
     },
+    skynetGps = function ()
+        local r = {}
+        local ok, responce, error = pcall(util.exec, [[
+            cat /tmp/gps_info.txt | tail -n 1 | awk -F', ' '{printf "{"; for (i = 1; i <= NF; i++) {split($i, a, "="); printf "\"%s\":\"%s\"", a[1], a[2]; if (i < NF) printf ", "} printf "}"}'
+        ]]);
+        if ok then
+            r.result = jsonc.stringify({
+                latitude="N/A",
+                longitude="N/A",
+                altitude="N/A"
+            })
+        else
+            r.result = jsonc.stringify(responce)
+        end
+        return r
+    end,
     signup = {call = SignUp},
     config = {
         call = function()
@@ -1639,10 +1655,26 @@ local methods = {
             return r
         end
     },
-    stop_ispapp = {call = function() return manage_service("stop") end},
-    restart_ispapp = {call = function() return manage_service("restart") end},
-    start_ispapp = {call = function() return manage_service("restart") end},
-    suspend_ispapp = {call = function() return manage_service("stop") end},
+    stop_ispapp = {call = function() 
+        local r = {}
+            r.result = jsonc.stringify({status = manage_service("stop")})
+        return r
+    end},
+    start_ispapp = {call = function() 
+        local r = {}
+            r.result = jsonc.stringify({status = manage_service("start")})
+        return r
+    end},
+    suspend_ispapp = {call = function() 
+        local r = {}
+            r.result = jsonc.stringify({status = manage_service("suspend")})
+        return r
+    end},
+    restart_ispapp = {call = function() 
+        local r = {}
+            r.result = jsonc.stringify({status = manage_service("restart")})
+        return r
+    end},
     query_ispapp = {call = query_service},
     read_pid_file = {
         call = function() return read_file("/var/run/ispapp.pid") end

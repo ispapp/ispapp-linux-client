@@ -1,0 +1,181 @@
+'use strict';
+'require view';
+'require form';
+'require rpc';
+'require uci';
+'require ui';
+
+var callCheckConnection = rpc.declare({
+    object: 'ispapp',
+    method: 'checkconnection'
+});
+
+return view.extend({
+    render: function() {
+        var m, s, o;
+        uci.load('ispapp');
+        m = new form.Map('ispapp', _('ISPApp Configuration'), _('Configure ISPApp settings.'));
+        s = m.section(form.TypedSection, 'settings', _('Settings'));
+        s.anonymous = true;
+        s.rmempty = false;
+
+        o = s.option(form.Value, 'login', _('Login'), _('MAC address for login.'));
+        o.rmempty = false;
+        o.default = uci.get('ispapp', '@settings[0]', 'login') || 'N/A';
+        o.onchange = function() {
+            uci.set('ispapp', '@settings[0]', 'login', this.formvalue(this.section));
+        };
+
+        o = s.option(form.Value, 'Domain', _('Domain'), _('Domain name for top domain.'));
+        o.rmempty = false;
+        o.datatype = 'host';
+        o.default = uci.get('ispapp', '@settings[0]', 'Domain') || 'N/A';
+        o.onchange = function() {
+            uci.set('ispapp', '@settings[0]', 'Domain', this.formvalue(this.section));
+        };
+
+        o = s.option(form.Value, 'ListenerPort', _('Listener Port'), _('Port for listening.'));
+        o.rmempty = false;
+        o.datatype = 'port';
+        o.default = uci.get('ispapp', '@settings[0]', 'ListenerPort') || 'N/A';
+        o.onchange = function() {
+            uci.set('ispapp', '@settings[0]', 'ListenerPort', this.formvalue(this.section));
+        };
+
+        o = s.option(form.Value, 'Key', _('Key'), _('Key for authentication.'));
+        o.rmempty = true;
+        o.datatype = 'string';
+        o.password = true;
+        o.default = uci.get('ispapp', '@settings[0]', 'Key') || 'N/A';
+        o.onchange = function() {
+            var key = this.formvalue(this.section);
+            uci.set('ispapp', '@settings[0]', 'Key', key);
+            ui.exec('fw_setenv Key ' + key);
+        };
+
+        o = s.option(form.Value, 'accessToken', _('Access Token'), _('Access token for API access.'));
+        o.rmempty = true;
+        o.password = true;
+        o.readonly = true;
+        o.datatype = 'string';
+        o.default = uci.get('ispapp', '@settings[0]', 'accessToken') || 'N/A';
+        // o.cfgvalue = function() {
+        //     var token = uci.get('ispapp', '@settings[0]', 'accessToken') || 'N/A';
+        //     // var displayToken = token.length > 25 ? token.substring(0, 25) + '...' : token;
+        //     return `
+        //         <div style="display: flex; align-items: center;">
+        //             <input type="password" value="${token}" readonly style="margin-right: 10px; min-width: 200px; border: 1px solid #ccc; padding: 5px; border-radius: 4px; display: inline-block;">
+        //             <button type="button" id="copyButton1" style="cursor: pointer;font-size:1.5em;padding: 3px;border-radius: 7px;outline: none;">📋</button>
+        //         </div>
+        //         <script>
+        //             document.getElementById('copyButton1').addEventListener('click', () => setClipboard('${token}'));
+        //             async function setClipboard(text) {
+        //                 if (navigator.clipboard) {
+        //                     navigator.clipboard.writeText(text);
+        //                 } else {
+        //                     const input = document.createElement('textarea');
+        //                     input.value = text;
+        //                     document.body.appendChild(input);
+        //                     input.select();
+        //                     document.execCommand('copy');
+        //                     document.body.removeChild(input);
+        //                 }
+        //             }
+        //         </script>
+        //     `;
+        // };
+
+        o = s.option(form.Value, 'refreshToken', _('Refresh Token'), _('Refresh token for API access.'));
+        o.rmempty = true;
+        o.password = true;
+        o.readonly = true;
+        o.datatype = 'string';
+        o.default = uci.get('ispapp', '@settings[0]', 'refreshToken') || 'N/A';
+        // o.cfgvalue = function() {
+        //     var token = uci.get('ispapp', '@settings[0]', 'refreshToken') || 'N/A';
+        //     // var displayToken = token.length > 25 ? token.substring(0, 25) + '...' : token;
+        //     return `
+        //         <div style="display: flex; align-items: center;">
+        //             <input type="password" value="${token}" readonly style="margin-right: 10px; min-width: 200px; border: 1px solid #ccc; padding: 5px; border-radius: 4px; display: inline-block;">
+        //             <button type="button" id="copyButton2" style="cursor: pointer;font-size:1.5em;padding: 3px;border-radius: 7px;outline: none;">📋</button>
+        //         </div>
+        //         <script>
+        //             document.getElementById('copyButton2').addEventListener('click', () => setClipboard('${token}'));
+        //             async function setClipboard(text) {
+        //                 if (navigator.clipboard) {
+        //                     navigator.clipboard.writeText(text);
+        //                     alert('Copied to clipboard');
+        //                 } else {
+        //                     const input = document.createElement('textarea');
+        //                     input.value = text;
+        //                     document.body.appendChild(input);
+        //                     input.select();
+        //                     document.execCommand('copy');
+        //                     document.body.removeChild(input);
+        //                     alert('Copied to clipboard');
+        //                 }
+        //             }
+        //         </script>
+        //     `;
+        // };
+
+        o = s.option(form.DummyValue, 'connected', _('Connected'), _('Connection status.'));
+        o.rmempty = false;
+        o.readonly = true;
+        o.rawhtml = true;
+        o.cfgvalue = async function() {
+            return await callCheckConnection().then(function(connected){
+                uci.set('ispapp', '@settings[0]', 'connected', connected && connected.code == 200);
+                return connected.code == 200 ? "<span style='color: green;'>Connected</span>" : "<span style='color: red;'>Disconnected</span>";
+            })
+        };
+
+        o = s.option(form.Button, '_refreshToken', _('Refresh connection'));
+        o.inputstyle = 'reload';
+        o.onclick = function() {
+            callCheckConnection().then(function(response) {
+                if (response && response.code === 200) {
+                    var tokens = JSON.parse(response.body);
+                    uci.set('ispapp', '@settings[0]', 'refreshToken', tokens.refreshToken);
+                    uci.set('ispapp', '@settings[0]', 'accessToken', tokens.accessToken);
+                    ui.addNotification(null, E('p', _('Refresh token updated successfully.')), 'info');
+                } else {
+                    var tokens = response && JSON.parse(response.body) || { error: null };
+                    ui.addNotification(null, E('p', tokens.error || _('Failed to update refresh token.')), 'error');
+                }
+            });
+        };
+
+        o = s.option(form.Value, 'UpdateInterval', _('Update Interval'), _('Interval for updating data in seconds.'));
+        o.rmempty = false;
+        o.datatype = 'range(1, 100)';
+        o.default = uci.get('ispapp', '@settings[0]', 'updateInterval') || 10;
+        o.placeholder = '10';
+        o.onchange = function() {
+            uci.set('ispapp', '@settings[0]', 'updateInterval', this.formvalue(this.section));
+            ui.exec('/etc/init.d/ispapp restart');
+        };
+
+        o = s.option(form.Button, '_apply', _('Test settings'));
+        o.inputstyle = 'apply';
+        o.onclick = function() {
+            var Domain = uci.get('ispapp', '@settings[0]', 'Domain');
+            var ListenerPort = uci.get('ispapp', '@settings[0]', 'ListenerPort');
+            var Key = uci.get('ispapp', '@settings[0]', 'Key');
+            var updateInterval = uci.get('ispapp', '@settings[0]', 'updateInterval');
+            uci.set('ispapp', '@settings[0]', 'Domain', Domain);
+            uci.set('ispapp', '@settings[0]', 'ListenerPort', ListenerPort);
+            uci.set('ispapp', '@settings[0]', 'Key', Key);
+            uci.set('ispapp', '@settings[0]', 'updateInterval', updateInterval);
+            callCheckConnection().then(function(response) {
+                if (response && response.code === 200) {
+                    ui.addNotification(null, E('p', _('ISPApp is connected.')), 'info');
+                } else {
+                    ui.addNotification(null, E('p', _('ISPApp is not connected.')), 'error');
+                }
+            });
+        };
+
+        return m.render();
+    }
+});

@@ -1,32 +1,14 @@
 -- /usr/lib/lua/luci/controller
----@diagnostic disable-next-line: deprecated
+-- -@diagnostic disable-next-line: deprecated
 module("luci.controller.ispapp", package.seeall)
 
-local fs = require("nixio.fs")
-local util = require("luci.util")
-local templ = require("luci.template")
-local i18n = require("luci.i18n")
 
 function index()
-    -- Ensure the configuration file exists before proceeding
-    if not fs.access("/etc/config/ispapp") then return end
-
     -- Top-level menu entry for ISPApp in LuCI
-    entry({"admin", "ispapp"}, firstchild(), _("ISPApp"), 60).dependent = false
+    entry({"admin", "ispapp"}, firstchild(), _("ISPApp"), 87).acl_depends = {"luci-app-ispapp"}
 
     -- Sub-menu entries under ISPApp
-    entry({"admin", "ispapp", "overview"}, cbi("ispapp/overview"),
-          _("Overview"), 10).leaf = true
-    entry({"admin", "ispapp", "settings"}, cbi("ispapp/settings"),
-          _("Settings"), 20).leaf = true
-    entry({"admin", "ispapp", "logread"}, call("logread"), _("Log View"), 30).leaf =
-        true
-end
-
-function logread()
-    local logfile = util.exec("logread -e 'ispapp'")
-    templ.render("ispapp/logread", {
-        title = i18n.translate("ISPApp agent Logfile"),
-        content = logfile
-    })
+    entry({"admin", "ispapp", "overview"}, view("ispapp/overview"), _("Overview"), 10)
+    entry({"admin", "ispapp", "settings"}, view("ispapp/settings"), _("Settings"), 20)
+    entry({"admin", "ispapp", "logread"}, view("ispapp/logread"), _("Log View"), 30)
 end
