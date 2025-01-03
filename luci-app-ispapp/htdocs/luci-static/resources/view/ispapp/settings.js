@@ -1,6 +1,7 @@
 'use strict';
 'require view';
 'require form';
+'require request';
 'require rpc';
 'require uci';
 'require ui';
@@ -59,31 +60,6 @@ return view.extend({
         o.readonly = true;
         o.datatype = 'string';
         o.default = uci.get('ispapp', '@settings[0]', 'accessToken') || 'N/A';
-        // o.cfgvalue = function() {
-        //     var token = uci.get('ispapp', '@settings[0]', 'accessToken') || 'N/A';
-        //     // var displayToken = token.length > 25 ? token.substring(0, 25) + '...' : token;
-        //     return `
-        //         <div style="display: flex; align-items: center;">
-        //             <input type="password" value="${token}" readonly style="margin-right: 10px; min-width: 200px; border: 1px solid #ccc; padding: 5px; border-radius: 4px; display: inline-block;">
-        //             <button type="button" id="copyButton1" style="cursor: pointer;font-size:1.5em;padding: 3px;border-radius: 7px;outline: none;">📋</button>
-        //         </div>
-        //         <script>
-        //             document.getElementById('copyButton1').addEventListener('click', () => setClipboard('${token}'));
-        //             async function setClipboard(text) {
-        //                 if (navigator.clipboard) {
-        //                     navigator.clipboard.writeText(text);
-        //                 } else {
-        //                     const input = document.createElement('textarea');
-        //                     input.value = text;
-        //                     document.body.appendChild(input);
-        //                     input.select();
-        //                     document.execCommand('copy');
-        //                     document.body.removeChild(input);
-        //                 }
-        //             }
-        //         </script>
-        //     `;
-        // };
 
         o = s.option(form.Value, 'refreshToken', _('Refresh Token'), _('Refresh token for API access.'));
         o.rmempty = true;
@@ -91,33 +67,6 @@ return view.extend({
         o.readonly = true;
         o.datatype = 'string';
         o.default = uci.get('ispapp', '@settings[0]', 'refreshToken') || 'N/A';
-        // o.cfgvalue = function() {
-        //     var token = uci.get('ispapp', '@settings[0]', 'refreshToken') || 'N/A';
-        //     // var displayToken = token.length > 25 ? token.substring(0, 25) + '...' : token;
-        //     return `
-        //         <div style="display: flex; align-items: center;">
-        //             <input type="password" value="${token}" readonly style="margin-right: 10px; min-width: 200px; border: 1px solid #ccc; padding: 5px; border-radius: 4px; display: inline-block;">
-        //             <button type="button" id="copyButton2" style="cursor: pointer;font-size:1.5em;padding: 3px;border-radius: 7px;outline: none;">📋</button>
-        //         </div>
-        //         <script>
-        //             document.getElementById('copyButton2').addEventListener('click', () => setClipboard('${token}'));
-        //             async function setClipboard(text) {
-        //                 if (navigator.clipboard) {
-        //                     navigator.clipboard.writeText(text);
-        //                     alert('Copied to clipboard');
-        //                 } else {
-        //                     const input = document.createElement('textarea');
-        //                     input.value = text;
-        //                     document.body.appendChild(input);
-        //                     input.select();
-        //                     document.execCommand('copy');
-        //                     document.body.removeChild(input);
-        //                     alert('Copied to clipboard');
-        //                 }
-        //             }
-        //         </script>
-        //     `;
-        // };
 
         o = s.option(form.DummyValue, 'connected', _('Connected'), _('Connection status.'));
         o.rmempty = false;
@@ -156,6 +105,24 @@ return view.extend({
             ui.exec('/etc/init.d/ispapp restart');
         };
 
+        var ops = s.option(form.ListValue, 'IperfServer', 'Iperf Server', 'Select the Iperf server to use for testing.');
+        ops.default = uci.get('ispapp', '@settings[0]', 'IperfServer') || 'N/A';
+        ops.optional = true;
+		ops.rmempty = true;
+        
+        request.get('/luci-static/resources/iperf').then(data=>data.json()).then(async function(data) {
+            var json_values = data;
+            if (json_values && typeof json_values === 'object' && json_values.length > 0){
+                // console.log(json_values);
+                json_values.forEach(element => {
+                    // need add value to option in other way than
+                    ops.value(element?.IP_HOST, element.COUNTRY+"-"+element.SITE);
+                });
+            } else {
+                ops.value('N/A', 'N/A');
+            }
+        })
+        o = ops;
         o = s.option(form.Button, '_apply', _('Test settings'));
         o.inputstyle = 'apply';
         o.onclick = function() {
@@ -167,12 +134,14 @@ return view.extend({
             uci.set('ispapp', '@settings[0]', 'ListenerPort', ListenerPort);
             uci.set('ispapp', '@settings[0]', 'Key', Key);
             uci.set('ispapp', '@settings[0]', 'updateInterval', updateInterval);
-            callCheckConnection().then(function(response) {
-                if (response && response.code === 200) {
-                    ui.addNotification(null, E('p', _('ISPApp is connected.')), 'info');
-                } else {
-                    ui.addNotification(null, E('p', _('ISPApp is not connected.')), 'error');
-                }
+            uci.apply().then(function() {
+                callCheckConnection().then(function(response) {
+                    if (response && response.code === 200) {
+                        ui.addNotification(null, E('p', _('ISPApp is connected.')), 'info');
+                    } else {
+                        ui.addNotification(null, E('p', _('ISPApp is not connected.')), 'error');
+                    }
+                });
             });
         };
 

@@ -1361,6 +1361,9 @@ local function speedtest()
     if not _server.IP_HOST then
         _server = iperf_servers[math.random(#iperf_servers)]
     end
+    if uci:get("ispapp", "@settings[0]", "IperfServer") then
+        _server = uci:get("ispapp", "@settings[0]", "IperfServer")
+    end
     local time = os.time()
     local cmd = string.format([[
                     %s -c %s -i 1 -t 1 -S 0x08 -f m -P 5 | tail -n 1 | awk '{print "{\"up\":\"" $4 "\",\"down\":\"" $6 "\"}"}'
@@ -1562,22 +1565,24 @@ local methods = {
             return r
         end
     },
-    skynetGps = function ()
-        local r = {}
-        local ok, responce, error = pcall(util.exec, [[
-            cat /tmp/gps_info.txt | tail -n 1 | awk -F', ' '{printf "{"; for (i = 1; i <= NF; i++) {split($i, a, "="); printf "\"%s\":\"%s\"", a[1], a[2]; if (i < NF) printf ", "} printf "}"}'
-        ]]);
-        if ok then
-            r.result = jsonc.stringify({
-                latitude="N/A",
-                longitude="N/A",
-                altitude="N/A"
-            })
-        else
-            r.result = jsonc.stringify(responce)
+    gps_module_info = {
+        call = function ()
+            local r = {}
+            local ok, responce, _ = pcall(util.exec, [[
+                cat /tmp/gps_info.txt | tail -n 1 | awk -F', ' '{printf "{"; for (i = 1; i <= NF; i++) {split($i, a, "="); printf "\"%s\":\"%s\"", a[1], a[2]; if (i < NF) printf ", "} printf "}"}'
+            ]]);
+            if not ok then
+                r.result = jsonc.stringify({
+                    latitude="N/A",
+                    longitude="N/A",
+                    altitude="N/A"
+                })
+            else
+                r.result = jsonc.stringify(responce)
+            end
+            return r
         end
-        return r
-    end,
+    },
     signup = {call = SignUp},
     config = {
         call = function()
