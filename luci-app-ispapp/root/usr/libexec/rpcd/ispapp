@@ -15,14 +15,20 @@ local ltn12 = require("ltn12")
 local http = require "socket.http"
 
 local conn = ubus.connect()
-if not conn then error("Failed to connect to ubus") end
+if not conn then
+    error("Failed to connect to ubus")
+end
 local uci = UCI.cursor()
 local function count_keys(tbl)
     local count = 0
-    for _, _ in pairs(tbl) do count = count + 1 end
+    for _, _ in pairs(tbl) do
+        count = count + 1
+    end
     return count
 end
-local function log_to_syslog(level, message) nixio.syslog(level, message) end
+local function log_to_syslog(level, message)
+    nixio.syslog(level, message)
+end
 -- priority Priority ["emerg", "alert", "crit", "err", "warning", "notice", "info", "debug"] 
 local function log_error(message)
     log_to_syslog("err", "[luci.ispapp]: " .. message)
@@ -79,12 +85,19 @@ local function getRequest(url, timeout, auth)
     -- make headers keys lowercase
     if h ~= nil then
         local h_tmp = {}
-        for k, v in pairs(h) do h_tmp[k:lower()] = v end
+        for k, v in pairs(h) do
+            h_tmp[k:lower()] = v
+        end
         h = h_tmp
     end
     -- concat body parts
     b = table_concat(tbody)
-    return {body = b, code = c, headers = h, status = s}
+    return {
+        body = b,
+        code = c,
+        headers = h,
+        status = s
+    }
 end
 -- Function to make a POST request with optional JSON body, authorization, and parameters
 local function postRequest(url, data, timeout)
@@ -134,12 +147,19 @@ local function postRequest(url, data, timeout)
     -- make headers keys lowercase
     if h ~= nil then
         local h_tmp = {}
-        for k, v in pairs(h) do h_tmp[k:lower()] = v end
+        for k, v in pairs(h) do
+            h_tmp[k:lower()] = v
+        end
         h = h_tmp
     end
     -- concat body parts
     b = table_concat(tbody)
-    return {body = b, code = c, headers = h, status = s}
+    return {
+        body = b,
+        code = c,
+        headers = h,
+        status = s
+    }
 end
 local getKey = function(device)
     local key = "N/A"
@@ -161,7 +181,9 @@ local getKey = function(device)
             end
         end)
     end
-    if type(key) == "table" then key = key[0] or key[1] end
+    if type(key) == "table" then
+        key = key[0] or key[1]
+    end
     return key
 end
 local getEncryption = function(device)
@@ -172,8 +194,7 @@ local getEncryption = function(device)
                 if keytypes == "" then
                     keytypes = section.encryption or "none"
                     if type(section.encryption) == "table" then
-                        keytypes = section.encryption[0] or
-                                       section.encryption[1] or "none"
+                        keytypes = section.encryption[0] or section.encryption[1] or "none"
                     end
                 end
             end
@@ -185,8 +206,7 @@ local getEncryption = function(device)
                 if keytypes == "" then
                     keytypes = section.encryption or "none"
                     if type(section.encryption) == "table" then
-                        keytypes = section.encryption[0] or
-                                       section.encryption[1] or "none"
+                        keytypes = section.encryption[0] or section.encryption[1] or "none"
                     end
                 end
             end
@@ -197,9 +217,10 @@ end
 -- check for reponce initconfig status
 local function CheckHostIsAdded(input)
     -- Check for "not added" or "host added" in the input (case insensitive)
-    if not input then return false end
-    if string.match(input:lower(), "not added") or
-        string.match(input:lower(), "host added") then
+    if not input then
+        return false
+    end
+    if string.match(input:lower(), "not added") or string.match(input:lower(), "host added") then
         return false
     else
         return true
@@ -210,14 +231,21 @@ local function read_file(path)
     local file, err = fs.readfile(path)
     if not file then
         log_error("Failed to read file " .. path .. ": " .. err)
-        return {error = "Failed to read file."}
+        return {
+            error = "Failed to read file."
+        }
     end
-    return {result = file, error = err}
+    return {
+        result = file,
+        error = err
+    }
 end
 
 local function exec_command(cmd)
     local ok, _, _ = pcall(util.exec, cmd)
-    return {result = ok}
+    return {
+        result = ok
+    }
 end
 
 local function manage_service(action)
@@ -252,18 +280,21 @@ local function set_config(data)
     uci:set("ispapp", "@settings[0]", "ListenerPort", data.ListenerPort or '')
     uci:set("ispapp", "@settings[0]", "SmtpPort", data.SmtpPort or '')
     uci:set("ispapp", "@settings[0]", "Key", data.Key or '')
-    uci:set("ispapp", "@settings[0]", "ipbandswtestserver",
-            data.ipbandswtestserver or '')
+    uci:set("ispapp", "@settings[0]", "ipbandswtestserver", data.ipbandswtestserver or '')
     uci:set("ispapp", "@settings[0]", "btuser", data.btuser or '')
     uci:set("ispapp", "@settings[0]", "btpwd", data.btpwd or '')
 
     local success, err = uci:commit("ispapp")
     if not success then
         log_error("Failed to commit changes to /etc/config/ispapp: " .. err)
-        return {error = "Failed to save configuration."}
+        return {
+            error = "Failed to save configuration."
+        }
     end
 
-    return {result = "Configuration saved successfully."}
+    return {
+        result = "Configuration saved successfully."
+    }
 end
 -- verify config and make sure it's exist and filled with defaults if necessary
 local function verify_config()
@@ -289,9 +320,13 @@ local function verify_config()
         })
         -- Commit the changes after creating the config
         uci:commit(config)
-        return {result = "Configuration created successfully."}
+        return {
+            result = "Configuration created successfully."
+        }
     end
-    return {result = "Configuration already exists."}
+    return {
+        result = "Configuration already exists."
+    }
 end
 -- run verify_configs function to make sure all ok
 -- verify_config()
@@ -301,14 +336,16 @@ end
 -- Function to get formatted process info by PID
 local function get_process_info(pid)
     -- Read /proc/[pid]/statm for memory information
-    local statm_file = string.format(
-                           "pidstat -p %s | awk 'NR>3 {print $8}' | tr -d '\n'",
-                           pid)
+    local statm_file = string.format("pidstat -p %s | awk 'NR>3 {print $8}' | tr -d '\n'", pid)
     local ok, statm_content = pcall(sys.exec, statm_file)
     if ok then
-        return {result = statm_content}
+        return {
+            result = statm_content
+        }
     else
-        return {error = "N/A%"}
+        return {
+            error = "N/A%"
+        }
     end
 end
 
@@ -344,8 +381,7 @@ end
 
 -- Function to check if a command exists
 local function commandExists(command)
-    return sys.exec("opkg list-installed | grep " .. command) ~= "" and true or
-               false
+    return sys.exec("which " .. command) ~= "" and true or false
 end
 
 -- Function to extract a value by key from the release info
@@ -390,12 +426,15 @@ local function getNetworkInterfaces()
     local interfaces = {}
 
     -- Ensure the ubus connection is established
-    if not conn then return nil, "Failed to connect to ubus" end
+    if not conn then
+        return nil, "Failed to connect to ubus"
+    end
 
     -- Function to get bridge members for a specific bridge (e.g., br-lan)
     local function getBridgeMembers(bridge)
-        local bridgeStatus = conn:call("network.device", "status",
-                                       {name = bridge})
+        local bridgeStatus = conn:call("network.device", "status", {
+            name = bridge
+        })
         return bridgeStatus['bridge-members'] or {}
     end
 
@@ -479,8 +518,7 @@ local function getExternalIpInfo()
                 local entities = asnData.entities or {}
                 local entityNames = {}
                 for _, entity in ipairs(entities) do
-                    local fn = entity.fn .. " (" .. (entity.type or "N/A") ..
-                                   ")"
+                    local fn = entity.fn .. " (" .. (entity.type or "N/A") .. ")"
                     table.insert(entityNames, fn)
                 end
                 return asn .. " (" .. table.concat(entityNames, ", ") .. ")"
@@ -576,8 +614,7 @@ local function collectSecurityProfiles()
             if type(section.key) == "string" then
                 profile["wpa3-pre-shared-key"] = section.sae_password or ""
             else
-                profile["wpa3-pre-shared-key"] =
-                    section.sae_password[0] or section.sae_password[1] or ""
+                profile["wpa3-pre-shared-key"] = section.sae_password[0] or section.sae_password[1] or ""
             end
         end
         if section.key then
@@ -585,10 +622,8 @@ local function collectSecurityProfiles()
                 profile["wpa-pre-shared-key"] = section.key or ""
                 profile["wpa2-pre-shared-key"] = section.key or ""
             else
-                profile["wpa-pre-shared-key"] =
-                    section.key[0] or section.key[1] or ""
-                profile["wpa2-pre-shared-key"] = section.key[0] or
-                                                     section.key[1] or ""
+                profile["wpa-pre-shared-key"] = section.key[0] or section.key[1] or ""
+                profile["wpa2-pre-shared-key"] = section.key[0] or section.key[1] or ""
             end
         end
         -- Get device information from the corresponding wifi-device section
@@ -618,8 +653,7 @@ local function get_sequence_time()
     local section = "config"
 
     -- Get current sequenceNumber and increment it
-    local sequenceNumber = tonumber(
-                               uci:get(config, section, "sequenceNumber") or "0")
+    local sequenceNumber = tonumber(uci:get(config, section, "sequenceNumber") or "0")
     sequenceNumber = sequenceNumber + 1
 
     -- Get the current timestamp for lastConfigRequest (as a Unix timestamp)
@@ -659,7 +693,9 @@ local function wirelessSupport()
     local iw_output = sys.exec("iw dev")
 
     -- If 'iw dev' has output, then wireless interfaces exist
-    if iw_output and iw_output ~= "" then return true end
+    if iw_output and iw_output ~= "" then
+        return true
+    end
 
     -- If 'iw dev' didn't return anything, try using 'ifconfig'
     local ifconfig_output = sys.exec("ifconfig -a")
@@ -668,7 +704,9 @@ local function wirelessSupport()
     local wireless_interfaces = {"wlan", "wifi", "ath", "ra"} -- Common wireless prefixes
 
     for _, prefix in ipairs(wireless_interfaces) do
-        if ifconfig_output:match(prefix) then return true end
+        if ifconfig_output:match(prefix) then
+            return true
+        end
     end
 
     -- If no wireless interfaces found, return false
@@ -702,9 +740,7 @@ local function wirelessConfigured()
         local ssid = section.ssid or "N/A"
         local macaddr = uci:get("wireless", device, "macaddr") or "N/A"
         local disabled = section.disabled == "1"
-        local running = sys.exec("iw dev " .. section.device ..
-                                     " info 2>/dev/null"):match("Interface") ~=
-                            nil
+        local running = sys.exec("iw dev " .. section.device .. " info 2>/dev/null"):match("Interface") ~= nil
         local band = uci:get("wireless", device, "hwmode") or "N/A"
         local interface_type = uci:get("wireless", device, "type") or "N/A"
 
@@ -714,7 +750,9 @@ local function wirelessConfigured()
 
         -- Build the object structure
         local _key = section.key or section.sae_password
-        if type(_key) == "table" then _key = _key[0] or _key[1] end
+        if type(_key) == "table" then
+            _key = _key[0] or _key[1]
+        end
         table.insert(wireless_info, {
             [".id"] = "*" .. tostring(section['.index']),
             band = band_readable,
@@ -739,8 +777,7 @@ end
 local function get_uptime()
     local uptime_str = sys.exec("cat /proc/uptime")
     local uptime_seconds, idle_time_seconds = uptime_str:match("^(%S+) (%S+)")
-    return math.floor(tonumber(uptime_seconds) or 0),
-           math.floor(tonumber(idle_time_seconds) or 0)
+    return math.floor(tonumber(uptime_seconds) or 0), math.floor(tonumber(idle_time_seconds) or 0)
 end
 
 -- Function to generate the CollectConfigs response
@@ -751,10 +788,8 @@ local function CollectConfigs()
     local osrelease = parseOsRelease()
     local uptime, idle_time = get_uptime()
     local response = {
-        bandwidthTestSupport = commandExists("iperf") or commandExists("iperf3") or
-            commandExists("btest"),
-        clientInfo = getReleaseValue("DISTRIB_ID") .. "-" ..
-            getReleaseValue("DISTRIB_RELEASE"),
+        bandwidthTestSupport = commandExists("iperf") or commandExists("iperf3") or commandExists("btest"),
+        clientInfo = getReleaseValue("DISTRIB_ID") .. "-" .. getReleaseValue("DISTRIB_RELEASE"),
         firmwareUpgradeSupport = commandExists("fwupgrade-tools"),
         fw = getReleaseValue("DISTRIB_DESCRIPTION"),
         hardwareCpuInfo = cpumodel .. ", " .. cpucores .. " cores",
@@ -785,7 +820,9 @@ local function CollectConfigs()
     return response
 end
 local function getPing()
-    local ping_data = {host = "1.1.1.1"}
+    local ping_data = {
+        host = "1.1.1.1"
+    }
     local okcmd, pingcmd = pcall(util.exec, string.format([[
     ping -c 3 %s -q | tail -1 | awk -F' = ' '{split($2, arr, "/"); gsub(" ms", "", arr[1]); gsub(" ms", "", arr[2]); gsub(" ms", "", arr[3]); print "{\"min\": " arr[1] ", \"avg\": " arr[2] ", \"max\": " arr[3] "}"}'
     ]], ping_data.host))
@@ -876,16 +913,20 @@ local function GetWap()
     local clients = {}
     for _, device in ipairs(devices) do
         clients = {}
-        local wap_device = conn:call('iwinfo', 'info', {device = device})
-        local __clients = conn:call('iwinfo', 'assoclist', {device = device})
+        local wap_device = conn:call('iwinfo', 'info', {
+            device = device
+        })
+        local __clients = conn:call('iwinfo', 'assoclist', {
+            device = device
+        })
         if #__clients.results == 0 then
-            local ok, _clients = pcall(util.exec, string.format(
-                                           "assoclist %s",
-                                           device))
+            local ok, _clients = pcall(util.exec, string.format("assoclist %s", device))
             if ok and #_clients then
                 _clients = jsonc.parse(_clients)
                 local toSeconds = function(time)
-                    if not time then return 0 end
+                    if not time then
+                        return 0
+                    end
                     local parts = {}
                     for part in time:gmatch("%d+") do
                         table.insert(parts, part)
@@ -896,13 +937,9 @@ local function GetWap()
                     elseif #parts == 2 then
                         seconds = tonumber(parts[1]) * 60 + tonumber(parts[2])
                     elseif #parts == 3 then
-                        seconds =
-                            tonumber(parts[1]) * 3600 + tonumber(parts[2]) * 60 +
-                                tonumber(parts[3])
+                        seconds = tonumber(parts[1]) * 3600 + tonumber(parts[2]) * 60 + tonumber(parts[3])
                     elseif #parts == 4 then
-                        seconds = tonumber(parts[1]) * 86400 +
-                                      tonumber(parts[2]) * 3600 +
-                                      tonumber(parts[3]) * 60 +
+                        seconds = tonumber(parts[1]) * 86400 + tonumber(parts[2]) * 3600 + tonumber(parts[3]) * 60 +
                                       tonumber(parts[4])
                     end
                     return seconds
@@ -930,9 +967,7 @@ local function GetWap()
                             signal1 = tonumber(client.rssi) or -1,
                             signal2 = tonumber(client.maxrssi) or -1,
                             signal3 = tonumber(client.rssi_combined) or -1,
-                            expectedRate = ratetobytes(
-                                client["maxrate(dot11)"] or client["maxrate"] or
-                                    "0"), -- 2882400
+                            expectedRate = ratetobytes(client["maxrate(dot11)"] or client["maxrate"] or "0"), -- 2882400
                             assocTime = toSeconds(client.assocTime) or 0, -- 08:48:36 or  23:08:48:36
                             beaconLoss = 0,
                             foundDescriptor = "wlanconfig parsed"
@@ -964,9 +999,13 @@ local function GetWap()
         end
         if wap_device then
             local avgsignal = function(signal, clients)
-                if not signal then return -1 end
+                if not signal then
+                    return -1
+                end
                 local sum = 0
-                if #clients == 0 then return -1 end
+                if #clients == 0 then
+                    return -1
+                end
                 for _, client in pairs(clients) do
                     sum = sum + tonumber(client[signal] or 0)
                 end
@@ -981,18 +1020,13 @@ local function GetWap()
             end
             table.insert(wap, {
                 interface = device,
-                ssid = uci:get("wireless", device, "ssid") or wap_device.bssid or
-                    "N/A",
+                ssid = uci:get("wireless", device, "ssid") or wap_device.bssid or "N/A",
                 stations = clients or {},
                 -- signals should be Retrieveed from clients avg signals
-                signal0 = avgsignal("signal0", clients) or
-                    wap_device.quality_max,
-                signal1 = avgsignal("signal1", clients) or
-                    wap_device.quality_max,
-                signal2 = avgsignal("signal2", clients) or
-                    wap_device.quality_max,
-                signal3 = avgsignal("signal3", clients) or
-                    wap_device.quality_max,
+                signal0 = avgsignal("signal0", clients) or wap_device.quality_max,
+                signal1 = avgsignal("signal1", clients) or wap_device.quality_max,
+                signal2 = avgsignal("signal2", clients) or wap_device.quality_max,
+                signal3 = avgsignal("signal3", clients) or wap_device.quality_max,
                 noise = tonumber(wap_device.noise) or 0,
                 foundDescriptor = getfoundDescriptor(),
                 key = getKey(device), -- get it from uci
@@ -1011,22 +1045,16 @@ local function getSystemInfo()
             processCount = tonumber(sys.exec("ps | wc -l"))
         },
         memory = {
-            total = tonumber(sys.exec(
-                                 "cat /proc/meminfo | grep MemTotal | awk '{print $2}'")),
-            free = tonumber(sys.exec(
-                                "cat /proc/meminfo | grep MemFree | awk '{print $2}'")),
-            buffers = tonumber(sys.exec(
-                                   "cat /proc/meminfo | grep Buffers | awk '{print $2}'")),
-            cache = tonumber(sys.exec(
-                                 "cat /proc/meminfo | grep Cached | awk '{print $2}'"))
+            total = tonumber(sys.exec("cat /proc/meminfo | grep MemTotal | awk '{print $2}'")),
+            free = tonumber(sys.exec("cat /proc/meminfo | grep MemFree | awk '{print $2}'")),
+            buffers = tonumber(sys.exec("cat /proc/meminfo | grep Buffers | awk '{print $2}'")),
+            cache = tonumber(sys.exec("cat /proc/meminfo | grep Cached | awk '{print $2}'"))
         },
-        disks = {
-            {
-                mount = "/",
-                used = tonumber(sys.exec("df / | grep / | awk '{print $3}'")),
-                avail = tonumber(sys.exec("df / | grep / | awk '{print $4}'"))
-            }
-        }
+        disks = {{
+            mount = "/",
+            used = tonumber(sys.exec("df / | grep / | awk '{print $3}'")),
+            avail = tonumber(sys.exec("df / | grep / | awk '{print $4}'"))
+        }}
     }
 end
 local function GetTcpInfo()
@@ -1051,15 +1079,29 @@ local function GetTcpInfo()
             local dst_ip = line:match("([%d]+%.[%d]+%.[%d]+%.[%d]+)")
 
             -- Add IPs to the unique_ips set
-            if src_ip then unique_ips[src_ip] = true end
-            if dst_ip then unique_ips[dst_ip] = true end
+            if src_ip then
+                unique_ips[src_ip] = true
+            end
+            if dst_ip then
+                unique_ips[dst_ip] = true
+            end
 
             -- Check for specific flags in the connection data
-            if line:match("SYN") then tcp.syn = tcp.syn + 1 end
-            if line:match("RST") then tcp.rst = tcp.rst + 1 end
-            if line:match("CWR") then tcp.cwr = tcp.cwr + 1 end
-            if line:match("ECE") then tcp.ece = tcp.ece + 1 end
-            if line:match("URG") then tcp.urg = tcp.urg + 1 end
+            if line:match("SYN") then
+                tcp.syn = tcp.syn + 1
+            end
+            if line:match("RST") then
+                tcp.rst = tcp.rst + 1
+            end
+            if line:match("CWR") then
+                tcp.cwr = tcp.cwr + 1
+            end
+            if line:match("ECE") then
+                tcp.ece = tcp.ece + 1
+            end
+            if line:match("URG") then
+                tcp.urg = tcp.urg + 1
+            end
         end
         -- Calculate the number of unique IPs
         tcp.uniqueIps = count_keys(unique_ips)
@@ -1077,71 +1119,68 @@ local function gather_unique_id()
         local mac_address = nil
         -- Run the `ifconfig` command and capture the output
         local ifconfig_output = sys.exec("/sbin/ifconfig -a")
-        if not ifconfig_output then return "00:00:00:00:00:00" end
+        if not ifconfig_output then
+            return "00:00:00:00:00:00"
+        end
         -- Look for the MAC address in the output (adjust the pattern if needed)
-        mac_address = ifconfig_output:match(
-                          "HWaddr (%x%x:%x%x:%x%x:%x%x:%x%x:%x%x)")
+        mac_address = ifconfig_output:match("HWaddr (%x%x:%x%x:%x%x:%x%x:%x%x:%x%x)")
 
         -- If no MAC address found, fall back to nil
         return mac_address or "00:00:00:00:00:00"
     end
     -- Gather necessary values
     local mac_address = get_mac_address() -- MAC address of the specified interface
-    local cpucores = tonumber(sys.exec(
-                                  "cat /proc/cpuinfo | grep 'processor' | wc -l")) or
-                         0 -- Number of CPU cores
+    local cpucores = tonumber(sys.exec("cat /proc/cpuinfo | grep 'processor' | wc -l")) or 0 -- Number of CPU cores
 
     -- Get RAM size
     local ram_size = 0
-    local ram_partitions = tonumber(sys.exec(
-                                        "cat /proc/partitions | grep ram | wc -l")) or
-                               0
+    local ram_partitions = tonumber(sys.exec("cat /proc/partitions | grep ram | wc -l")) or 0
     if ram_partitions > 0 then
         ram_size = ram_partitions * 4096 -- Assuming each ram partition is 4096 blocks
     end
 
     -- Get MTD size and count
     local mtd_size = 0
-    local mtd_partitions = tonumber(sys.exec(
-                                        "cat /proc/partitions | grep mtdblock | wc -l")) or
-                               0
+    local mtd_partitions = tonumber(sys.exec("cat /proc/partitions | grep mtdblock | wc -l")) or 0
     if mtd_partitions > 0 then
         local mtd_data = sys.exec("cat /proc/partitions | grep mtdblock")
         for line in mtd_data:gmatch("[^\r\n]+") do
             local _, _, blocks = line:find("(%d+)%s+(%d+)%s+(%d+)%s+mtdblock%d")
-            if blocks then mtd_size = mtd_size + tonumber(blocks) end
+            if blocks then
+                mtd_size = mtd_size + tonumber(blocks)
+            end
         end
     end
 
     -- Gather CPU specifications (e.g., BogoMIPS)
-    local bogomips = sys.exec(
-                         "cat /proc/cpuinfo | grep 'BogoMIPS' | head -n 1 | awk '{print $3}'") or
-                         "0"
+    local bogomips = sys.exec("cat /proc/cpuinfo | grep 'BogoMIPS' | head -n 1 | awk '{print $3}'") or "0"
 
     -- Number of ports can be gathered from network interfaces
-    local num_ports = tonumber(sys.exec(
-                                   "ls /sys/class/net/ | grep 'eth' | wc -l")) or
-                          0
+    local num_ports = tonumber(sys.exec("ls /sys/class/net/ | grep 'eth' | wc -l")) or 0
 
     -- Combine all values into a string
-    local unique_string = string.format("%s%d%d%d%s%d", mac_address, cpucores,
-                                        ram_size, mtd_size, bogomips, num_ports)
+    local unique_string = string.format("%s%d%d%d%s%d", mac_address, cpucores, ram_size, mtd_size, bogomips, num_ports)
     -- local md5_module, err = pcall(require, "md5c")
     -- Function to generate UUID format from the unique string
     local hash = md5.tohex(unique_string:gsub("[%.:\n]", "")) -- or use any hashing library available
-    local res = string.format("%s-%s-4%s-%s-%s", hash:sub(1, 8),
-                              hash:sub(9, 12), hash:sub(13, 16),
-                              hash:sub(17, 20), hash:sub(21))
+    local res = string.format("%s-%s-4%s-%s-%s", hash:sub(1, 8), hash:sub(9, 12), hash:sub(13, 16), hash:sub(17, 20),
+        hash:sub(21))
 
     return res
 end
 local function check_domain()
     local host = uci:get("ispapp", "@settings[0]", "Domain")
     local port = uci:get("ispapp", "@settings[0]", "ListenerPort")
-    if not host then return {status = 404} end
+    if not host then
+        return {
+            status = 404
+        }
+    end
     local uri = string.format('https://' .. host .. ':' .. port .. "/auth/uuid")
     local responce = getRequest(uri, 1)
-    return {status = responce.code}
+    return {
+        status = responce.code
+    }
 end
 local function GetTokens(uri)
     local res = getRequest(uri, 1)
@@ -1152,7 +1191,10 @@ local function GetTokens(uri)
         uci:commit('ispapp')
         return jsonc.parse(res.body)
     else
-        return {status = res.code, body = res.body}
+        return {
+            status = res.code,
+            body = res.body
+        }
     end
 end
 
@@ -1161,9 +1203,7 @@ local function tokenrefrech()
     local host = uci:get("ispapp", "@settings[0]", "Domain")
     local port = uci:get("ispapp", "@settings[0]", "ListenerPort")
     local accessToken = uci:get("ispapp", "@settings[0]", "accessToken")
-    local uri = string.format('https://' .. host .. ':' .. port ..
-                                  '/auth/refresh' .. "?accessToken=" ..
-                                  accessToken)
+    local uri = string.format('https://' .. host .. ':' .. port .. '/auth/refresh' .. "?accessToken=" .. accessToken)
     local res = getRequest(uri, 1)
     if res.code == 200 then
         local tokens = jsonc.parse(res.body)
@@ -1178,16 +1218,16 @@ local function tokenrefrech()
 end
 
 local function host_signup()
-    if not uci:get("ispapp", "@settings[0]") then return nil end
-    local host = uci:get("ispapp", "@settings[0]", "Domain") or
-                     "prv.cloud.ispapp.co"
+    if not uci:get("ispapp", "@settings[0]") then
+        return nil
+    end
+    local host = uci:get("ispapp", "@settings[0]", "Domain") or "prv.cloud.ispapp.co"
     local port = uci:get("ispapp", "@settings[0]", "ListenerPort") or "443"
     local key = uci:get("ispapp", "@settings[0]", "Key") or ""
     local uuid_req = string.format("https://%s:%s/auth/uuid", host, port)
     local login = ""
     local uci_login = uci:get("ispapp", "@settings[0]", "login")
-    local env_login = sys.exec(
-                          "fw_printenv | grep login | awk -F '=' '{print $2}'")
+    local env_login = sys.exec("fw_printenv | grep login | awk -F '=' '{print $2}'")
     local function set_login(_login)
         uci:set("ispapp", "@settings[0]", "login", _login)
         uci:commit("ispapp")
@@ -1202,14 +1242,11 @@ local function host_signup()
         login = res_uuid.body or gather_unique_id()
         local ok, _, _ = pcall(util.exec, "fw_setenv login " .. login)
         if ok then
-            log_info(
-                "\npersisting loin into the fw boot environment:" .. login ..
-                    "\n")
+            log_info("\npersisting loin into the fw boot environment:" .. login .. "\n")
         end
         set_login(login)
     end
-    local init_req = string.format('https://%s:%s/initconfig?login=%s&key=%s',
-                                   host, port, login, key)
+    local init_req = string.format('https://%s:%s/initconfig?login=%s&key=%s', host, port, login, key)
     local _config = CollectConfigs()
     local res = postRequest(init_req, _config, 1)
     local tokens = {}
@@ -1232,16 +1269,12 @@ local function get_cpu_usage()
     local path = "/var/run/ispappd.pid"
     local pid = read_file(path)
     if not pid.result then
-        log_error(
-            "Failed to read file " .. path .. "(ispappd is not running): " ..
-                pid.error)
+        log_error("Failed to read file " .. path .. "(ispappd is not running): " .. pid.error)
         return "(ispappd is not running)%"
     end
 
     local PID = pid.result:gsub("%D", "")
-    local statm_file = string.format(
-                           "pidstat -p %s | awk 'NR>3 {print $8}' | tr -d '\n'",
-                           PID)
+    local statm_file = string.format("pidstat -p %s | awk 'NR>3 {print $8}' | tr -d '\n'", PID)
     local ok, statm_content, err = pcall(sys.exec, statm_file)
     if ok then
         return statm_content .. "%"
@@ -1254,9 +1287,7 @@ local function process_stats()
     local path = "/var/run/ispappd.pid"
     local pid = read_file(path)
     if not pid.result then
-        log_error(
-            "Failed to read file " .. path .. "(ispappd is not running): " ..
-                pid.error)
+        log_error("Failed to read file " .. path .. "(ispappd is not running): " .. pid.error)
         return "(ispappd is not running)%"
     end
 
@@ -1295,7 +1326,10 @@ local function AddCollectorsToConfig()
     local system = getSystemInfo()
     local tcp = GetTcpInfo()
     local location = getExternalIpInfo()
-    location = {lat = location.latitude, lng = location.longitude}
+    location = {
+        lat = location.latitude,
+        lng = location.longitude
+    }
     local configs = CollectConfigs()
     local pings = {}
     pings[1] = ping
@@ -1314,13 +1348,17 @@ local function syncConfigs()
     local host = uci:get("ispapp", "@settings[0]", "Domain")
     if not host then
         log_error("Failed to get server domain")
-        return {status = 404}
+        return {
+            status = 404
+        }
     end
     local port = uci:get("ispapp", "@settings[0]", "ListenerPort") or "443"
     local login = uci:get("ispapp", "@settings[0]", "login")
     if not login then
         log_error("Failed to get login")
-        return {status = 404}
+        return {
+            status = 404
+        }
     end
     local init_req = string.format('https://%s:%s/config', host, port, login)
     local res = postRequest(init_req, configs, 1)
@@ -1329,77 +1367,128 @@ local function syncConfigs()
     else
         log_error("Failed to sync configs")
     end
-    return {status = res.status, body = res.body, code = res.code, init_req = init_req}
+    return {
+        status = res.status,
+        body = res.body,
+        code = res.code,
+        init_req = init_req
+    }
 end
 local function speedtest()
     -- speedtest command and send response as post to /bandwidth
     -- we take the iperf server from /www/luci-statis/resources/iperf.json
     local iperf_servers = {}
-    local iperf_file = "/www/luci-static/resources/iperf.json"
-    local iperf_servers = read_file(iperf_file)
+    local iperf_file = "/www/luci-static/resources/iperf"
+    local loadedfile = read_file(iperf_file)
     if iperf_servers.error then
-        log_error("Failed to read file " .. iperf_file .. ": " ..
-                      iperf_servers.error)
-        return {status = false}
+        log_error("Failed to read file " .. iperf_file .. ": " .. iperf_servers.error)
+        return {
+            status = false
+        }
     end
-    iperf_servers = jsonc.parse(iperf_servers.result)
-    if not iperf_servers then
-        log_error("Failed to parse iperf servers")
-        return {status = false}
-    end
-    local country = getExternalIpInfo().country and
-                        getExternalIpInfo().country:upper() or "US"
+    iperf_servers = jsonc.parse(loadedfile.result)
+    local country = getExternalIpInfo().country and getExternalIpInfo().country:upper() or "US"
     local iperf = function()
-        if commandExists("iperf3") then return "iperf3" end
-        if commandExists("iperf") then return "iperf" end
+        if commandExists("iperf3") then
+            return "iperf3"
+        end
+        if commandExists("iperf") then
+            return "iperf"
+        end
         return nil
     end
     local _server = {}
-    for _, server in ipairs(iperf_servers) do
-        if server.COUNTRY == country then _server = server end
+    local time = os.time()
+    local _iperf = iperf()
+    if _iperf == nil then
+        log_error("Failed to get iperf command")
+        return {
+            status = false
+        }
+    end
+    local version = {
+        V3 = commandExists("iperf3"),
+        V2 = commandExists("iperf")
+    }
+    local _iperf_servers = {}
+    for _, srv in pairs(iperf_servers) do
+        if (version.V3 and srv.V3 == version.V3) or (version.V2 and srv.V2 == version.V2) then
+            table.insert(_iperf_servers, srv)
+        end
+    end
+    for _, server in ipairs(_iperf_servers) do
+        if server.COUNTRY == country then
+            _server = server
+        end
     end
     if not _server.IP_HOST then
-        _server = iperf_servers[math.random(#iperf_servers)]
+        _server = iperf_servers[math.random(#_iperf_servers)]
     end
-    if uci:get("ispapp", "@settings[0]", "IperfServer") then
-        _server = uci:get("ispapp", "@settings[0]", "IperfServer")
+    local user_select = uci:get("ispapp", "@settings[0]", "IperfServer")
+    if user_select then
+        _server.IP_HOST = user_select
     end
-    local time = os.time()
-    local cmd = string.format([[
-                    %s -c %s -i 1 -t 1 -S 0x08 -f m -P 5 | tail -n 1 | awk '{print "{\"up\":\"" $4 "\",\"down\":\"" $6 "\"}"}'
-                    ]], iperf(), _server.IP_HOST)
+    local cmd = ""
+    if _server.V2 and version.V2 then
+        cmd = string.format([[
+                        %s -c %s -i 1 -t 1 -P 10 -f m | tail -n 1 | awk '{print "{\"up\":\"" $5 "\",\"down\":\"" $7 "\"}"}'
+                        ]], 'iperf', _server.IP_HOST)
+    end
+    if _server.V3 and version.V3 then
+        cmd = string.format([[
+                    %s -c %s  -t 1 -i 1 -J
+                    ]], 'iperf3', _server.IP_HOST)
+    end
     local ok, res, err = pcall(util.exec, cmd)
-    if not ok then
-        log_error("Failed to execute command: " .. cmd .. " - " .. err)
-        return {status = false}
+    if _iperf =='iperf3' and not ok then
+        log_error("[ispapp] Failed to execute command: " .. cmd .. " - " .. err)
+        return {
+            status = false
+        }
     end
     local _time = os.time()
     local duration = os.difftime(_time, time)
     -- parse the result
-    res = jsonc.parse(res)
+    local jsonres = (function ()
+        if type(res) ~= "table" then
+            return jsonc.parse(res)
+        else
+            return res
+        end
+    end)()
     local bandwidth = {
         Date = os.date("%Y-%m-%d", _time),
         Time = os.date("%H:%M:%S", _time),
         TxAvg = 0,
         RxAvg = 0,
         RxDuration = duration,
-        TxDuration = duration
+        TxDuration = duration,
+        Server = _server.IP_HOST
     }
-    if res then
-        bandwidth.TxAvg = (tonumber(res.up) or 0) * 1024
-        bandwidth.RxAvg = (tonumber(res.down) or 0) * 1024
+    if jsonres and jsonres.up then
+        bandwidth.TxAvg = (tonumber(jsonres.up) or 0) * 1024
+        bandwidth.RxAvg = (tonumber(jsonres.down) or 0) * 1024
+    elseif jsonres and _iperf == "iperf3" then
+        bandwidth.TxAvg = (jsonres["end"].sum_sent.bits_per_second or 0)
+        bandwidth.RxAvg = (jsonres["end"].sum_received.bits_per_second or 0)
     end
     bandwidth = jsonc.stringify(bandwidth)
     local host = uci:get("ispapp", "@settings[0]", "Domain")
     if not host then
         log_error("Failed to get server domain")
-        return {bandwidth = bandwidth, status = false}
+        return {
+            bandwidth = bandwidth,
+            status = false
+        }
     end
     local port = uci:get("ispapp", "@settings[0]", "ListenerPort") or "443"
     local login = uci:get("ispapp", "@settings[0]", "login")
     if not login then
         log_error("Failed to get login")
-        return {bandwidth = bandwidth, status = false}
+        return {
+            bandwidth = bandwidth,
+            status = false
+        }
     end
     local init_req = string.format('https://%s:%s/bandwidth', host, port, login)
     local responce = postRequest(init_req, bandwidth, 1)
@@ -1408,7 +1497,10 @@ local function speedtest()
     else
         log_error("Failed to send bandwidth")
     end
-    return {bandwidth = bandwidth, status = true}
+    return {
+        bandwidth = bandwidth,
+        status = true
+    }
 end
 local execActions = function(action)
     local actions = {
@@ -1420,22 +1512,30 @@ local execActions = function(action)
             -- sys.exec("sysupgrade -p <file|uri>")
             sys.reboot()
         end,
-        reboot = function() sys.reboot() end
+        reboot = function()
+            sys.reboot()
+        end
     }
-    if actions[action] then actions[action]() end
+    if actions[action] then
+        actions[action]()
+    end
 end
 
 local function update()
     local host = uci:get("ispapp", "@settings[0]", "Domain")
     if not host then
         log_error("Failed to get server domain")
-        return {status = 404}
+        return {
+            status = 404
+        }
     end
     local port = uci:get("ispapp", "@settings[0]", "ListenerPort") or "443"
     local login = uci:get("ispapp", "@settings[0]", "login")
     if not login then
         log_error("Failed to get login")
-        return {status = 404}
+        return {
+            status = 404
+        }
     end
     local init_req = string.format('https://%s:%s/update', host, port, login)
     local res = getRequest(init_req, 1, true)
@@ -1459,24 +1559,34 @@ local function update()
                 uci:set("ispapp", "@settings[0]", "updateInterval", "5")
                 uci:commit("ispapp")
             end
-            if responce.reboot == "1" then execActions("reboot") end
+            if responce.reboot == "1" then
+                execActions("reboot")
+            end
         end
     else
         log_error("Failed to sync updates")
     end
-    return {status = res.status, body = res.body, code = res.code}
+    return {
+        status = res.status,
+        body = res.body,
+        code = res.code
+    }
 end
 local function sendupdate()
     local host = uci:get("ispapp", "@settings[0]", "Domain")
     if not host then
         log_error("Failed to get server domain")
-        return {code = 404}
+        return {
+            code = 404
+        }
     end
     local port = uci:get("ispapp", "@settings[0]", "ListenerPort") or "443"
     local login = uci:get("ispapp", "@settings[0]", "login")
     if not login then
         log_error("Failed to get login")
-        return {code = 404}
+        return {
+            code = 404
+        }
     end
     local init_req = string.format('https://%s:%s/update', host, port, login)
     local updates = AddCollectorsToConfig()
@@ -1496,7 +1606,9 @@ local function terminalHandler()
     local host = uci:get("ispapp", "@settings[0]", "Domain")
     if not host then
         log_error("Failed to get server domain")
-        return {code = 404}
+        return {
+            code = 404
+        }
     end
     local port = uci:get("ispapp", "@settings[0]", "ListenerPort") or "443"
     local termReq = string.format('https://%s:%s/terminal', host, port)
@@ -1538,7 +1650,9 @@ end
 
 local function SignUp()
     local sd = host_signup()
-    return {result = jsonc.stringify(sd)}
+    return {
+        result = jsonc.stringify(sd)
+    }
 end
 local CleanUp = function()
     -- Get the PID of the ispappd process
@@ -1561,21 +1675,23 @@ local methods = {
     test = {
         call = function()
             local r = {}
-            r.result = jsonc.stringify({wap = GetWap()})
+            r.result = jsonc.stringify({
+                wap = GetWap()
+            })
             return r
         end
     },
     gps_module_info = {
-        call = function ()
+        call = function()
             local r = {}
             local ok, responce, _ = pcall(util.exec, [[
                 cat /tmp/gps_info.txt | tail -n 1 | awk -F', ' '{printf "{"; for (i = 1; i <= NF; i++) {split($i, a, "="); printf "\"%s\":\"%s\"", a[1], a[2]; if (i < NF) printf ", "} printf "}"}'
             ]]);
             if not ok then
                 r.result = jsonc.stringify({
-                    latitude="N/A",
-                    longitude="N/A",
-                    altitude="N/A"
+                    latitude = "N/A",
+                    longitude = "N/A",
+                    altitude = "N/A"
                 })
             else
                 r.result = jsonc.stringify(responce)
@@ -1583,7 +1699,9 @@ local methods = {
             return r
         end
     },
-    signup = {call = SignUp},
+    signup = {
+        call = SignUp
+    },
     config = {
         call = function()
             local r = {}
@@ -1609,7 +1727,11 @@ local methods = {
         call = function()
             local ok, res, err = pcall(CleanUp)
             return {
-                result = jsonc.stringify({status = ok, error = err, res = res})
+                result = jsonc.stringify({
+                    status = ok,
+                    error = err,
+                    res = res
+                })
             }
         end
     },
@@ -1630,14 +1752,18 @@ local methods = {
     collect_configs = {
         call = function()
             local r = {}
-            r.result = jsonc.stringify({configs = CollectConfigs()})
+            r.result = jsonc.stringify({
+                configs = CollectConfigs()
+            })
             return r
         end
     },
     get_cpu_usage = {
         call = function()
             local r = {}
-            r.result = jsonc.stringify({cpu_usage = get_cpu_usage()})
+            r.result = jsonc.stringify({
+                cpu_usage = get_cpu_usage()
+            })
             return r
         end
     },
@@ -1648,41 +1774,83 @@ local methods = {
             return r
         end
     },
-    read_ispapp_config = {call = function() return get_config() end},
+    read_ispapp_config = {
+        call = function()
+            return get_config()
+        end
+    },
     write_ispapp_config = {
-        args = {config = "table"},
-        call = function(args) return set_config(args.config) end
+        args = {
+            config = "table"
+        },
+        call = function(args)
+            return set_config(args.config)
+        end
     },
     check_ispapp_status = {
         call = function()
             local r = {}
-            r.result = jsonc.stringify({status = check_service()})
+            r.result = jsonc.stringify({
+                status = check_service()
+            })
             return r
         end
     },
-    stop_ispapp = {call = function() 
-        local r = {}
-            r.result = jsonc.stringify({status = manage_service("stop")})
-        return r
-    end},
-    start_ispapp = {call = function() 
-        local r = {}
-            r.result = jsonc.stringify({status = manage_service("start")})
-        return r
-    end},
-    suspend_ispapp = {call = function() 
-        local r = {}
-            r.result = jsonc.stringify({status = manage_service("suspend")})
-        return r
-    end},
-    restart_ispapp = {call = function() 
-        local r = {}
-            r.result = jsonc.stringify({status = manage_service("restart")})
-        return r
-    end},
-    query_ispapp = {call = query_service},
+    speedtest = {
+        call = function()
+            local r = {}
+            local ok, res, err = pcall(speedtest)
+            r.result = jsonc.stringify({
+                status = ok,
+                error = err,
+                res = res
+            })
+            return r
+        end
+    },
+    stop_ispapp = {
+        call = function()
+            local r = {}
+            r.result = jsonc.stringify({
+                status = manage_service("stop")
+            })
+            return r
+        end
+    },
+    start_ispapp = {
+        call = function()
+            local r = {}
+            r.result = jsonc.stringify({
+                status = manage_service("start")
+            })
+            return r
+        end
+    },
+    suspend_ispapp = {
+        call = function()
+            local r = {}
+            r.result = jsonc.stringify({
+                status = manage_service("suspend")
+            })
+            return r
+        end
+    },
+    restart_ispapp = {
+        call = function()
+            local r = {}
+            r.result = jsonc.stringify({
+                status = manage_service("restart")
+            })
+            return r
+        end
+    },
+    query_ispapp = {
+        call = query_service
+    },
     read_pid_file = {
-        call = function() return read_file("/var/run/ispapp.pid") end
+        call = function()
+            return read_file("/var/run/ispapp.pid")
+        end
     },
     check_domain = {
         call = function()
@@ -1692,40 +1860,56 @@ local methods = {
         end
     },
     read_runtime_file = {
-        call = function() return read_file("/tmp/ispapp_runtime.json") end
+        call = function()
+            return read_file("/tmp/ispapp_runtime.json")
+        end
     },
     verify_config = {
-        call = function() return jsonc.stringify(verify_config()) end
+        call = function()
+            return jsonc.stringify(verify_config())
+        end
     },
     read_crontab = {
-        call = function() return read_file("/etc/crontabs/root") end
+        call = function()
+            return read_file("/etc/crontabs/root")
+        end
     },
     get_last_edit_time = {
         call = function()
             local r = {}
-            r.result = jsonc.stringify({last_edit_time = get_last_edit_time()})
+            r.result = jsonc.stringify({
+                last_edit_time = get_last_edit_time()
+            })
             return r
         end
     },
     get_active_time = {
         call = function()
             local r = {}
-            r.result = jsonc.stringify({active_time = get_active_time()})
+            r.result = jsonc.stringify({
+                active_time = get_active_time()
+            })
             return r
         end
     },
     get_process_info = {
-        args = {pid = "a_number"},
+        args = {
+            pid = "a_number"
+        },
         call = function(args)
             local r = {}
-            r.result = jsonc.stringify({cpu_usage = get_process_info(args.pid)})
+            r.result = jsonc.stringify({
+                cpu_usage = get_process_info(args.pid)
+            })
             return r
         end
     },
     get_device_mode = {
         call = function()
             local r = {}
-            r.result = jsonc.stringify({device_mode = get_device_mode()})
+            r.result = jsonc.stringify({
+                device_mode = get_device_mode()
+            })
             return r
         end
     }
@@ -1737,7 +1921,9 @@ local function parseInput()
         local input = ""
         while os.time() - start_time < timeout do
             local chunk = arg[3]
-            if not chunk then break end
+            if not chunk then
+                break
+            end
             input = input .. chunk
         end
         return input
@@ -1745,7 +1931,9 @@ local function parseInput()
 
     local input = read_with_timeout(.01)
     local args = jsonc.parse(input)
-    if not args then return {} end
+    if not args then
+        return {}
+    end
     return args
 end
 
@@ -1754,21 +1942,24 @@ local function validateArgs(func, uargs)
     -- up to the arguments expected by the function being called.
     local method = methods[func]
     if not method then
-        print(jsonc.stringify({error = "Method not found in methods table"}))
+        print(jsonc.stringify({
+            error = "Method not found in methods table"
+        }))
         os.exit(1)
     end
 
     -- Lua has no length operator for tables, so iterate to get the count
     -- of the keys.
     local n = 0
-    for _, _ in pairs(uargs) do n = n + 1 end
+    for _, _ in pairs(uargs) do
+        n = n + 1
+    end
 
     -- If the method defines an args table (so empty tables are not allowed),
     -- and there were no args, then give a useful error message about that.
     if method.args and n == 0 then
         print(jsonc.stringify({
-            error = "Received empty arguments for " .. func ..
-                " but it requires " .. jsonc.stringify(method.args)
+            error = "Received empty arguments for " .. func .. " but it requires " .. jsonc.stringify(method.args)
         }))
         os.exit(1)
     end
@@ -1779,8 +1970,7 @@ local function validateArgs(func, uargs)
     for k, v in pairs(uargs) do
         if margs[k] == nil or (v ~= nil and type(v) ~= type(margs[k])) then
             print(jsonc.stringify({
-                error = "Invalid argument '" .. k .. "' for " .. func ..
-                    " it requires " .. jsonc.stringify(method.args)
+                error = "Invalid argument '" .. k .. "' for " .. func .. " it requires " .. jsonc.stringify(method.args)
             }))
             os.exit(1)
         end
@@ -1791,7 +1981,9 @@ end
 
 if arg[1] == "list" then
     local _, rv = nil, {}
-    for _, method in pairs(methods) do rv[_] = method.args or {} end
+    for _, method in pairs(methods) do
+        rv[_] = method.args or {}
+    end
     print((jsonc.stringify(rv):gsub(":%[%]", ":{}")))
 elseif arg[1] == "call" then
     local args = parseInput()

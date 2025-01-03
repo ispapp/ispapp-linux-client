@@ -3,6 +3,7 @@
 'require form';
 'require request';
 'require rpc';
+'require fs';
 'require uci';
 'require ui';
 
@@ -12,7 +13,21 @@ var callCheckConnection = rpc.declare({
 });
 
 return view.extend({
-    render: function() {
+    render: async function() {
+        const command_exist = async (cmd)=>{
+            return await fs.exec("which", [cmd]).then((res)=>{
+                if (res.stdout) {
+                    return true;
+                }
+                return false;
+            });
+        }
+        const version = {
+            v2: false,
+            v3: false,
+        }
+        version.v2 = await command_exist('iperf')
+        version.v3 = await command_exist('iperf3')
         var m, s, o;
         uci.load('ispapp');
         m = new form.Map('ispapp', _('ISPApp Configuration'), _('Configure ISPApp settings.'));
@@ -51,7 +66,7 @@ return view.extend({
         o.onchange = function() {
             var key = this.formvalue(this.section);
             uci.set('ispapp', '@settings[0]', 'Key', key);
-            ui.exec('fw_setenv Key ' + key);
+            fs.exec('fw_setenv Key ' + key);
         };
 
         o = s.option(form.Value, 'accessToken', _('Access Token'), _('Access token for API access.'));
@@ -102,7 +117,7 @@ return view.extend({
         o.placeholder = '10';
         o.onchange = function() {
             uci.set('ispapp', '@settings[0]', 'updateInterval', this.formvalue(this.section));
-            ui.exec('/etc/init.d/ispapp restart');
+            fs.exec('/etc/init.d/ispapp restart');
         };
 
         var ops = s.option(form.ListValue, 'IperfServer', 'Iperf Server', 'Select the Iperf server to use for testing.');
@@ -113,16 +128,16 @@ return view.extend({
         request.get('/luci-static/resources/iperf').then(data=>data.json()).then(async function(data) {
             var json_values = data;
             if (json_values && typeof json_values === 'object' && json_values.length > 0){
-                // console.log(json_values);
                 json_values.forEach(element => {
                     // need add value to option in other way than
-                    ops.value(element?.IP_HOST, element.COUNTRY+"-"+element.SITE);
+                    if((version.v3 && version.v3 == element.V3) || (version.v2 && version.v2 == element.V2)){
+                        ops.value(element?.IP_HOST, `${element.COUNTRY}-${element.SITE}(v${element.V3 ? 3 : 2})`);
+                    }
                 });
             } else {
                 ops.value('N/A', 'N/A');
             }
         })
-        o = ops;
         o = s.option(form.Button, '_apply', _('Test settings'));
         o.inputstyle = 'apply';
         o.onclick = function() {
