@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - feeds
+    paths:
+      - 'luci-app-ispapp/Makefile'
 
 jobs:
   changes:
