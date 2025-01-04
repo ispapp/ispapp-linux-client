@@ -3,7 +3,9 @@ name: BUILD PACKAGES
 on:
   push:
     branches:
-      - karim
+      - main
+    paths:
+      - 'luci-app-ispapp/**/*'
 
 jobs:
   changes:
