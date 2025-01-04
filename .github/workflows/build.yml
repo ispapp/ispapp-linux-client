@@ -21,79 +21,79 @@ jobs:
       max-parallel: 10
       matrix:
         arch:
-          - arm_cortex-a7_neon-vfpv4-23.05-SNAPSHOT
-          - arm_cortex-a7_vfpv4-23.05-SNAPSHOT
-          - arm_cortex-a9-23.05-SNAPSHOT
-          - mediatek-filogic-23.05-SNAPSHOT
-          - mipsel_mips32-23.05-SNAPSHOT
-          - ath79-mikrotik-23.05-SNAPSHOT
-          - mipsel_24kc-23.05-SNAPSHOT
-          - x86-generic-23.05-SNAPSHOT
-          - arm_cortex-a7-23.05-SNAPSHOT
-          - mvebu-cortexa53-23.05-SNAPSHOT
-          - x86-64-23.05-SNAPSHOT
-          - ath79-generic-23.05-SNAPSHOT
-          - mediatek-mt7622-23.05-SNAPSHOT
-          - ramips-mt76x8-23.05-SNAPSHOT
-          - ramips-mt7620-23.05-SNAPSHOT
-          - ramips-mt7621-23.05-SNAPSHOT
-          - ramips-rt288x-23.05-SNAPSHOT
-          - ramips-rt305x-23.05-SNAPSHOT
-          - arm_cortex-a15_neon-vfpv4-23.05-SNAPSHOT
-          - x86_64-23.05-SNAPSHOT
-          - arm_cortex-a5_vfpv4-23.05-SNAPSHOT
-          - ipq807x-generic-23.05-SNAPSHOT
-          - ramips-rt3883-23.05-SNAPSHOT
-          - bcm47xx-mips74k-23.05-SNAPSHOT
-          - mipsel_74kc-23.05-SNAPSHOT
-          - mips_mips32-23.05-SNAPSHOT
-          - bmips-bcm63268-23.05-SNAPSHOT
-          - bmips-bcm6368-23.05-SNAPSHOT
-          - ipq40xx-mikrotik-23.05-SNAPSHOT
-          - bmips-bcm6362-23.05-SNAPSHOT
-          - i386_pentium4-23.05-SNAPSHOT
-          - mips_24kc-23.05-SNAPSHOT
-          - mips64_octeonplus-23.05-SNAPSHOT
-          - bmips-bcm6358-23.05-SNAPSHOT
-          - bmips-bcm6328-23.05-SNAPSHOT
-          - mipsel_24kc_24kf-23.05-SNAPSHOT
-          - mips_4kec-23.05-SNAPSHOT
-          - ramips-rt3883-23.05-SNAPSHOT
-          - mipsel_74kc-23.05-SNAPSHOT
-          - mediatek-mt7629-23.05-SNAPSHOT
-          - bmips-bcm6318-23.05-SNAPSHOT
+          # - arm_cortex-a7_neon-vfpv4-23.05-SNAPSHOT
+          # - arm_cortex-a7_vfpv4-23.05-SNAPSHOT
+          # - arm_cortex-a9-23.05-SNAPSHOT
+          # - mediatek-filogic-23.05-SNAPSHOT
+          # - mipsel_mips32-23.05-SNAPSHOT
+          # - ath79-mikrotik-23.05-SNAPSHOT
+          # - mipsel_24kc-23.05-SNAPSHOT
+          # - x86-generic-23.05-SNAPSHOT
+          # - arm_cortex-a7-23.05-SNAPSHOT
+          # - mvebu-cortexa53-23.05-SNAPSHOT
+          # - x86-64-23.05-SNAPSHOT
+          # - ath79-generic-23.05-SNAPSHOT
+          # - mediatek-mt7622-23.05-SNAPSHOT
+          # - ramips-mt76x8-23.05-SNAPSHOT
+          # - ramips-mt7620-23.05-SNAPSHOT
+          # - ramips-mt7621-23.05-SNAPSHOT
+          # - ramips-rt288x-23.05-SNAPSHOT
+          # - ramips-rt305x-23.05-SNAPSHOT
+          # - arm_cortex-a15_neon-vfpv4-23.05-SNAPSHOT
+          # - x86_64-23.05-SNAPSHOT
+          # - arm_cortex-a5_vfpv4-23.05-SNAPSHOT
+          # - ipq807x-generic-23.05-SNAPSHOT
+          # - ramips-rt3883-23.05-SNAPSHOT
+          # - bcm47xx-mips74k-23.05-SNAPSHOT
+          # - mipsel_74kc-23.05-SNAPSHOT
+          # - mips_mips32-23.05-SNAPSHOT
+          # - bmips-bcm63268-23.05-SNAPSHOT
+          # - bmips-bcm6368-23.05-SNAPSHOT
+          # - ipq40xx-mikrotik-23.05-SNAPSHOT
+          # - bmips-bcm6362-23.05-SNAPSHOT
+          # - i386_pentium4-23.05-SNAPSHOT
+          # - mips_24kc-23.05-SNAPSHOT
+          # - mips64_octeonplus-23.05-SNAPSHOT
+          # - bmips-bcm6358-23.05-SNAPSHOT
+          # - bmips-bcm6328-23.05-SNAPSHOT
+          # - mipsel_24kc_24kf-23.05-SNAPSHOT
+          # - mips_4kec-23.05-SNAPSHOT
+          # - ramips-rt3883-23.05-SNAPSHOT
+          # - mipsel_74kc-23.05-SNAPSHOT
+          # - mediatek-mt7629-23.05-SNAPSHOT
+          # - bmips-bcm6318-23.05-SNAPSHOT
           
-          # new apk
-          - arm_cortex-a7_neon-vfpv4
-          - arm_cortex-a7_vfpv4
-          - arm_cortex-a9
-          - mediatek-filogic
-          - mipsel_mips32
-          - ath79-mikrotik
-          - mipsel_24kc
-          - x86-generic
-          - arm_cortex-a7
-          - mvebu-cortexa53
-          - x86-64
-          - ath79-generic
-          - mediatek-mt7622
-          - aarch64_cortex-a53
+          # # new apk
+          # - arm_cortex-a7_neon-vfpv4
+          # - arm_cortex-a7_vfpv4
+          # - arm_cortex-a9
+          # - mediatek-filogic
+          # - mipsel_mips32
+          # - ath79-mikrotik
+          # - mipsel_24kc
+          # - x86-generic
+          # - arm_cortex-a7
+          # - mvebu-cortexa53
+          # - x86-64
+          # - ath79-generic
+          # - mediatek-mt7622
+          # - aarch64_cortex-a53
           - aarch64_generic
           # possible working archs for some skynet devices 
-          - aarch64_generic-23.05-SNAPSHOT
-          - aarch64_cortex-a53-23.05-SNAPSHOT
-          - aarch64_cortex-a72-23.05-SNAPSHOT
-          # end
-          - arm_cortex-a15_neon-vfpv4
-          - x86_64
-          - arm_cortex-a5_vfpv4
-          - mipsel_74kc
-          - mips_mips32
-          - i386_pentium4
-          - mips_24kc
-          - mipsel_24kc_24kf
-          - mips_4kec
-          - mipsel_74kc
+          # - aarch64_generic-23.05-SNAPSHOT
+          # - aarch64_cortex-a53-23.05-SNAPSHOT
+          # - aarch64_cortex-a72-23.05-SNAPSHOT
+          # # end
+          # - arm_cortex-a15_neon-vfpv4
+          # - x86_64
+          # - arm_cortex-a5_vfpv4
+          # - mipsel_74kc
+          # - mips_mips32
+          # - i386_pentium4
+          # - mips_24kc
+          # - mipsel_24kc_24kf
+          # - mips_4kec
+          # - mipsel_74kc
           # - bcm47xx-legacy-23.05-SNAPSHOT
           # - bcm47xx-generic-23.05-SNAPSHOT
           # - sunxi-cortexa53-23.05-SNAPSHOT
@@ -228,7 +228,7 @@ jobs:
             bin/packages/**/packages/luasec*.ipk
             bin/packages/**/packages/luasocket*.ipk
             bin/packages/**/packages/luci-lua-runtime*.ipk
-          tag: ${{ matrix.arch }}
+          tag: testing-${{ matrix.arch }}
       # - name: Store arch_device_map
       #   uses: softprops/action-gh-release@v2
       #   with:
