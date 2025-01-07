@@ -82,7 +82,7 @@ jobs:
           # - aarch64_cortex-a53
           - aarch64_generic
           # possible working archs for some skynet devices 
-          # - aarch64_generic-23.05-SNAPSHOT
+          - aarch64_generic-23.05-SNAPSHOT
           # - aarch64_cortex-a53-23.05-SNAPSHOT
           # - aarch64_cortex-a72-23.05-SNAPSHOT
           # # end
@@ -225,11 +225,9 @@ jobs:
             bin/packages/**/ispapp/*.apk
             bin/packages/**/packages/luasec*.apk
             bin/packages/**/packages/luasocket*.apk
-            bin/packages/**/packages/luci-lua-runtime*.apk
             bin/packages/**/ispapp/*.ipk
             bin/packages/**/packages/luasec*.ipk
             bin/packages/**/packages/luasocket*.ipk
-            bin/packages/**/packages/luci-lua-runtime*.ipk
           tag: testing-${{ matrix.arch }}
       # - name: Store arch_device_map
       #   uses: softprops/action-gh-release@v2
