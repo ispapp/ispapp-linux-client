@@ -7,13 +7,14 @@ return view.extend({
 	load: function() {
 		return Promise.all([
 			L.resolveDefault(fs.stat('/sbin/logread'), null),
-			L.resolveDefault(fs.stat('/usr/sbin/logread'), null)
+			L.resolveDefault(fs.stat('/usr/sbin/logread'), null),
+			L.resolveDefault(fs.stat('/usr/sbin/log'), null)
 		]);
 	},
 	render: function(stat) {
-		var logger = stat[0] ? stat[0].path : stat[1] ? stat[1].path : null;
+		var logger = stat[0] ? stat[0].path : stat[1] ? stat[1].path : stat[2] ? stat[2].path : null;
 		poll.add(function() {
-			return L.resolveDefault(fs.exec_direct(logger, ['-e', 'ispapp'])).then(function(res) {
+			return L.resolveDefault(fs.exec_direct(logger, ['|', 'grep', 'ispapp'])).then(function(res) {
 				var log = document.getElementById("logfile");
 				if (res) {
 					log.value = res.trim();

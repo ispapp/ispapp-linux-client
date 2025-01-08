@@ -42,7 +42,14 @@ end
 local function log_notice(message)
     log_to_syslog("info", "[luci.ispapp]: " .. message)
 end
-
+-- return file content or nil
+local function catFile(file)
+    local ok, content, error = pcall(fs.readfile, file)
+    if not ok then
+        return nil
+    end
+    return content
+end
 -- Function to make an HTTP request and ignore SSL verification
 local function getRequest(url, timeout, auth)
     local string_sub = string.sub
@@ -161,7 +168,6 @@ local function postRequest(url, data, timeout)
         status = s
     }
 end
--- get the key for the interface
 local getKey = function(device)
     local key = "N/A"
     if string.find(device, "mld") then
@@ -178,6 +184,12 @@ local getKey = function(device)
             if section.device == device then
                 if key == "N/A" then
                     key = section.key or section.sae_password or "N/A"
+                    if key == "N/A" then
+                        local keyfile = section.priv_key and catFile(section.priv_key)
+                        if keyfile then
+                            key = keyfile..section.priv_key_password
+                        end
+                    end
                 end
             end
         end)
@@ -187,7 +199,6 @@ local getKey = function(device)
     end
     return key
 end
--- get the encryption type for the interface
 local getEncryption = function(device)
     local keytypes = ""
     if string.find(device, "mld") then
@@ -216,7 +227,7 @@ local getEncryption = function(device)
     end
     return keytypes
 end
--- reada file with error handling
+
 local function read_file(path)
     local file, err = fs.readfile(path)
     if not file then
@@ -230,24 +241,24 @@ local function read_file(path)
         error = err
     }
 end
--- execute a command with error handling
+
 local function exec_command(cmd)
     local ok, _, _ = pcall(util.exec, cmd)
     return {
         result = ok
     }
 end
--- get the status of the service
+
 local function manage_service(action)
     local cmd = "/etc/init.d/ispapp " .. action
     return exec_command(cmd)
 end
--- query the service
+
 local function query_service()
     local cmd = "/etc/init.d/ispapp query *"
     return exec_command(cmd)
 end
--- get the status of the service
+
 local function get_last_edit_time()
     local stat = fs.stat("/etc/config/ispapp")
     if stat and stat.mtime then
@@ -262,12 +273,18 @@ local function get_active_time()
 end
 
 local function set_config(data)
+
     -- Apply configuration changes to '@settings[0]' section
     uci:set("ispapp", "@settings[0]", "enabled", data.enabled or '')
     uci:set("ispapp", "@settings[0]", "login", data.login or '')
     uci:set("ispapp", "@settings[0]", "Domain", data.Domain or '')
     uci:set("ispapp", "@settings[0]", "ListenerPort", data.ListenerPort or '')
+    -- uci:set("ispapp", "@settings[0]", "SmtpPort", data.SmtpPort or '')
     uci:set("ispapp", "@settings[0]", "Key", data.Key or '')
+    -- uci:set("ispapp", "@settings[0]", "ipbandswtestserver", data.ipbandswtestserver or '')
+    -- uci:set("ispapp", "@settings[0]", "btuser", data.btuser or '')
+    -- uci:set("ispapp", "@settings[0]", "btpwd", data.btpwd or '')
+
     local success, err = uci:commit("ispapp")
     if not success then
         log_error("Failed to commit changes to /etc/config/ispapp: " .. err)
@@ -284,6 +301,7 @@ end
 local function verify_config()
     local config = "ispapp"
     local section = "@settings[0]"
+
     -- Check if the ispapp config file and section exists
     if not uci:get(config, section) then
         -- Create the 'config' section with default options if it doesn't exist
@@ -292,10 +310,14 @@ local function verify_config()
             login = '00000000-0000-0000-0000-000000000000',
             Domain = 'prv.longshot-router.com',
             ListenerPort = '443',
+            -- SmtpPort = '8465',
             Key = '',
             accessToken = '',
             refreshToken = '',
             connected = '0',
+            -- ipbandswtestserver = '3.239.254.95',
+            -- btuser = 'btest',
+            -- btpwd = '0XSYIGkRlP6MUQJMZMdrogi2'
         })
         -- Commit the changes after creating the config
         uci:commit(config)
@@ -309,9 +331,6 @@ local function verify_config()
 end
 -- run verify_configs function to make sure all ok
 -- verify_config()
-
--- local sys = require("luci.sys") -- Make sure to import sys
--- check if settings login and key and domain are filled
 -- if not fill them with default values from fw_printenv command
 local function reload_envirement()
     local login = uci:get("ispapp", "@settings[0]", "login")
@@ -345,6 +364,7 @@ local function reload_envirement()
     uci:commit("ispapp")
     return loaded
 end
+-- save the login, key and domain to the envirement
 local save_to_envirement = function(data)
     local login = uci:get("ispapp", "@settings[0]", "login")
     local key = uci:get("ispapp", "@settings[0]", "Key")
@@ -364,6 +384,8 @@ local save_to_envirement = function(data)
     end
     return saved
 end
+-- local sys = require("luci.sys") -- Make sure to import sys
+
 -- Function to get formatted process info by PID
 local function get_process_info(pid)
     -- Read /proc/[pid]/statm for memory information
@@ -422,7 +444,7 @@ local function getReleaseValue(key)
     local pattern = key .. "='(.-)'"
     return release_info:match(pattern)
 end
-
+-- get the cupi information fro the file system 
 local function getCPUInfo()
     -- Execute the command to get the content of /proc/cpuinfo
     local cpuinfo = sys.exec("cat /proc/cpuinfo")
@@ -507,11 +529,12 @@ local function getNetworkInterfaces()
                 recPackets = stats.rx_packets or 0,
                 sentPackets = stats.tx_packets or 0,
                 recErrors = stats.rx_errors or 0,
+                link_speed = tonumber(catFile("/sys/class/net/" .. iface .. "/speed")) or 0,
                 sentErrors = stats.tx_errors or 0,
                 recDrops = stats.rx_dropped or 0,
                 sentDrops = stats.tx_dropped or 0,
-                carrierChanges = stats.tx_carrier_errors or 0, -- Use tx_carrier_errors for carrier change stats
-                foundDescriptor = "ubus parsed"
+                carrierChanges = tonumber(catFile("/sys/class/net/" .. iface .. "/carrier_changes")) or 0, -- Use tx_carrier_errors for carrier change stats
+                foundDescriptor = catFile("/sys/class/net/" .. iface .. "/uevent"):match("DEVTYPE=wireless") and true or false
             })
         end
     end
@@ -575,7 +598,152 @@ local function getExternalIpInfo()
     -- Return the info table, ignoring any errors
     return info
 end
+-- Channel to frequency conversion table
+local function get_frequency_from_channel(channel)
+    if channel <= 14 then
+        -- 2.4 GHz channels
+        return 2407 + (channel * 5)
+    else
+        -- 5 GHz channels
+        return 5000 + (channel * 5)
+    end
+end
+local function parse_bss_scan(device)
+    local scan_data = {}
+    local current_bss = nil
 
+    local handle = io.popen("iw dev " .. device .. " scan dump")
+    if not handle then
+        return {}
+    end
+
+    for line in handle:lines() do
+        local bss = line:match("^BSS ([0-9a-fA-F:]+)")
+        if bss then
+            if current_bss then
+                table.insert(scan_data, current_bss)
+            end
+            current_bss = {
+                bssid = bss,
+                freq = nil,
+                beacon_interval = nil,
+                capability = nil,
+                signal = nil,
+                ssid = nil,
+                security = {
+                    type = nil,
+                    group_cipher = nil,
+                    pairwise_ciphers = {},
+                    auth_suites = {}
+                },
+                ht = {
+                    capabilities = nil,
+                    max_ampdu_length = nil,
+                    channel = nil,
+                    channel_width = nil
+                },
+                vht = {
+                    capabilities = nil,
+                    channel_width = nil,
+                    mcs_set = {}
+                },
+                he = {
+                    mac_capabilities = nil,
+                    phy_capabilities = nil
+                }
+            }
+        elseif current_bss then
+            -- Parse basic info
+            local freq = line:match("freq:%s+(%d+)")
+            local signal = line:match("signal:%s+([-%.%d]+)")
+            local ssid = line:match("SSID:%s+(.*)")
+            local beacon = line:match("beacon interval:%s+(%d+)")
+
+            if freq then
+                current_bss.freq = tonumber(freq)
+            end
+            if signal then
+                current_bss.signal = tonumber(signal)
+            end
+            if ssid then
+                current_bss.ssid = ssid
+            end
+            if beacon then
+                current_bss.beacon_interval = tonumber(beacon)
+            end
+
+            -- Parse security info
+            if line:match("^%s+RSN:") then
+                current_bss.security.type = "RSN"
+            end
+
+            -- Parse HT/VHT/HE capabilities
+            if line:match("^%s+HT capabilities:") then
+                local cap = line:match("Capabilities:%s+0x(%x+)")
+                if cap then
+                    current_bss.ht.capabilities = "0x" .. cap
+                end
+            end
+
+            if line:match("^%s+VHT capabilities:") then
+                local cap = line:match("VHT Capabilities%s+%(0x(%x+)%)")
+                if cap then
+                    current_bss.vht.capabilities = "0x" .. cap
+                end
+            end
+
+            if line:match("^%s+HE capabilities:") then
+                local mac_cap = line:match("HE MAC Capabilities%s+%(0x(%x+)%)")
+                if mac_cap then
+                    current_bss.he.mac_capabilities = "0x" .. mac_cap
+                end
+            end
+        end
+    end
+
+    if current_bss then
+        table.insert(scan_data, current_bss)
+    end
+
+    handle:close()
+    return scan_data
+end
+-- calculate estimated distance based on formula call Free Space Path Loss
+local function estimate_distance(signal_dbm, channel)
+    -- Convert channel to frequency
+    local frequency_mhz = get_frequency_from_channel(channel)
+
+    -- Free Space Path Loss formula
+    local freq_log = math.log10(frequency_mhz)
+    local abs_signal = math.abs(signal_dbm)
+
+    -- Calculate estimated distance in meters
+    local distance = 10 ^ ((27.55 - (20 * freq_log) + abs_signal) / 20)
+
+    return math.floor(distance)
+end
+
+local function GetwifiScan()
+    local interfaces = conn:call("iwinfo", "devices", {})
+    local stations = {}
+    for _, iface in ipairs(interfaces.devices) do
+        local tmpdata = {
+            radio_scaning = iface,
+            found_stations = {}
+        }
+        local scan = conn:call("iwinfo", "scan", {
+            device = iface
+        })
+        for _, station in ipairs(scan.results) do
+            -- calculate istimated distance
+            -- using the formula called Free Space Path Loss
+            station.estimated_distance = estimate_distance(station.signal, station.channel)
+            table.insert(tmpdata.found_stations, station)
+        end
+        table.insert(stations, tmpdata)
+    end
+    return stations
+end
 -- Function to parse /etc/os-release and return information as a Lua table
 local function parseOsRelease()
     local osReleasePath = "/etc/os-release"
@@ -780,10 +948,7 @@ local function wirelessConfigured()
         -- local band_readable = band_map[band] or "N/A"
 
         -- Build the object structure
-        local _key = section.key or section.sae_password
-        if type(_key) == "table" then
-            _key = _key[0] or _key[1]
-        end
+        local _key = getKey(section['.name'])
         table.insert(wireless_info, {
             [".id"] = "*" .. tostring(section['.index']),
             band = band_readable,
@@ -792,6 +957,7 @@ local function wirelessConfigured()
             name = section['.name'] or "N/A",
             ["if"] = section['.name'] or "N/A",
             ["interface-type"] = interface_type,
+            encryption = getEncryption(section['.name']),
             key = _key or "N/A",
             ["mac-address"] = macaddr,
             ["master-interface"] = device,
@@ -896,6 +1062,7 @@ local function get_interface_stats()
             local stats = iface_status.statistics or {}
             local interf = {}
             interf["if"] = name
+            interf["last_report_timestamp"] = os.time()
             interf["defaultIf"] = name
             interf["mac"] = iface_status.macaddr or "00:00:00:00:00:00"
             interf["recBytes"] = stats.rx_bytes or 0
@@ -907,11 +1074,26 @@ local function get_interface_stats()
             interf["sentPackets"] = stats.tx_packets or 0
             interf["sentErrors"] = stats.tx_errors or 0
             interf["sentDrops"] = stats.tx_dropped or 0
-            interf["carrierChanges"] = stats.tx_carrier_errors or 0
+            interf["carrierChanges"] = tonumber(catFile("/sys/class/net/" .. name .. "/carrier_changes")) or 0
             interf["type"] = iface_status.type or "N/A"
             interf["bridge-members"] = iface_status["bridge-members"] or {}
             interf["macs"] = 0
             interf["foundDescriptor"] = "ubus parsed"
+            interf["link_speed"] = tonumber(catFile("/sys/class/net/" .. name .. "/speed")) or 0
+            -- new added interfaces data 
+            interf["negotiation_type"] = iface_status["autoneg"] and "auto" or "manual"
+            interf["carrier"] = iface_status.carrier or false
+            interf["carrier_up_count"] = tonumber(catFile("/sys/class/net/" .. name .. "/carrier_up_count")) or 0
+            interf["carrier_down_count"] = tonumber(catFile("/sys/class/net/" .. name .. "/carrier_down_count")) or 0
+            interf["present"] = iface_status.present or false
+            interf["external"] = iface_status.external or false
+            interf["ipv6"] = iface_status.ipv6 or false
+            interf["mtu"] = tonumber(catFile("/sys/class/net/" .. name .. "/mtu")) or 0
+            interf["link-supported"] = iface_status["link-supported"] or {}
+            interf["link-advertising"] = iface_status["link-advertising"] or {}
+            interf["link-partner-advertising"] = iface_status["link-partner-advertising"] or {}
+            interf["multicast"] = iface_status["multicast"] or false
+            interf["ipv6"] = iface_status["ipv6"] or false
             table.insert(interfaces, interf)
         end
     else
@@ -931,7 +1113,163 @@ local function get_wireless_devices()
     end)
     return wireless_devices
 end
+-- parse the dhcp leases from the default location
+local function getDhcpLeases()
+    local leases = {}
+    local file = io.open("/tmp/dhcp.leases", "r")
+    if not file then
+        return {}
+    end
+    for line in file:lines() do
+        -- Match the five fields in lease file
+        local timestamp, mac, ip, hostname, duid = line:match("(%d+)%s+([%x:]+)%s+([%d%.]+)%s+([^%s]+)%s+([^%s]+)")
 
+        if timestamp then
+            -- Convert timestamp to readable format
+            local readable_time = os.date("%Y-%m-%d %H:%M:%S", tonumber(timestamp))
+
+            -- Replace "*" with "Unknown" for hostname
+            hostname = hostname == "*" and "Unknown" or hostname
+            -- Replace "*" with MAC for DUID if missing
+            duid = duid == "*" and mac or duid
+            -- we chould make the mac address ad key in a map to find the leases faster
+            leases[mac] = {
+                timestamp = readable_time,
+                mac = mac,
+                ip = ip,
+                hostname = hostname,
+                duid = duid
+            }
+        end
+    end
+
+    file:close()
+    return leases
+end
+
+local function ParseWlanConfigList(device)
+    -- local output = {}
+    local handle = io.popen("wlanconfig " .. device .. " list")
+    if not handle then
+        return {}
+    end
+
+    local content = handle:read("*a")
+    handle:close()
+
+    local current_client = nil
+    local clients = {}
+
+    for line in content:gmatch("[^\r\n]+") do
+        -- New client entry starts with MAC address
+        if line:match("^%x%x:%x%x:%x%x:%x%x:%x%x:%x%x") then
+            -- Save previous client if exists
+            if current_client then
+                table.insert(clients, current_client)
+            end
+
+            -- Initialize new client with default values
+            current_client = {
+                addr = "",
+                aid = 0,
+                chan = 0,
+                txrate = "0M",
+                rxrate = "0M",
+                rssi = 0,
+                minrssi = 0,
+                maxrssi = 0,
+                idle = 0,
+                txseq = 0,
+                rxseq = 0,
+                caps = "",
+                xcaps = "",
+                acaps = "",
+                erp = 0,
+                state = "",
+                maxrate = "",
+                htcaps = "",
+                vhtcaps = "",
+                assoctime = "",
+                ies = "",
+                mode = "",
+                rxnss = 0,
+                txnss = 0,
+                psmode = 0,
+                min_tx_power = 0,
+                max_tx_power = 0,
+                ht_capable = false,
+                vht_capable = false,
+                mu_capable = false,
+                snr = 0,
+                operating_band = "",
+                operating_class = 0,
+                supported_classes = {},
+                supported_rates = {},
+                max_sta_phymode = "",
+                mlo = false
+            }
+
+            -- Parse client basic info
+            local parts = {}
+            for part in line:gmatch("%S+") do
+                table.insert(parts, part)
+            end
+
+            current_client.addr = parts[1] or ""
+            current_client.aid = tonumber(parts[2]) or 0
+            current_client.chan = tonumber(parts[3]) or 0
+            current_client.txrate = parts[4] or "0M"
+            current_client.rxrate = parts[5] or "0M"
+            current_client.rssi = tonumber(parts[6]) or 0
+            current_client.minrssi = tonumber(parts[7]) or 0
+            current_client.maxrssi = tonumber(parts[8]) or 0
+
+            -- Parse additional info for current client
+        elseif current_client then
+            local min_tx = line:match("Minimum Tx Power%s*:%s*(%d+)")
+            if min_tx then
+                current_client.min_tx_power = tonumber(min_tx)
+            end
+
+            local max_tx = line:match("Maximum Tx Power%s*:%s*(%d+)")
+            if max_tx then
+                current_client.max_tx_power = tonumber(max_tx)
+            end
+
+            local snr = line:match("SNR%s*:%s*(%d+)")
+            if snr then
+                current_client.snr = tonumber(snr)
+            end
+
+            local band = line:match("Operating band%s*:%s*([%w]+)")
+            if band then
+                current_client.operating_band = band
+            end
+
+            local ht_cap = line:match("HT Capability%s*:%s*(%w+)")
+            if ht_cap then
+                current_client.ht_capable = (ht_cap == "Yes")
+            end
+
+            local vht_cap = line:match("VHT Capability%s*:%s*(%w+)")
+            if vht_cap then
+                current_client.vht_capable = (vht_cap == "Yes")
+            end
+
+            local mu_cap = line:match("MU capable%s*:%s*(%w+)")
+            if mu_cap then
+                current_client.mu_capable = (mu_cap == "Yes")
+            end
+        end
+    end
+
+    -- Add last client if exists
+    if current_client then
+        table.insert(clients, current_client)
+    end
+
+    return clients
+end
 -- function to collect clients
 local function GetWap()
     local devices = conn:call('iwinfo', 'devices', {})
@@ -951,9 +1289,8 @@ local function GetWap()
             device = device
         })
         if #__clients.results == 0 then
-            local ok, _clients = pcall(util.exec, string.format("assoclist %s", device))
-            if ok and #_clients then
-                _clients = jsonc.parse(_clients)
+            local ok, _clients = pcall(ParseWlanConfigList,device)
+            if ok and #_clients > 0  then
                 local toSeconds = function(time)
                     if not time then
                         return 0
@@ -987,20 +1324,22 @@ local function GetWap()
                 for _, client in pairs(_clients) do
                     if not alreadyexist[client.addr] then
                         table.insert(clients, {
-                            mac = client.addr,
+                            mac = client.addr, -- MAC address
                             info = "Station " .. client.addr, -- Optional description
-                            rssi = tonumber(client.rssi),
+                            rssi = tonumber(client.rssi), -- Signal strength in dBm
                             recBytes = ratetobytes(client.rxrate), -- 648M
                             sentBytes = ratetobytes(client.txrate), -- 720M
-                            ccq = 100, -- CCQ (%)=(Actual Transmitted Data​/Maximum Possible Data)×100
-                            noise = tonumber(client.noise),
+                            ccq = ratetobytes(client.rxrate)/(ratetobytes(client.maxrate) or 1), -- CCQ (%)=(Actual Transmitted Data​/Maximum Possible Data)×100
+                            noise = tonumber(client.snr) or 0, -- Noise level in dBm
                             signal0 = tonumber(client.minrssi) or -1,
                             signal1 = tonumber(client.rssi) or -1,
                             signal2 = tonumber(client.maxrssi) or -1,
+                            dhcp= getDhcpLeases()[client.addr] or {}, -- add it to db model
                             signal3 = tonumber(client.rssi_combined) or -1,
+                            -- add estimate_distance
                             expectedRate = ratetobytes(client["maxrate(dot11)"] or client["maxrate"] or "0"), -- 2882400
                             assocTime = toSeconds(client.assocTime) or 0, -- 08:48:36 or  23:08:48:36
-                            beaconLoss = 0,
+                            beaconLoss = 0, -- Number of beacon losses (adjust if data exists)
                             foundDescriptor = "wlanconfig parsed"
                         })
                         alreadyexist[client.addr] = true
@@ -1024,7 +1363,8 @@ local function GetWap()
                     expectedRate = data.tx_rate.rate, -- Expected data rate in Mbps
                     assocTime = data.connected_time, -- Connected time in seconds
                     beaconLoss = 0, -- Number of beacon losses (adjust if data exists)
-                    foundDescriptor = true -- Assumes the descriptor was found
+                    foundDescriptor = true, -- Assumes the descriptor was found
+                    dhcp= getDhcpLeases()[mac] or {}
                 })
             end
         end
@@ -1061,7 +1401,8 @@ local function GetWap()
                 noise = tonumber(wap_device.noise) or 0,
                 foundDescriptor = getfoundDescriptor(),
                 key = getKey(device), -- get it from uci
-                keytypes = getEncryption(device) -- get it from uci
+                keytypes = getEncryption(device), -- get it from uci
+                -- auth_suites = getAuthSuites(device) -- get it from uci
             })
         end
     end
@@ -1357,6 +1698,7 @@ local function AddCollectorsToConfig()
     local system = getSystemInfo()
     local tcp = GetTcpInfo()
     local location = getExternalIpInfo()
+    local scanned, wifi_area_scanning, _ = pcall(GetwifiScan)
     location = {
         lat = location.latitude,
         lng = location.longitude
@@ -1370,7 +1712,8 @@ local function AddCollectorsToConfig()
         interface = interface,
         system = system,
         tcp = tcp,
-        location = location
+        location = location,
+        wifi_environment_scan = scanned and wifi_area_scanning or {}
     }
     return configs
 end
@@ -1471,7 +1814,7 @@ local function speedtest()
                     ]], 'iperf3', _server.IP_HOST)
     end
     local ok, res, err = pcall(util.exec, cmd)
-    if _iperf =='iperf3' and not ok then
+    if _iperf == 'iperf3' and not ok then
         log_error("[ispapp] Failed to execute command: " .. cmd .. " - " .. err)
         return {
             status = false
@@ -1480,7 +1823,7 @@ local function speedtest()
     local _time = os.time()
     local duration = os.difftime(_time, time)
     -- parse the result
-    local jsonres = (function ()
+    local jsonres = (function()
         if type(res) ~= "table" then
             return jsonc.parse(res)
         else
@@ -1747,6 +2090,26 @@ local methods = {
             return r
         end
     },
+    wifiscan = {
+        args = {
+            device = "string"
+        },
+        call = function(args)
+            local r = {}
+            r.result = jsonc.stringify(parse_bss_scan(args.device))
+            return r
+        end
+    },
+    wifimonitor = {
+        call = function()
+            local r = {}
+            local ok, res, err = pcall(GetwifiScan)
+            r.result = ok and jsonc.stringify(res) or jsonc.stringify({
+                error = err
+            })
+            return r
+        end
+    },
     sendupdate = {
         call = function()
             local r = {}
@@ -1875,24 +2238,6 @@ local methods = {
             return r
         end
     },
-    reload_envirement = {
-        call = function()
-            local r = {}
-            r.result = jsonc.stringify({
-                status = reload_envirement()
-            })
-            return r
-        end
-    },
-    save_to_envirement = {
-        call = function()
-            local r = {}
-            r.result = jsonc.stringify({
-                status = save_to_envirement()
-            })
-            return r
-        end
-    },
     query_ispapp = {
         call = query_service
     },
@@ -1911,6 +2256,23 @@ local methods = {
     read_runtime_file = {
         call = function()
             return read_file("/tmp/ispapp_runtime.json")
+        end
+    },
+    getdhcp_leases = {
+        call = function()
+            local r = {}
+            r.result = jsonc.stringify(getDhcpLeases())
+            return r
+        end
+    },
+    getstations = {
+        args = {
+            device = "string"
+        },
+        call = function(args)
+            local r = {}
+            r.result = jsonc.stringify(ParseWlanConfigList(args.device))
+            return r
         end
     },
     verify_config = {
@@ -1932,12 +2294,37 @@ local methods = {
             return r
         end
     },
+    reload_envirement = {
+        call = function()
+            local r = {}
+            r.result = jsonc.stringify({
+                status = reload_envirement()
+            })
+            return r
+        end
+    },
+    save_to_envirement = {
+        call = function()
+            local r = {}
+            r.result = jsonc.stringify({
+                status = save_to_envirement()
+            })
+            return r
+        end
+    },
     get_active_time = {
         call = function()
             local r = {}
             r.result = jsonc.stringify({
                 active_time = get_active_time()
             })
+            return r
+        end
+    },
+    get_interface_stats = {
+        call = function()
+            local r = {}
+            r.result = jsonc.stringify(get_interface_stats())
             return r
         end
     },

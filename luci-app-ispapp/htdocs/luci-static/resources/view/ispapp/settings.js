@@ -11,6 +11,10 @@ var callCheckConnection = rpc.declare({
     object: 'ispapp',
     method: 'checkconnection'
 });
+var signup = rpc.declare({
+    object: 'ispapp',
+    method: 'signup'
+});
 
 return view.extend({
     render: async function() {
@@ -150,7 +154,7 @@ return view.extend({
             uci.set('ispapp', '@settings[0]', 'Key', Key);
             uci.set('ispapp', '@settings[0]', 'updateInterval', updateInterval);
             uci.apply().then(function() {
-                callCheckConnection().then(function(response) {
+                signup().then(function(response) {
                     if (response && response.code === 200) {
                         ui.addNotification(null, E('p', _('ISPApp is connected.')), 'info');
                     } else {
