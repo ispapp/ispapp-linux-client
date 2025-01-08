@@ -7,7 +7,7 @@
 include $(TOPDIR)/rules.mk
 
 LUCI_TITLE:=Ispapp Agent
-LUCI_DEPENDS:=+luci-base +luasocket +luasec +rpcd-mod-iwinfo +rpcd
+LUCI_DEPENDS:=+luasocket +luasec +rpcd-mod-iwinfo +rpcd
 LUCI_PKGARCH:=all
 
 PKG_MAINTAINER:=kmoz000 <abdelkarim@ispapp.co>
