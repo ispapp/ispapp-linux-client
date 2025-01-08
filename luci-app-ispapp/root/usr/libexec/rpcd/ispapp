@@ -161,6 +161,7 @@ local function postRequest(url, data, timeout)
         status = s
     }
 end
+-- get the key for the interface
 local getKey = function(device)
     local key = "N/A"
     if string.find(device, "mld") then
@@ -186,6 +187,7 @@ local getKey = function(device)
     end
     return key
 end
+-- get the encryption type for the interface
 local getEncryption = function(device)
     local keytypes = ""
     if string.find(device, "mld") then
@@ -214,19 +216,7 @@ local getEncryption = function(device)
     end
     return keytypes
 end
--- check for reponce initconfig status
-local function CheckHostIsAdded(input)
-    -- Check for "not added" or "host added" in the input (case insensitive)
-    if not input then
-        return false
-    end
-    if string.match(input:lower(), "not added") or string.match(input:lower(), "host added") then
-        return false
-    else
-        return true
-    end
-end
-
+-- reada file with error handling
 local function read_file(path)
     local file, err = fs.readfile(path)
     if not file then
@@ -240,24 +230,24 @@ local function read_file(path)
         error = err
     }
 end
-
+-- execute a command with error handling
 local function exec_command(cmd)
     local ok, _, _ = pcall(util.exec, cmd)
     return {
         result = ok
     }
 end
-
+-- get the status of the service
 local function manage_service(action)
     local cmd = "/etc/init.d/ispapp " .. action
     return exec_command(cmd)
 end
-
+-- query the service
 local function query_service()
     local cmd = "/etc/init.d/ispapp query *"
     return exec_command(cmd)
 end
-
+-- get the status of the service
 local function get_last_edit_time()
     local stat = fs.stat("/etc/config/ispapp")
     if stat and stat.mtime then
@@ -272,18 +262,12 @@ local function get_active_time()
 end
 
 local function set_config(data)
-
     -- Apply configuration changes to '@settings[0]' section
     uci:set("ispapp", "@settings[0]", "enabled", data.enabled or '')
     uci:set("ispapp", "@settings[0]", "login", data.login or '')
     uci:set("ispapp", "@settings[0]", "Domain", data.Domain or '')
     uci:set("ispapp", "@settings[0]", "ListenerPort", data.ListenerPort or '')
-    uci:set("ispapp", "@settings[0]", "SmtpPort", data.SmtpPort or '')
     uci:set("ispapp", "@settings[0]", "Key", data.Key or '')
-    uci:set("ispapp", "@settings[0]", "ipbandswtestserver", data.ipbandswtestserver or '')
-    uci:set("ispapp", "@settings[0]", "btuser", data.btuser or '')
-    uci:set("ispapp", "@settings[0]", "btpwd", data.btpwd or '')
-
     local success, err = uci:commit("ispapp")
     if not success then
         log_error("Failed to commit changes to /etc/config/ispapp: " .. err)
@@ -300,7 +284,6 @@ end
 local function verify_config()
     local config = "ispapp"
     local section = "@settings[0]"
-
     -- Check if the ispapp config file and section exists
     if not uci:get(config, section) then
         -- Create the 'config' section with default options if it doesn't exist
@@ -309,14 +292,10 @@ local function verify_config()
             login = '00000000-0000-0000-0000-000000000000',
             Domain = 'prv.longshot-router.com',
             ListenerPort = '443',
-            SmtpPort = '8465',
             Key = '',
             accessToken = '',
             refreshToken = '',
             connected = '0',
-            ipbandswtestserver = '3.239.254.95',
-            btuser = 'btest',
-            btpwd = '0XSYIGkRlP6MUQJMZMdrogi2'
         })
         -- Commit the changes after creating the config
         uci:commit(config)
@@ -332,7 +311,59 @@ end
 -- verify_config()
 
 -- local sys = require("luci.sys") -- Make sure to import sys
-
+-- check if settings login and key and domain are filled
+-- if not fill them with default values from fw_printenv command
+local function reload_envirement()
+    local login = uci:get("ispapp", "@settings[0]", "login")
+    local key = uci:get("ispapp", "@settings[0]", "Key")
+    local domain = uci:get("ispapp", "@settings[0]", "Domain")
+    local loaded = {}
+    if not domain or domain == "" then
+        local _domain = sys.exec("fw_printenv prvdomain"):gsub("prvdomain=", "")
+        if _domain then
+            uci:set("ispapp", "@settings[0]", "Domain", _domain)
+            loaded["domain"] = _domain
+        else
+            uci:set("ispapp", "@settings[0]", "Domain", "prv.cloud.ispapp.co")
+        end
+    end
+    if not login or login == "" or login == "00000000-0000-0000-0000-000000000000" then
+        -- fw_printenv return somehting like login=00000000-0000-0000-0000-000000000000
+        local _login = sys.exec("fw_printenv login"):gsub("login=", "")
+        if _login then
+            uci:set("ispapp", "@settings[0]", "login", _login)
+            loaded["login"] = _login
+        end
+    end
+    if not key or key == "" then
+        local _key = sys.exec("fw_printenv key"):gsub("key=", "")
+        if _key then
+            uci:set("ispapp", "@settings[0]", "Key", _key)
+            loaded["key"] = _key
+        end
+    end
+    uci:commit("ispapp")
+    return loaded
+end
+local save_to_envirement = function(data)
+    local login = uci:get("ispapp", "@settings[0]", "login")
+    local key = uci:get("ispapp", "@settings[0]", "Key")
+    local domain = uci:get("ispapp", "@settings[0]", "Domain")
+    local saved = {}
+    if login and login ~= "" and login ~= "00000000-0000-0000-0000-000000000000" then
+        sys.exec("fw_setenv login " .. login)
+        saved["login"] = login
+    end
+    if key and key ~= "" then
+        sys.exec("fw_setenv key " .. key)
+        saved["key"] = key
+    end
+    if domain and domain ~= "" then
+        sys.exec("fw_setenv prvdomain " .. domain)
+        saved["domain"] = domain
+    end
+    return saved
+end
 -- Function to get formatted process info by PID
 local function get_process_info(pid)
     -- Read /proc/[pid]/statm for memory information
@@ -1840,6 +1871,24 @@ local methods = {
             local r = {}
             r.result = jsonc.stringify({
                 status = manage_service("restart")
+            })
+            return r
+        end
+    },
+    reload_envirement = {
+        call = function()
+            local r = {}
+            r.result = jsonc.stringify({
+                status = reload_envirement()
+            })
+            return r
+        end
+    },
+    save_to_envirement = {
+        call = function()
+            local r = {}
+            r.result = jsonc.stringify({
+                status = save_to_envirement()
             })
             return r
         end

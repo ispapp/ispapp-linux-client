@@ -35,18 +35,6 @@ define Package/$(PKG_NAME)/postinst
 	if [ -f /etc/uci-defaults/50_luci-ispapp ]; then
 		( . /etc/uci-defaults/50_luci-ispapp ) && rm -f /etc/uci-defaults/50_luci-ispapp
 	fi
-	if [ -x /etc/init.d/ispapp ]; then
-		chmod +x /etc/init.d/ispapp
-		/etc/init.d/ispapp enable
-		/etc/init.d/ispapp start
-	fi
-	if [ -f /bin/ispappd ]; then
-		chmod +x /bin/ispappd
-	fi
-	if [ -f /usr/libexec/rpcd/ispapp ]; then
-		chmod +x /usr/libexec/rpcd/ispapp
-		/etc/init.d/rpcd reload
-	fi
 	exit 0
 }
 endef

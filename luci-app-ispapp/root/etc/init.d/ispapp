@@ -9,7 +9,7 @@ LUA_SCRIPT="/bin/ispappd"
 
 start() {
     echo "Starting ispappd..."
-
+    
     # Check if the PID file exists
     if [ -f "$PID_FILE" ]; then
         # Read the PID from the file
@@ -32,6 +32,7 @@ start() {
 
     # Start the Lua script in the background and save the new PID
     /usr/bin/env lua "$LUA_SCRIPT" start &
+    ubus call ispapp reload_envirement
     echo $! > "$PID_FILE"
 
     echo "ispappd started with PID $(cat "$PID_FILE")"
@@ -85,21 +86,59 @@ status() {
 }
 
 enable() {
+    # Check if we're already in an enable operation
+    if [ -f "/tmp/.ispapp_enabling" ]; then
+        echo "Enable operation already in progress..."
+        return 0
+    fi
+
+    # Create temporary lock file
+    touch "/tmp/.ispapp_enabling"
+
     echo "Enabling ispappd service autostart..."
-    /etc/init.d/ispapp enable
+    
+    # Create proper symlinks instead of calling self
+    ln -sf "/etc/init.d/ispapp" "/etc/rc.d/S99ispapp"
+    
+    # Update service status
+    uci set ispapp.@settings[0].enabled=1
+    uci commit ispapp
+    
+    # Remove lock file
+    rm -f "/tmp/.ispapp_enabling"
+    
     echo "ispappd service autostart enabled."
 }
 
 disable() {
+    # Check if we're already in a disable operation
+    if [ -f "/tmp/.ispapp_disabling" ]; then
+        echo "Disable operation already in progress..."
+        return 0
+    fi
+
+    # Create temporary lock file
+    touch "/tmp/.ispapp_disabling"
+
     echo "Disabling ispappd service autostart..."
-    /etc/init.d/ispapp disable
+    
+    # Remove symlinks directly
+    rm -f "/etc/rc.d/S99ispapp"
+    
+    # Update service status
+    uci set ispapp.@settings[0].enabled=0
+    uci commit ispapp
+    
+    # Remove lock file
+    rm -f "/tmp/.ispapp_disabling"
+    
     echo "ispappd service autostart disabled."
 }
 
 enabled() {
-    if /etc/init.d/ispapp enabled; then
-        echo "ispappd service is enabled to start on boot."
+    if [ "$(uci get ispapp.@settings[0].enabled)" -eq 1 ]; then
+        echo "ispappd service is enabled."
     else
-        echo "ispappd service is not enabled to start on boot."
+        echo "ispappd service is disabled."
     fi
 }

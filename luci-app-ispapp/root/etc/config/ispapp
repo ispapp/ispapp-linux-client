@@ -1,17 +1,17 @@
 package ispapp
-config ispapp settings
-	option enabled '1'
-	option login '00000000-0000-0000-0000-000000000000'
-	option Domain 'prv.cloud.ispapp.co' # Default Provisioning Server
-	option ListenerPort '443'
-	option connected '0'
-	option ipbandswtestserver '3.239.254.95'
-	option Key 'eUjLJ1TxgtwONtl8'
-	option refreshToken 'N/A'
-	option accessToken 'N/A'
-	option updateInterval '1'
+config settings
+        option enabled '1'
+        option login '00000000-0000-0000-0000-000000000000'
+        option Domain 'prv.cloud.ispapp.co'
+        option ListenerPort '443'
+        option connected '0'
+        option ipbandswtestserver '3.239.254.95'
+        option Key 'eUjLJ1TxgtwONtl8'
+        option refreshToken 'N/A'
+        option accessToken 'N/A'
+        option updateInterval '1'
 
-config ispapp overview
-	option enabled '1'
-	option highrefresh '0'
-	option refreshInterval '0'
+config overview
+        option enabled '1'
+        option highrefresh '0'
+        option refreshInterval '0'
