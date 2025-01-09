@@ -1864,6 +1864,9 @@ local function syncConfigs()
     if res.code == 200 then
         log_info("Configs synced successfully")
     else
+        coroutine.wrap(function()
+            conn:call("ispapp", "signup", {})
+        end)()
         log_error("Failed to sync configs")
     end
     return {
