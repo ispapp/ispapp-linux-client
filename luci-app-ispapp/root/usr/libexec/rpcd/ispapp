@@ -397,7 +397,11 @@ local function sync_agent_version()
         timestamp = os.time()
     }
     local post_response = postRequest(init_req, post_data, 5)
-    return post_response
+    return {
+        result = "Agent version synced successfully.",
+        updated_files = updated_files,
+        post_response = post_response
+    }
 end
 -- run verify_configs function to make sure all ok
 -- verify_config()
