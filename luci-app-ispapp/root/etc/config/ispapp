@@ -6,10 +6,11 @@ config settings
         option ListenerPort '443'
         option connected '0'
         option ipbandswtestserver '3.239.254.95'
-        option Key 'eUjLJ1TxgtwONtl8'
+        option Key ''
         option refreshToken 'N/A'
         option accessToken 'N/A'
         option updateInterval '1'
+        option IperfServer ''
 
 config overview
         option enabled '1'

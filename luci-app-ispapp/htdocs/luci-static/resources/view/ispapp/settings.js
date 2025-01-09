@@ -9,11 +9,13 @@
 
 var callCheckConnection = rpc.declare({
     object: 'ispapp',
-    method: 'checkconnection'
+    method: 'checkconnection',
+    params: {}
 });
 var signup = rpc.declare({
     object: 'ispapp',
-    method: 'signup'
+    method: 'signup',
+    params: {}
 });
 
 return view.extend({
@@ -142,7 +144,7 @@ return view.extend({
                 ops.value('N/A', 'N/A');
             }
         })
-        o = s.option(form.Button, '_apply', _('Test settings'));
+        o = s.option(form.Button, '_apply', _('Device Signup'));
         o.inputstyle = 'apply';
         o.onclick = function() {
             var Domain = uci.get('ispapp', '@settings[0]', 'Domain');
@@ -153,14 +155,17 @@ return view.extend({
             uci.set('ispapp', '@settings[0]', 'ListenerPort', ListenerPort);
             uci.set('ispapp', '@settings[0]', 'Key', Key);
             uci.set('ispapp', '@settings[0]', 'updateInterval', updateInterval);
-            uci.apply().then(function() {
-                signup().then(function(response) {
-                    if (response && response.code === 200) {
-                        ui.addNotification(null, E('p', _('ISPApp is connected.')), 'info');
-                    } else {
-                        ui.addNotification(null, E('p', _('ISPApp is not connected.')), 'error');
-                    }
-                });
+            uci.apply()
+            signup().then(function(response) {
+                console.log(response);
+                if (response && response.code === 200) {
+                    ui.addNotification(null, E('p', _('ISPApp is connected.')), 'info');
+                } else {
+                    ui.addNotification(null, E('p', _('ISPApp is not connected.')), 'error');
+                }
+            }).catch((err)=>{
+                console.error(err);
+                ui.addNotification(null, E('p', _('ISPApp is not connected.')), 'error');
             });
         };
 
