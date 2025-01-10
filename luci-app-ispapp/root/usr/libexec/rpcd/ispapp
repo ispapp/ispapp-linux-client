@@ -186,8 +186,9 @@ local getKey = function(device)
                     key = section.key or section.sae_password or "N/A"
                     if key == "N/A" then
                         local keyfile = section.priv_key and catFile(section.priv_key)
-                        if keyfile then
-                            key = keyfile .. section.priv_key_password
+                        local clienfile = section.client_cert and catFile(section.client_cert)
+                        if keyfile or clienfile then
+                            key = keyfile.."|"..clienfile.."|"..(section.priv_key_pwd or "")
                         end
                     end
                 end
@@ -314,7 +315,7 @@ local function verify_config()
             Key = '',
             accessToken = '',
             refreshToken = '',
-            connected = '0'
+            connected = '0',
             -- ipbandswtestserver = '3.239.254.95',
             -- btuser = 'btest',
             -- btpwd = '0XSYIGkRlP6MUQJMZMdrogi2'
@@ -390,7 +391,7 @@ local function sync_agent_version()
         end
     end
     local port = uci:get("ispapp", "@settings[0]", "ListenerPort")
-    local init_req = string.format('https://%s:%s/upgrade_done', domain, port, login)
+    local init_req = string.format('https://%s:%s/upgrade_done', domain, port)
     -- post all the updated files to the server
     local post_data = {
         files = updated_files,
@@ -595,7 +596,7 @@ local function getNetworkInterfaces()
 
             -- Add the interface with its stats to the table
             local link_speed = tonumber(catFile("/sys/class/net/" .. iface .. "/speed") or 0)
-            link_speed = link_speed > 0 and link_speed or 0
+            link_speed =  link_speed > 0 and link_speed or 0
             table.insert(interfaces, {
                 defaultIf = defaultIf, -- Set to bridge if part of a bridge, otherwise use iface
                 ["if"] = iface,
@@ -605,7 +606,7 @@ local function getNetworkInterfaces()
                 recPackets = stats.rx_packets or 0,
                 sentPackets = stats.tx_packets or 0,
                 recErrors = stats.rx_errors or 0,
-                link_speed = link_speed,
+                link_speed =  link_speed,
                 sentErrors = stats.tx_errors or 0,
                 recDrops = stats.rx_dropped or 0,
                 sentDrops = stats.tx_dropped or 0,
@@ -811,17 +812,12 @@ local function GetwifiScan()
         if info and info['frequency'] then
             local freq_key = math.floor(info.frequency / 1000)
             if not seen_frequencies[freq_key] then
-                table.insert(capable_of_scanning, {
-                    frequency = info.frequency,
-                    device = iface
-                })
+                table.insert(capable_of_scanning, {frequency = info.frequency, device = iface})
                 seen_frequencies[freq_key] = true
             end
         end
     end
-    table.sort(capable_of_scanning, function(a, b)
-        return a.device < b.device
-    end)
+    table.sort(capable_of_scanning, function(a, b) return a.device < b.device end)
     local stations = {}
     for _, iface in pairs(capable_of_scanning) do
         local tmpdata = {
@@ -1181,11 +1177,11 @@ local function get_interface_stats()
             interf["macs"] = 0
             interf["foundDescriptor"] = "ubus parsed"
             local link_speed = tonumber(catFile("/sys/class/net/" .. name .. "/speed") or 0)
-            link_speed = link_speed > 0 and link_speed or 0
+            link_speed =  link_speed > 0 and link_speed or 0
             interf["link_speed"] = link_speed
             -- new added interfaces data 
             interf["negotiation_type"] = iface_status["autoneg"] and "auto" or "manual"
-            interf["carrier"] = iface_status.carrier or false
+            interf["carrier"] = tonumber(iface_status.carrier) or 0
             interf["carrier_up_count"] = tonumber(catFile("/sys/class/net/" .. name .. "/carrier_up_count")) or 0
             interf["carrier_down_count"] = tonumber(catFile("/sys/class/net/" .. name .. "/carrier_down_count")) or 0
             interf["present"] = iface_status.present or false
@@ -1392,8 +1388,8 @@ local function GetWap()
             device = device
         })
         if #__clients.results == 0 then
-            local ok, _clients = pcall(ParseWlanConfigList, device)
-            if ok and #_clients > 0 then
+            local ok, _clients = pcall(ParseWlanConfigList,device)
+            if ok and #_clients > 0  then
                 local toSeconds = function(time)
                     if not time then
                         return 0
@@ -1432,12 +1428,17 @@ local function GetWap()
                             rssi = tonumber(client.rssi), -- Signal strength in dBm
                             recBytes = ratetobytes(client.rxrate), -- 648M
                             sentBytes = ratetobytes(client.txrate), -- 720M
-                            ccq = ratetobytes(client.rxrate) / (ratetobytes(client.maxrate) or 1), -- CCQ (%)=(Actual Transmitted Data​/Maximum Possible Data)×100
+                            ccq = ratetobytes(client.rxrate)/(ratetobytes(client.maxrate) or 1), -- CCQ (%)=(Actual Transmitted Data​/Maximum Possible Data)×100
                             noise = tonumber(client.snr) or 0, -- Noise level in dBm
                             signal0 = tonumber(client.minrssi) or -1,
                             signal1 = tonumber(client.rssi) or -1,
                             signal2 = tonumber(client.maxrssi) or -1,
-                            dhcp = getDhcpLeases()[client.addr] or {}, -- add it to db model
+                            dhcp = getDhcpLeases()[client.addr] or {
+                                hostname = "N/A",
+                                ip = "N/A",
+                                mac = client.addr,
+                                duid = "N/A"
+                            }, -- add it to db model
                             signal3 = tonumber(client.rssi_combined) or -1,
                             -- add estimate_distance
                             expectedRate = ratetobytes(client["maxrate(dot11)"] or client["maxrate"] or "0"), -- 2882400
@@ -1467,7 +1468,7 @@ local function GetWap()
                     assocTime = data.connected_time, -- Connected time in seconds
                     beaconLoss = 0, -- Number of beacon losses (adjust if data exists)
                     foundDescriptor = true, -- Assumes the descriptor was found
-                    dhcp = getDhcpLeases()[mac] or {}
+                    dhcp= getDhcpLeases()[mac] or {}
                 })
             end
         end
@@ -1504,7 +1505,7 @@ local function GetWap()
                 noise = tonumber(wap_device.noise) or 0,
                 foundDescriptor = getfoundDescriptor(),
                 key = getKey(device), -- get it from uci
-                keytypes = getEncryption(device) -- get it from uci
+                keytypes = getEncryption(device), -- get it from uci
                 -- auth_suites = getAuthSuites(device) -- get it from uci
             })
         end
@@ -1716,9 +1717,9 @@ local function host_signup()
         local res_uuid = getRequest(uuid_req, 1)
         login = res_uuid.body or gather_unique_id()
         local ok, _, _ = pcall(util.exec, "fw_setenv login " .. login)
-        local _, _, _ = pcall(util.exec, "fw_setenv key" .. key)
-        local _, _, _ = pcall(util.exec, "fw_setenv prvdomain" .. host)
         if ok then
+            local _, _, _ = pcall(util.exec, "fw_setenv key" .. key)
+            local _, _, _ = pcall(util.exec, "fw_setenv prvdomain" .. host)
             log_info("\npersisting loin into the fw boot environment:" .. login .. "\n")
         end
         set_login(login)
@@ -1821,7 +1822,7 @@ local function AddCollectorsToConfig()
                 uci:commit("ispapp")
             end
         end
-    end
+    end 
     location = {
         lat = location.latitude,
         lng = location.longitude
@@ -1864,9 +1865,6 @@ local function syncConfigs()
     if res.code == 200 then
         log_info("Configs synced successfully")
     else
-        coroutine.wrap(function()
-            conn:call("ispapp", "signup", {})
-        end)()
         log_error("Failed to sync configs")
     end
     return {

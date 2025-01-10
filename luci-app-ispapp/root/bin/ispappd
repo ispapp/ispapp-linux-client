@@ -12,13 +12,13 @@ local threads = {}
 local running = false
 local sleep_times = {
     update_interval = 1, -- Default sleep time for WISP monitor (10s minimum)
-    config_interval = 1, -- Default sleep time for connection manager (10s minimum)
+    config_interval = 5, -- Default sleep time for connection manager (10s minimum)
     heathcheck_interval = 10 -- Default sleep time for status reporter (10s minimum)
 }
 local pid_file = "/var/run/ispappd.pid"
 local log_file = "/var/log/ispapp" -- Log file path no used in this script
 local max_log_size = 0.1 * 1024 * 1024 -- 0.1 MB
-
+local maxinteger = 9223372036854775807/1024
 -- Function to log messages to the log file with rotation
 local function log_to_syslog(level, message) nixio.syslog(level, message) end
 -- priority Priority ["emerg", "alert", "crit", "err", "warning", "notice", "info", "debug"] 
@@ -32,11 +32,11 @@ local function load_config()
         UpdateInterval = tonumber(UpdateInterval)
         if UpdateInterval and UpdateInterval >= 1 then
             sleep_times.update_interval = UpdateInterval
-            sleep_times.config_interval = UpdateInterval + 1
-            sleep_times.heathcheck_interval = UpdateInterval
+            sleep_times.config_interval = UpdateInterval + 5
+            sleep_times.heathcheck_interval = UpdateInterval + 10
         else
             sleep_times.update_interval = 1
-            sleep_times.config_interval = 2
+            sleep_times.config_interval = 5
             sleep_times.heathcheck_interval = 10
         end
     else
@@ -52,6 +52,9 @@ local function Update_thread()
     local count = 0
     while running do
         count = count + 1
+        if count > maxinteger then
+            count = 0
+        end
         log("Sending updates ..." .. " count: " .. count)
         local update = conn:call("ispapp", "update", {})
         local sentupdate = conn:call("ispapp", "sendupdate", {})
@@ -82,6 +85,9 @@ local function Config_thread()
     local count = 0
     while running do
         count = count + 1
+        if count > maxinteger then
+            count = 0
+        end
         log("Sending configs..." .. " count: " .. count)
         local config = conn:call("ispapp", "config", {})
         if config and config.code == 200 then
@@ -99,6 +105,9 @@ local function HealthCheck_thread()
     local count = 0
     while running do
         count = count + 1
+        if count > maxinteger then
+            count = 0
+        end
         log("Reporting heath check..." .. " count: " .. count)
         local health = conn:call("ispapp", "checkconnection", {})
         if health and health.code == 200 then
@@ -129,9 +138,14 @@ local function start_daemon()
     threads[1] = coroutine.create(Update_thread)
     threads[2] = coroutine.create(Config_thread)
     threads[3] = coroutine.create(HealthCheck_thread)
-
+    
     -- Manage threads in a round-robin fashion
     while running do
+        if #threads ~= 3 then
+            threads[1] = coroutine.create(Update_thread)
+            threads[2] = coroutine.create(Config_thread)
+            threads[3] = coroutine.create(HealthCheck_thread)
+        end
         for _, thread in ipairs(threads) do
             if coroutine.status(thread) == "suspended" then
                 coroutine.resume(thread)
@@ -140,11 +154,15 @@ local function start_daemon()
         nixio.nanosleep(0, 100000000) -- Short sleep to avoid tight loop
     end
 end
-
+-- Function to remove the PID file
+local function remove_pid_file()
+    os.remove(pid_file)
+end
 -- Function to stop the daemon
 local function stop_daemon()
     running = false
     log("Stopping ispappd daemon...")
+    remove_pid_file()
 end
 
 -- Function to daemonize the process
@@ -153,14 +171,17 @@ local function daemonize()
     if pid > 0 then
         -- Parent process: exit to let the child run in the background
         os.exit(0)
-    else
-        -- Child process: become session leader and fork again
+    elseif pid == 0 then
+        -- Child process: become session leader
         nixio.setsid()
         pid = nixio.fork()
         if pid > 0 then
             -- Exit the first child to allow the second to run in the background
             os.exit(0)
         end
+    else
+        log("Failed to fork process")
+        os.exit(1)
     end
 
     -- In the final child process, write the PID to a file
@@ -168,8 +189,13 @@ local function daemonize()
     if pid_file_handle then
         pid_file_handle:write(nixio.getpid())
         pid_file_handle:close()
+    else
+        log("Failed to write PID file")
+        os.exit(1)
     end
 end
+
+
 -- cleanup child process with ps:
 local CleanUp = function()
     local status = conn:call("ispapp", "cleanup", {})
@@ -180,6 +206,7 @@ local CleanUp = function()
                 (status and jsonc.stringify(status) or "no error"))
     end
 end
+
 -- Function to restart the daemon
 local function restart_daemon()
     stop_daemon()
