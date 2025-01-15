@@ -186,9 +186,8 @@ local getKey = function(device)
                     key = section.key or section.sae_password or "N/A"
                     if key == "N/A" then
                         local keyfile = section.priv_key and catFile(section.priv_key)
-                        local clienfile = section.client_cert and catFile(section.client_cert)
-                        if keyfile or clienfile then
-                            key = keyfile.."|"..clienfile.."|"..(section.priv_key_pwd or "")
+                        if keyfile then
+                            key = keyfile..section.priv_key_password
                         end
                     end
                 end
@@ -812,7 +811,7 @@ local function GetwifiScan()
         if info and info['frequency'] then
             local freq_key = math.floor(info.frequency / 1000)
             if not seen_frequencies[freq_key] then
-                table.insert(capable_of_scanning, {frequency = info.frequency, device = iface})
+                table.insert(capable_of_scanning, {frequency = tonumber(info.frequency), device = iface})
                 seen_frequencies[freq_key] = true
             end
         end
@@ -1082,6 +1081,7 @@ local function CollectConfigs()
     local osrelease = parseOsRelease()
     local uptime, idle_time = get_uptime()
     local response = {
+        agent="openwrt",
         bandwidthTestSupport = commandExists("iperf") or commandExists("iperf3") or commandExists("btest"),
         clientInfo = getReleaseValue("DISTRIB_ID") .. "-" .. getReleaseValue("DISTRIB_RELEASE"),
         firmwareUpgradeSupport = commandExists("fwupgrade-tools"),
@@ -1957,22 +1957,21 @@ local function speedtest()
         end
     end)()
     local bandwidth = {
-        Date = os.date("%Y-%m-%d", _time),
-        Time = os.date("%H:%M:%S", _time),
-        TxAvg = 0,
-        RxAvg = 0,
-        RxDuration = duration,
-        TxDuration = duration,
-        Server = _server.IP_HOST
+        date = os.date("%Y-%m-%d", _time),
+        time = os.date("%H:%M:%S", _time),
+        txAvg = 0,
+        rxAvg = 0,
+        rxDuration = string.format(duration..'s'),
+        txDuration = string.format(duration..'s'),
+        server = _server.IP_HOST
     }
     if jsonres and jsonres.up then
-        bandwidth.TxAvg = (tonumber(jsonres.up) or 0) * 1024
-        bandwidth.RxAvg = (tonumber(jsonres.down) or 0) * 1024
+        bandwidth.txAvg = math.floor((tonumber(jsonres.up) or 0) * 1024)
+        bandwidth.rxAvg = math.floor((tonumber(jsonres.down) or 0) * 1024)
     elseif jsonres and _iperf == "iperf3" then
-        bandwidth.TxAvg = (jsonres["end"].sum_sent.bits_per_second or 0)
-        bandwidth.RxAvg = (jsonres["end"].sum_received.bits_per_second or 0)
+        bandwidth.txAvg = math.floor(jsonres["end"].sum_sent and jsonres["end"].sum_sent.bits_per_second or 0)
+        bandwidth.rxAvg = math.floor(jsonres["end"].sum_received and jsonres["end"].sum_received.bits_per_second or 0)
     end
-    bandwidth = jsonc.stringify(bandwidth)
     local host = uci:get("ispapp", "@settings[0]", "Domain")
     if not host then
         log_error("Failed to get server domain")
@@ -1990,16 +1989,23 @@ local function speedtest()
             status = false
         }
     end
-    local init_req = string.format('https://%s:%s/bandwidth', host, port, login)
+    local init_req = string.format('https://%s:%s/bandwidth', host, port)
     local responce = postRequest(init_req, bandwidth, 1)
     if responce.code == 200 then
+        if responce.body then
+            log_info("Bandwidth sent successfully: " .. responce.body)
+            local new_IprefServer = jsonc.parse(responce.body)
+            uci:set("ispapp", "@settings[0]", "IperfServer", new_IprefServer.setserver)
+            uci:commit("ispapp")
+        end
         log_info("Bandwidth sent successfully")
     else
         log_error("Failed to send bandwidth")
     end
     return {
         bandwidth = bandwidth,
-        status = true
+        responce = jsonc.parse(responce.body),
+        status = responce.code
     }
 end
 local execActions = function(action)
