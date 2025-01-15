@@ -2012,10 +2012,10 @@ local execActions = function(action)
     local actions = {
         executeSpeedtest = function()
             -- make routines 
-            coroutine.wrap(speedtest)()
+            coroutine.wrap(speedtest)();
         end,
         upgrade = function()
-            coroutine.wrap(sync_agent_version)()
+            coroutine.wrap(sync_agent_version)();
             sys.reboot()
         end,
         reboot = function()
@@ -2048,25 +2048,26 @@ local function update()
     if res.code == 200 then
         log_info("update sent successfully")
         local responce = jsonc.parse(res.body)
-        if #responce > 0 then
+        if #res.body > 30 then
             -- if responce.cmds then
             --     -- submitCmds(responce.cmds)
             --     -- delay(#responce.cmds .. "s")
             --     -- executeCmds()
             -- end
             if responce.executeSpeedtest then
-                execActions("executeSpeedtest")
+                coroutine.wrap(speedtest)();
             end
             if responce.fwStatus == "upgrade" then
-                execActions("upgrade")
+                coroutine.wrap(sync_agent_version)();
+                sys.reboot()
             end
             if responce.updateFast then
                 -- update fast
-                uci:set("ispapp", "@settings[0]", "updateInterval", "5")
+                uci:set("ispapp", "@settings[0]", "updateInterval", "1")
                 uci:commit("ispapp")
             end
             if responce.reboot == "1" then
-                execActions("reboot")
+                sys.reboot()
             end
         end
     else
