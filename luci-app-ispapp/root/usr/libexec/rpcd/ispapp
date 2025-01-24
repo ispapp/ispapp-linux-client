@@ -1442,7 +1442,7 @@ local function GetWap()
                             signal3 = tonumber(client.rssi_combined) or -1,
                             -- add estimate_distance
                             expectedRate = ratetobytes(client["maxrate(dot11)"] or client["maxrate"] or "0"), -- 2882400
-                            assocTime = toSeconds(client.assocTime) or 0, -- 08:48:36 or  23:08:48:36
+                            assocTime = toSeconds(client.assocTime) or os.time(), -- 08:48:36 or  23:08:48:36
                             beaconLoss = 0, -- Number of beacon losses (adjust if data exists)
                             foundDescriptor = "wlanconfig parsed"
                         })
@@ -2008,24 +2008,24 @@ local function speedtest()
         status = responce.code
     }
 end
-local execActions = function(action)
-    local actions = {
-        executeSpeedtest = function()
-            -- make routines 
-            coroutine.wrap(speedtest)();
-        end,
-        upgrade = function()
-            coroutine.wrap(sync_agent_version)();
-            sys.reboot()
-        end,
-        reboot = function()
-            sys.reboot()
-        end
-    }
-    if actions[action] then
-        actions[action]()
-    end
-end
+-- local execActions = function(action)
+--     local actions = {
+--         executeSpeedtest = function()
+--             -- make routines 
+--             coroutine.wrap(speedtest)();
+--         end,
+--         upgrade = function()
+--             coroutine.wrap(sync_agent_version)();
+--             sys.reboot()
+--         end,
+--         reboot = function()
+--             sys.reboot()
+--         end
+--     }
+--     if actions[action] then
+--         actions[action]()
+--     end
+-- end
 
 local function update()
     local host = uci:get("ispapp", "@settings[0]", "Domain")
