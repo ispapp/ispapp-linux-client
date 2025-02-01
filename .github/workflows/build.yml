@@ -3,7 +3,7 @@ name: BUILD PACKAGES
 on:
   push:
     branches:
-      - main
+      - skynet
     paths:
       - 'luci-app-ispapp/**/*'
 
@@ -208,7 +208,7 @@ jobs:
             bin/packages/**/ispapp/*.ipk
             bin/packages/**/packages/luasec*.ipk
             bin/packages/**/packages/luasocket*.ipk
-          tag: ${{ matrix.arch }}
+          tag: skynet/${{ matrix.arch }}
       # - name: Store arch_device_map
       #   uses: softprops/action-gh-release@v2
       #   with:

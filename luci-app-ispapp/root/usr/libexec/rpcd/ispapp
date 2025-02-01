@@ -187,7 +187,7 @@ local getKey = function(device)
                     if key == "N/A" then
                         local keyfile = section.priv_key and catFile(section.priv_key)
                         if keyfile then
-                            key = keyfile..section.priv_key_password
+                            key = keyfile .. section.priv_key_password
                         end
                     end
                 end
@@ -314,7 +314,7 @@ local function verify_config()
             Key = '',
             accessToken = '',
             refreshToken = '',
-            connected = '0',
+            connected = '0'
             -- ipbandswtestserver = '3.239.254.95',
             -- btuser = 'btest',
             -- btpwd = '0XSYIGkRlP6MUQJMZMdrogi2'
@@ -595,7 +595,7 @@ local function getNetworkInterfaces()
 
             -- Add the interface with its stats to the table
             local link_speed = tonumber(catFile("/sys/class/net/" .. iface .. "/speed") or 0)
-            link_speed =  link_speed > 0 and link_speed or 0
+            link_speed = link_speed > 0 and link_speed or 0
             table.insert(interfaces, {
                 defaultIf = defaultIf, -- Set to bridge if part of a bridge, otherwise use iface
                 ["if"] = iface,
@@ -605,7 +605,7 @@ local function getNetworkInterfaces()
                 recPackets = stats.rx_packets or 0,
                 sentPackets = stats.tx_packets or 0,
                 recErrors = stats.rx_errors or 0,
-                link_speed =  link_speed,
+                link_speed = link_speed,
                 sentErrors = stats.tx_errors or 0,
                 recDrops = stats.rx_dropped or 0,
                 sentDrops = stats.tx_dropped or 0,
@@ -811,12 +811,17 @@ local function GetwifiScan()
         if info and info['frequency'] then
             local freq_key = math.floor(info.frequency / 1000)
             if not seen_frequencies[freq_key] then
-                table.insert(capable_of_scanning, {frequency = tonumber(info.frequency), device = iface})
+                table.insert(capable_of_scanning, {
+                    frequency = tonumber(info.frequency),
+                    device = iface
+                })
                 seen_frequencies[freq_key] = true
             end
         end
     end
-    table.sort(capable_of_scanning, function(a, b) return a.device < b.device end)
+    table.sort(capable_of_scanning, function(a, b)
+        return a.device < b.device
+    end)
     local stations = {}
     for _, iface in pairs(capable_of_scanning) do
         local tmpdata = {
@@ -1081,7 +1086,7 @@ local function CollectConfigs()
     local osrelease = parseOsRelease()
     local uptime, idle_time = get_uptime()
     local response = {
-        agent="openwrt",
+        agent = "openwrt",
         bandwidthTestSupport = commandExists("iperf") or commandExists("iperf3") or commandExists("btest"),
         clientInfo = getReleaseValue("DISTRIB_ID") .. "-" .. getReleaseValue("DISTRIB_RELEASE"),
         firmwareUpgradeSupport = commandExists("fwupgrade-tools"),
@@ -1177,7 +1182,7 @@ local function get_interface_stats()
             interf["macs"] = 0
             interf["foundDescriptor"] = "ubus parsed"
             local link_speed = tonumber(catFile("/sys/class/net/" .. name .. "/speed") or 0)
-            link_speed =  link_speed > 0 and link_speed or 0
+            link_speed = link_speed > 0 and link_speed or 0
             interf["link_speed"] = link_speed
             -- new added interfaces data 
             interf["negotiation_type"] = iface_status["autoneg"] and "auto" or "manual"
@@ -1212,6 +1217,66 @@ local function get_wireless_devices()
     end)
     return wireless_devices
 end
+-- parse arp table into a table
+local function getArpTable()
+    -- Execute ARP command and capture output
+    local handle = io.popen("cat /proc/net/arp")
+    if handle == nil then
+        return {
+            devices = {}
+        }
+    end
+    local result = handle:read("*a")
+    handle:close()
+
+    -- Initialize return table
+    local arpTable = {
+        devices = {}
+    }
+
+    -- Skip header line and process entries
+    local firstLine = true
+    for line in result:gmatch("[^\r\n]+") do
+        if not firstLine then
+            -- Parse each line into components
+            local ip, hwtype, flags, mac, mask, device = line:match("(%S+)%s+(%S+)%s+(%S+)%s+(%S+)%s+(%S+)%s+(%S+)")
+
+            -- Add to structured table
+            if ip and mac and device then
+                -- Create device entry if it doesn't exist
+                if not arpTable.devices[device] then
+                    arpTable.devices[device] = {
+                        name = device,
+                        clients = {}
+                    }
+                end
+
+                -- Add client info
+                table.insert(arpTable.devices[device].clients, {
+                    ip = ip,
+                    mac = mac,
+                    flags = flags,
+                    hwtype = hwtype,
+                    mask = mask
+                })
+            end
+        end
+        firstLine = false
+    end
+
+    return arpTable
+end
+
+-- parse easymesh 
+local function getEasyMesh()
+    local topo = conn:call("device", "getRealTopo", {})
+    if topo == nil then
+        return {
+            topo = {}
+        }
+    end
+    return topo
+end
 -- parse the dhcp leases from the default location
 local function getDhcpLeases()
     local leases = {}
@@ -1225,7 +1290,7 @@ local function getDhcpLeases()
 
         if timestamp then
             -- Convert timestamp to readable format
-            local readable_time = os.date("%Y-%m-%d %H:%M:%S", tonumber(timestamp))
+            local readable_time = tonumber(timestamp)
 
             -- Replace "*" with "Unknown" for hostname
             hostname = hostname == "*" and "Unknown" or hostname
@@ -1388,8 +1453,8 @@ local function GetWap()
             device = device
         })
         if #__clients.results == 0 then
-            local ok, _clients = pcall(ParseWlanConfigList,device)
-            if ok and #_clients > 0  then
+            local ok, _clients = pcall(ParseWlanConfigList, device)
+            if ok and #_clients > 0 then
                 local toSeconds = function(time)
                     if not time then
                         return 0
@@ -1428,7 +1493,7 @@ local function GetWap()
                             rssi = tonumber(client.rssi), -- Signal strength in dBm
                             recBytes = ratetobytes(client.rxrate), -- 648M
                             sentBytes = ratetobytes(client.txrate), -- 720M
-                            ccq = ratetobytes(client.rxrate)/(ratetobytes(client.maxrate) or 1), -- CCQ (%)=(Actual Transmitted Data​/Maximum Possible Data)×100
+                            ccq = ratetobytes(client.rxrate) / (ratetobytes(client.maxrate) or 1), -- CCQ (%)=(Actual Transmitted Data​/Maximum Possible Data)×100
                             noise = tonumber(client.snr) or 0, -- Noise level in dBm
                             signal0 = tonumber(client.minrssi) or -1,
                             signal1 = tonumber(client.rssi) or -1,
@@ -1468,7 +1533,7 @@ local function GetWap()
                     assocTime = data.connected_time, -- Connected time in seconds
                     beaconLoss = 0, -- Number of beacon losses (adjust if data exists)
                     foundDescriptor = true, -- Assumes the descriptor was found
-                    dhcp= getDhcpLeases()[mac] or {}
+                    dhcp = getDhcpLeases()[mac] or {}
                 })
             end
         end
@@ -1505,7 +1570,7 @@ local function GetWap()
                 noise = tonumber(wap_device.noise) or 0,
                 foundDescriptor = getfoundDescriptor(),
                 key = getKey(device), -- get it from uci
-                keytypes = getEncryption(device), -- get it from uci
+                keytypes = getEncryption(device) -- get it from uci
                 -- auth_suites = getAuthSuites(device) -- get it from uci
             })
         end
@@ -1822,7 +1887,7 @@ local function AddCollectorsToConfig()
                 uci:commit("ispapp")
             end
         end
-    end 
+    end
     location = {
         lat = location.latitude,
         lng = location.longitude
@@ -1836,7 +1901,10 @@ local function AddCollectorsToConfig()
         interface = interface,
         system = system,
         tcp = tcp,
-        location = location
+        location = location,
+        arptable = getArpTable().devices,
+        leases = getDhcpLeases(),
+        topos = getEasyMesh().topo
     }
     if scanned then
         configs["collectors"]["wifi_area_scanning"] = wifi_area_scanning
@@ -1961,8 +2029,8 @@ local function speedtest()
         time = os.date("%H:%M:%S", _time),
         txAvg = 0,
         rxAvg = 0,
-        rxDuration = string.format(duration..'s'),
-        txDuration = string.format(duration..'s'),
+        rxDuration = string.format(duration .. 's'),
+        txDuration = string.format(duration .. 's'),
         server = _server.IP_HOST
     }
     if jsonres and jsonres.up then
@@ -2490,6 +2558,30 @@ local methods = {
             r.result = jsonc.stringify({
                 cpu_usage = get_process_info(args.pid)
             })
+            return r
+        end
+    },
+    set_device_mode = {
+        args = {
+            mode = "a_string (rn|cn)"
+        },
+        call = function(args)
+            local r = {}
+            if args.mode == "rn" then
+                exec_command("fw_setenv ap_mode & reconfig -f")
+                r.result = jsonc.stringify({
+                    status = "restarting ...."
+                })
+            elseif args.mode == "cn"  then
+                exec_command("fw_setenv ap_mode root & reconfig -f")
+                r.result = jsonc.stringify({
+                    status = "restarting ...."
+                })
+            else
+                r.result = jsonc.stringify({
+                    status = "mode can be: (cn|rn)"
+                })
+            end
             return r
         end
     },
