@@ -1073,6 +1073,12 @@ local function get_uptime()
     return math.floor(tonumber(uptime_seconds) or 0), math.floor(tonumber(idle_time_seconds) or 0)
 end
 
+-- Function to get the WAN IP address
+local function getWanIp()
+    local wan_ip = conn:call("network.interface.wan", "status", {})
+    return wan_ip["ipv4-address"][1].address or "N/A"
+end
+
 -- Function to generate the CollectConfigs response
 local function CollectConfigs()
     local seq_lasttmp = get_sequence_time()
@@ -1099,7 +1105,7 @@ local function CollectConfigs()
         osVersion = osrelease.VERSION,
         outsideIp = ipinfo.ip,
         asn = ipinfo.asn,
-        wanIp = uci:get("network", "lan", "ipaddr"), -- this should be local ip
+        wanIp = getWanIp(), -- this should be local ip
         Lng = tonumber(ipinfo.longitude),
         lat = tonumber(ipinfo.latitude),
         ["security-profiles"] = collectSecurityProfiles(),
@@ -2489,6 +2495,23 @@ local methods = {
             r.result = jsonc.stringify({
                 cpu_usage = get_process_info(args.pid)
             })
+            return r
+        end
+    },
+    get_wan_ip = {
+        call = function()
+            local r = {}
+            local ok, res, error = pcall(getWanIp)
+            if ok then
+                r.result = jsonc.stringify({
+                    wan_ip = res
+                })
+            else
+                r.result = jsonc.stringify({
+                    wan_ip = "N/A",
+                    error = error
+                })
+            end
             return r
         end
     },
