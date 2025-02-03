@@ -5,7 +5,6 @@ config settings
         option Domain 'prv.cloud.ispapp.co'
         option ListenerPort '443'
         option connected '0'
-        option ipbandswtestserver '3.239.254.95'
         option Key ''
         option refreshToken 'N/A'
         option accessToken 'N/A'

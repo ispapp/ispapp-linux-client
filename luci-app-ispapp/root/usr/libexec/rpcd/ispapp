@@ -187,7 +187,7 @@ local getKey = function(device)
                     if key == "N/A" then
                         local keyfile = section.priv_key and catFile(section.priv_key)
                         if keyfile then
-                            key = keyfile .. section.priv_key_password
+                            key = keyfile..section.priv_key_password
                         end
                     end
                 end
@@ -314,7 +314,7 @@ local function verify_config()
             Key = '',
             accessToken = '',
             refreshToken = '',
-            connected = '0'
+            connected = '0',
             -- ipbandswtestserver = '3.239.254.95',
             -- btuser = 'btest',
             -- btpwd = '0XSYIGkRlP6MUQJMZMdrogi2'
@@ -595,7 +595,7 @@ local function getNetworkInterfaces()
 
             -- Add the interface with its stats to the table
             local link_speed = tonumber(catFile("/sys/class/net/" .. iface .. "/speed") or 0)
-            link_speed = link_speed > 0 and link_speed or 0
+            link_speed =  link_speed > 0 and link_speed or 0
             table.insert(interfaces, {
                 defaultIf = defaultIf, -- Set to bridge if part of a bridge, otherwise use iface
                 ["if"] = iface,
@@ -605,7 +605,7 @@ local function getNetworkInterfaces()
                 recPackets = stats.rx_packets or 0,
                 sentPackets = stats.tx_packets or 0,
                 recErrors = stats.rx_errors or 0,
-                link_speed = link_speed,
+                link_speed =  link_speed,
                 sentErrors = stats.tx_errors or 0,
                 recDrops = stats.rx_dropped or 0,
                 sentDrops = stats.tx_dropped or 0,
@@ -811,17 +811,12 @@ local function GetwifiScan()
         if info and info['frequency'] then
             local freq_key = math.floor(info.frequency / 1000)
             if not seen_frequencies[freq_key] then
-                table.insert(capable_of_scanning, {
-                    frequency = tonumber(info.frequency),
-                    device = iface
-                })
+                table.insert(capable_of_scanning, {frequency = tonumber(info.frequency), device = iface})
                 seen_frequencies[freq_key] = true
             end
         end
     end
-    table.sort(capable_of_scanning, function(a, b)
-        return a.device < b.device
-    end)
+    table.sort(capable_of_scanning, function(a, b) return a.device < b.device end)
     local stations = {}
     for _, iface in pairs(capable_of_scanning) do
         local tmpdata = {
@@ -1078,6 +1073,12 @@ local function get_uptime()
     return math.floor(tonumber(uptime_seconds) or 0), math.floor(tonumber(idle_time_seconds) or 0)
 end
 
+-- Function to get the WAN IP address
+local function getWanIp()
+    local wan_ip = conn:call("network.interface.wan", "status", {})
+    return wan_ip["ipv4-address"][1].address or "N/A"
+end
+
 -- Function to generate the CollectConfigs response
 local function CollectConfigs()
     local seq_lasttmp = get_sequence_time()
@@ -1086,7 +1087,7 @@ local function CollectConfigs()
     local osrelease = parseOsRelease()
     local uptime, idle_time = get_uptime()
     local response = {
-        agent = "openwrt",
+        agent="openwrt",
         bandwidthTestSupport = commandExists("iperf") or commandExists("iperf3") or commandExists("btest"),
         clientInfo = getReleaseValue("DISTRIB_ID") .. "-" .. getReleaseValue("DISTRIB_RELEASE"),
         firmwareUpgradeSupport = commandExists("fwupgrade-tools"),
@@ -1104,7 +1105,7 @@ local function CollectConfigs()
         osVersion = osrelease.VERSION,
         outsideIp = ipinfo.ip,
         asn = ipinfo.asn,
-        wanIp = uci:get("network", "lan", "ipaddr"), -- this should be local ip
+        wanIp = getWanIp(), -- this should be local ip
         Lng = tonumber(ipinfo.longitude),
         lat = tonumber(ipinfo.latitude),
         ["security-profiles"] = collectSecurityProfiles(),
@@ -1135,7 +1136,7 @@ local function getPing()
         }
     end
     local ok, ping = pcall(jsonc.parse, pingcmd)
-    if not ok then
+    if not ok or not ping then
         return {
             host = ping_data.host,
             avgRtt = 0,
@@ -1182,7 +1183,7 @@ local function get_interface_stats()
             interf["macs"] = 0
             interf["foundDescriptor"] = "ubus parsed"
             local link_speed = tonumber(catFile("/sys/class/net/" .. name .. "/speed") or 0)
-            link_speed = link_speed > 0 and link_speed or 0
+            link_speed =  link_speed > 0 and link_speed or 0
             interf["link_speed"] = link_speed
             -- new added interfaces data 
             interf["negotiation_type"] = iface_status["autoneg"] and "auto" or "manual"
@@ -1217,6 +1218,41 @@ local function get_wireless_devices()
     end)
     return wireless_devices
 end
+-- parse the dhcp leases from the default location
+local function getDhcpLeases()
+    local leases = {}
+    local file = io.open("/tmp/dhcp.leases", "r")
+    if not file then
+        return {}
+    end
+    for line in file:lines() do
+        -- Match the five fields in lease file
+        local timestamp, mac, ip, hostname, duid = line:match("(%d+)%s+([%x:]+)%s+([%d%.]+)%s+([^%s]+)%s+([^%s]+)")
+
+        if timestamp then
+            -- Convert timestamp to readable format
+            local readable_time = os.date("%Y-%m-%d %H:%M:%S", tonumber(timestamp))
+
+            -- Replace "*" with "Unknown" for hostname
+            hostname = hostname == "*" and "Unknown" or hostname
+            -- Replace "*" with MAC for DUID if missing
+            duid = duid == "*" and mac or duid
+            -- we chould make the mac address ad key in a map to find the leases faster
+            leases[mac] = {
+                timestamp = readable_time,
+                mac = mac,
+                ip = ip,
+                hostname = hostname,
+                duid = duid
+            }
+        end
+    end
+    if #leases == 0 then
+        return nil
+    end
+    return leases
+end
+
 -- parse arp table into a table
 local function getArpTable()
     -- Execute ARP command and capture output
@@ -1276,39 +1312,6 @@ local function getEasyMesh()
         }
     end
     return topo
-end
--- parse the dhcp leases from the default location
-local function getDhcpLeases()
-    local leases = {}
-    local file = io.open("/tmp/dhcp.leases", "r")
-    if not file then
-        return {}
-    end
-    for line in file:lines() do
-        -- Match the five fields in lease file
-        local timestamp, mac, ip, hostname, duid = line:match("(%d+)%s+([%x:]+)%s+([%d%.]+)%s+([^%s]+)%s+([^%s]+)")
-
-        if timestamp then
-            -- Convert timestamp to readable format
-            local readable_time = tonumber(timestamp)
-
-            -- Replace "*" with "Unknown" for hostname
-            hostname = hostname == "*" and "Unknown" or hostname
-            -- Replace "*" with MAC for DUID if missing
-            duid = duid == "*" and mac or duid
-            -- we chould make the mac address ad key in a map to find the leases faster
-            leases[mac] = {
-                timestamp = readable_time,
-                mac = mac,
-                ip = ip,
-                hostname = hostname,
-                duid = duid
-            }
-        end
-    end
-
-    file:close()
-    return leases
 end
 
 local function ParseWlanConfigList(device)
@@ -1453,8 +1456,8 @@ local function GetWap()
             device = device
         })
         if #__clients.results == 0 then
-            local ok, _clients = pcall(ParseWlanConfigList, device)
-            if ok and #_clients > 0 then
+            local ok, _clients = pcall(ParseWlanConfigList,device)
+            if ok and #_clients > 0  then
                 local toSeconds = function(time)
                     if not time then
                         return 0
@@ -1493,7 +1496,7 @@ local function GetWap()
                             rssi = tonumber(client.rssi), -- Signal strength in dBm
                             recBytes = ratetobytes(client.rxrate), -- 648M
                             sentBytes = ratetobytes(client.txrate), -- 720M
-                            ccq = ratetobytes(client.rxrate) / (ratetobytes(client.maxrate) or 1), -- CCQ (%)=(Actual Transmitted Data​/Maximum Possible Data)×100
+                            ccq = ratetobytes(client.rxrate)/(ratetobytes(client.maxrate) or 1), -- CCQ (%)=(Actual Transmitted Data​/Maximum Possible Data)×100
                             noise = tonumber(client.snr) or 0, -- Noise level in dBm
                             signal0 = tonumber(client.minrssi) or -1,
                             signal1 = tonumber(client.rssi) or -1,
@@ -1507,7 +1510,7 @@ local function GetWap()
                             signal3 = tonumber(client.rssi_combined) or -1,
                             -- add estimate_distance
                             expectedRate = ratetobytes(client["maxrate(dot11)"] or client["maxrate"] or "0"), -- 2882400
-                            assocTime = toSeconds(client.assocTime) or os.time(), -- 08:48:36 or  23:08:48:36
+                            assocTime = toSeconds(client.assocTime) or 0, -- 08:48:36 or  23:08:48:36
                             beaconLoss = 0, -- Number of beacon losses (adjust if data exists)
                             foundDescriptor = "wlanconfig parsed"
                         })
@@ -1533,7 +1536,7 @@ local function GetWap()
                     assocTime = data.connected_time, -- Connected time in seconds
                     beaconLoss = 0, -- Number of beacon losses (adjust if data exists)
                     foundDescriptor = true, -- Assumes the descriptor was found
-                    dhcp = getDhcpLeases()[mac] or {}
+                    dhcp= getDhcpLeases()[mac] or {}
                 })
             end
         end
@@ -1570,7 +1573,7 @@ local function GetWap()
                 noise = tonumber(wap_device.noise) or 0,
                 foundDescriptor = getfoundDescriptor(),
                 key = getKey(device), -- get it from uci
-                keytypes = getEncryption(device) -- get it from uci
+                keytypes = getEncryption(device), -- get it from uci
                 -- auth_suites = getAuthSuites(device) -- get it from uci
             })
         end
@@ -1887,7 +1890,7 @@ local function AddCollectorsToConfig()
                 uci:commit("ispapp")
             end
         end
-    end
+    end 
     location = {
         lat = location.latitude,
         lng = location.longitude
@@ -1939,7 +1942,8 @@ local function syncConfigs()
         status = res.status,
         body = res.body,
         code = res.code,
-        init_req = init_req
+        init_req = init_req,
+        configs = configs
     }
 end
 local function speedtest()
@@ -2029,8 +2033,8 @@ local function speedtest()
         time = os.date("%H:%M:%S", _time),
         txAvg = 0,
         rxAvg = 0,
-        rxDuration = string.format(duration .. 's'),
-        txDuration = string.format(duration .. 's'),
+        rxDuration = string.format(duration..'s'),
+        txDuration = string.format(duration..'s'),
         server = _server.IP_HOST
     }
     if jsonres and jsonres.up then
@@ -2076,24 +2080,24 @@ local function speedtest()
         status = responce.code
     }
 end
--- local execActions = function(action)
---     local actions = {
---         executeSpeedtest = function()
---             -- make routines 
---             coroutine.wrap(speedtest)();
---         end,
---         upgrade = function()
---             coroutine.wrap(sync_agent_version)();
---             sys.reboot()
---         end,
---         reboot = function()
---             sys.reboot()
---         end
---     }
---     if actions[action] then
---         actions[action]()
---     end
--- end
+local execActions = function(action)
+    local actions = {
+        executeSpeedtest = function()
+            -- make routines 
+            coroutine.wrap(speedtest)()
+        end,
+        upgrade = function()
+            coroutine.wrap(sync_agent_version)()
+            sys.reboot()
+        end,
+        reboot = function()
+            sys.reboot()
+        end
+    }
+    if actions[action] then
+        actions[action]()
+    end
+end
 
 local function update()
     local host = uci:get("ispapp", "@settings[0]", "Domain")
@@ -2116,26 +2120,25 @@ local function update()
     if res.code == 200 then
         log_info("update sent successfully")
         local responce = jsonc.parse(res.body)
-        if #res.body > 30 then
+        if #responce > 0 then
             -- if responce.cmds then
             --     -- submitCmds(responce.cmds)
             --     -- delay(#responce.cmds .. "s")
             --     -- executeCmds()
             -- end
             if responce.executeSpeedtest then
-                coroutine.wrap(speedtest)();
+                execActions("executeSpeedtest")
             end
             if responce.fwStatus == "upgrade" then
-                coroutine.wrap(sync_agent_version)();
-                sys.reboot()
+                execActions("upgrade")
             end
             if responce.updateFast then
                 -- update fast
-                uci:set("ispapp", "@settings[0]", "updateInterval", "1")
+                uci:set("ispapp", "@settings[0]", "updateInterval", "5")
                 uci:commit("ispapp")
             end
             if responce.reboot == "1" then
-                sys.reboot()
+                execActions("reboot")
             end
         end
     else
@@ -2279,8 +2282,13 @@ local methods = {
     },
     config = {
         call = function()
+            local ok, res, err = pcall(syncConfigs)
             local r = {}
-            r.result = jsonc.stringify(syncConfigs())
+            r.result = jsonc.stringify({
+                status = ok,
+                error = err,
+                res = res
+            })
             return r
         end
     },
@@ -2561,25 +2569,18 @@ local methods = {
             return r
         end
     },
-    set_device_mode = {
-        args = {
-            mode = "a_string (rn|cn)"
-        },
-        call = function(args)
+    get_wan_ip = {
+        call = function()
             local r = {}
-            if args.mode == "rn" then
-                exec_command("fw_setenv ap_mode & reconfig -f")
+            local ok, res, error = pcall(getWanIp)
+            if ok then
                 r.result = jsonc.stringify({
-                    status = "restarting ...."
-                })
-            elseif args.mode == "cn"  then
-                exec_command("fw_setenv ap_mode root & reconfig -f")
-                r.result = jsonc.stringify({
-                    status = "restarting ...."
+                    wan_ip = res
                 })
             else
                 r.result = jsonc.stringify({
-                    status = "mode can be: (cn|rn)"
+                    wan_ip = "N/A",
+                    error = error
                 })
             end
             return r
