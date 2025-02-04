@@ -1561,6 +1561,24 @@ local function GetWap()
                     return "iwinfo parsed - " .. device
                 end
             end
+            local skynetdata = conn:call("device", "getRadio", {
+                name = device
+            })
+            -- skynetdata return :
+            -- "phy": "ath0",
+            -- "ssid": "SecureWiFi",
+            -- "mac": "E0:5D:54:4B:E5:D7",
+            -- "mode": "Master",
+            -- "channelList": "1,2,3,4,5,6,7,8,9,10,11",
+            -- "curChannel": 6,
+            -- "freq": 2437,
+            -- "txPower": 29,
+            -- "quality": 0,
+            -- "signal": 3,
+            -- "noise": -91,
+            -- "rate": 688,
+            -- "chutil": 46,
+            -- "bandWidth": 20    
             table.insert(wap, {
                 interface = device,
                 ssid = uci:get("wireless", device, "ssid") or wap_device.bssid or "N/A",
@@ -1570,11 +1588,22 @@ local function GetWap()
                 signal1 = avgsignal("signal1", clients) or wap_device.quality_max,
                 signal2 = avgsignal("signal2", clients) or wap_device.quality_max,
                 signal3 = avgsignal("signal3", clients) or wap_device.quality_max,
-                noise = tonumber(wap_device.noise) or 0,
+                noise = skynetdata.noise or tonumber(wap_device.noise) or 0,
                 foundDescriptor = getfoundDescriptor(),
                 key = getKey(device), -- get it from uci
                 keytypes = getEncryption(device), -- get it from uci
-                -- auth_suites = getAuthSuites(device) -- get it from uci
+                -- new params from skynetdata with default values
+                signal = skynetdata.signal or 0,
+                channel = skynetdata.curChannel or 0,
+                frequency = skynetdata.freq or 0,
+                txPower = skynetdata.txPower  or 0,
+                quality = skynetdata.quality or 0,
+                rate = skynetdata.rate or 0,
+                chutil = skynetdata.chutil or 0,
+                bandWidth = skynetdata.bandWidth or 0,
+                mac = skynetdata.mac or "N/A",
+                mode = skynetdata.mode or "N/A",
+                phy = skynetdata.phy or "N/A",
             })
         end
     end
