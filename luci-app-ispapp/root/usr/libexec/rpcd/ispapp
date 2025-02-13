@@ -407,14 +407,10 @@ local function verify_config()
             login = '00000000-0000-0000-0000-000000000000',
             Domain = 'prv.longshot-router.com',
             ListenerPort = '443',
-            -- SmtpPort = '8465',
             Key = '',
             accessToken = '',
             refreshToken = '',
             connected = '0'
-            -- ipbandswtestserver = '3.239.254.95',
-            -- btuser = 'btest',
-            -- btpwd = '0XSYIGkRlP6MUQJMZMdrogi2'
         })
         -- Commit the changes after creating the config
         uci:commit(config)
@@ -1177,9 +1173,16 @@ end
 
 -- Function to get the WAN IP address
 local function getWanIp()
-    local wan_ip = conn:call("network.interface.wan", "status", {})
-    return wan_ip["ipv4-address"][1].address or "N/A"
+    -- Run the command to fetch global IPv4 addresses
+    local cmd =
+        "ip -4 addr show | awk '/global/ && /inet/ {print $2}' | cut -d'/' -f1 | awk '{printf \"%s%s\", (NR>1?\",\":\"\"), $0}'"
+    local handle, res, _ = pcall(util.exec, cmd)
+    if not handle then
+        return nil, "Unable to execute command"
+    end
+    return res or "N/A"
 end
+-- ip -4 addr show | awk '/global/' | awk '/inet/ {print $2}' | cut -d'/' -f1
 
 -- Function to generate the CollectConfigs response
 local function CollectConfigs()
@@ -1935,7 +1938,6 @@ local function host_signup()
     end
     return {
         status = res.status,
-        body = res.body,
         code = res.code,
         tokens = tokens
     }
@@ -2014,7 +2016,7 @@ local function AddCollectorsToConfig()
     else
         -- compare in secconds and make sure it almost 10 minutes ago or more
         local diff = os.time() - lastTimeScanned
-        if diff > 600 then
+        if diff > 300 then
             scanned, wifi_area_scanning, scanningerr = pcall(GetwifiScan)
             if scanned then
                 uci:set("ispapp", "@settings[0]", "lastTimeScanned", os.time())
@@ -2363,12 +2365,6 @@ local function terminalHandler()
     }
 end
 
-local function SignUp()
-    local sd = host_signup()
-    return {
-        result = jsonc.stringify(sd)
-    }
-end
 local CleanUp = function()
     -- Get the PID of the ispappd process
     local path = "/var/run/ispappd.pid"
@@ -2415,7 +2411,16 @@ local methods = {
         end
     },
     signup = {
-        call = SignUp
+        call = function ()
+            local ok, res, err = pcall(host_signup)
+            return {
+                result = jsonc.stringify({
+                    status = ok,
+                    error = err,
+                    res = res
+                })
+            }
+        end
     },
     config = {
         call = function()
