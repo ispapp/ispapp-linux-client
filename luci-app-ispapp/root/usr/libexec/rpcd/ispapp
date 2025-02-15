@@ -133,7 +133,7 @@ local function parse_spectral_data(filepath)
     return data
 end
 -- parse_spectral_data and return the result
-local function get_spectral_data()
+local function get_spectral_data(inter)
     local ok, _, _ = pcall(util.exec, string.format("spectraltool -i %s get_samples 100 -x 1 -l ','", inter))
     local parsed, json, _ = pcall(parse_spectral_data, "./outFile")
     if not parsed or not ok then
@@ -1595,6 +1595,7 @@ local function GetWap()
                 local alreadyexist = {}
                 for _, client in pairs(_clients) do
                     if not alreadyexist[client.addr] then
+                        local dhcps = getDhcpLeases()
                         table.insert(clients, {
                             mac = client.addr, -- MAC address
                             info = "Station " .. client.addr, -- Optional description
@@ -1606,7 +1607,7 @@ local function GetWap()
                             signal0 = tonumber(client.minrssi) or -1,
                             signal1 = tonumber(client.rssi) or -1,
                             signal2 = tonumber(client.maxrssi) or -1,
-                            dhcp = getDhcpLeases()[client.addr] or {
+                            dhcp = dhcps and dhcps[client.addr] or {
                                 hostname = "N/A",
                                 ip = "N/A",
                                 mac = client.addr,
@@ -2044,7 +2045,7 @@ local function AddCollectorsToConfig()
         wifi_area_scanning = {},
         spectralscan = {}
     }
-    local spectral = get_spectral_data()
+    local spectral = get_spectral_data(100)
     if scanned then
         configs["collectors"].wifi_area_scanning = wifi_area_scanning
     end
@@ -2206,12 +2207,17 @@ local function speedtest()
         if responce.body then
             log_info("Bandwidth sent successfully: " .. responce.body)
             local new_IprefServer = jsonc.parse(responce.body)
-            uci:set("ispapp", "@settings[0]", "IperfServer", new_IprefServer.setserver)
-            uci:commit("ispapp")
+            if new_IprefServer and new_IprefServer.setserver then
+                uci:set("ispapp", "@settings[0]", "IperfServer", new_IprefServer.setserver)
+                uci:commit("ispapp")
+            end
         end
         log_info("Bandwidth sent successfully")
     else
         log_error("Failed to send bandwidth")
+    end
+    if bandwidth.txAvg == 0 and bandwidth.rxAvg == 0 then
+        uci:set("ispapp", "@settings[0]", "IperfServer", iperf_servers[math.random(#_iperf_servers)])
     end
     return {
         bandwidth = bandwidth,
