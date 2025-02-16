@@ -2128,11 +2128,11 @@ local function speedtest()
             table.insert(_iperf_servers, srv)
         end
     end
-    for _, server in ipairs(_iperf_servers) do
-        if server.COUNTRY == country then
-            _server = server
-        end
-    end
+    -- for _, server in ipairs(_iperf_servers) do
+    --     if server.COUNTRY == country then
+    --         _server = server
+    --     end
+    -- end
     if not _server.IP_HOST then
         _server = iperf_servers[math.random(#_iperf_servers)]
     end
@@ -2143,12 +2143,12 @@ local function speedtest()
     local cmd = ""
     if _server.V2 and version.V2 then
         cmd = string.format([[
-                        %s -c %s -i 1 -t 1 -P 10 -f m | tail -n 1 | awk '{print "{\"up\":\"" $5 "\",\"down\":\"" $7 "\"}"}'
+                        %s -c %s -i 1 -t 1 -P 10 -f m | awk '/SUM/ {if (down == "") down=$7; else up=$7} END {printf "{ \"down\": %.2f, \"up\": %.2f }\n", down, up}'
                         ]], 'iperf', _server.IP_HOST)
     end
     if _server.V3 and version.V3 then
         cmd = string.format([[
-                    %s -c %s  -t 1 -i 1 -J
+                    %s -c %s  -i 1 -t 1 -P 10 -f m | awk '/SUM.*sender/ {up=$6} /SUM.*receiver/ {down=$6} END {print "{ \"down\": " down ", \"up\": " up " }"}'
                     ]], 'iperf3', _server.IP_HOST)
     end
     local ok, res, err = pcall(util.exec, cmd)
