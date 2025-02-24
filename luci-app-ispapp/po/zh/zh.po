@@ -9,10 +9,10 @@ msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-02-24 17:40+0000\n"
-"PO-Revision-Date: 2025-02-24 17:54+0000\n"
+"PO-Revision-Date: 2025-02-24 17:55+0000\n"
 "Last-Translator: o. karim <abdelkarim@ispapp.co>\n"
 "Language-Team: \n"
-"Language: en\n"
+"Language: zh\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -24,183 +24,183 @@ msgstr "ISPApp"
 
 #: luasrc/controller/ispapp.lua:11
 msgid "Overview"
-msgstr "Overview"
+msgstr "概览"
 
 #: luasrc/controller/ispapp.lua:12
 #: htdocs/luci-static/resources/view/ispapp/settings.js:40
 msgid "Settings"
-msgstr "Settings"
+msgstr "设置"
 
 #: luasrc/controller/ispapp.lua:13
 msgid "Log View"
-msgstr "Log View"
+msgstr "日志查看"
 
 #: htdocs/luci-static/resources/view/ispapp/logread.js:22
 msgid "No ISPApp related logs yet!"
-msgstr "No ISPApp related logs yet!"
+msgstr "尚无 ISPApp 相关日志！"
 
 #: htdocs/luci-static/resources/view/ispapp/logread.js:29
 msgid "The syslog output, pre-filtered for ISPApp related messages only."
-msgstr "The syslog output, pre-filtered for ISPApp related messages only."
+msgstr "系统日志输出，仅过滤 ISPApp 相关消息。"
 
 #: htdocs/luci-static/resources/view/ispapp/overview.js:66
 msgid "ISPApp Overview"
-msgstr "ISPApp Overview"
+msgstr "ISPApp 概览"
 
 #: htdocs/luci-static/resources/view/ispapp/overview.js:66
 msgid "Overview of ISPApp service status and statistics."
-msgstr ""
+msgstr "ISPApp 服务状态和统计信息概览。"
 
 #: htdocs/luci-static/resources/view/ispapp/overview.js:72
 msgid "Service Status"
-msgstr ""
+msgstr "服务状态"
 
 #: htdocs/luci-static/resources/view/ispapp/overview.js:84
 msgid "Start Service"
-msgstr ""
+msgstr "启动服务"
 
 #: htdocs/luci-static/resources/view/ispapp/overview.js:92
 msgid "Stop Service"
-msgstr ""
+msgstr "停止服务"
 
 #: htdocs/luci-static/resources/view/ispapp/overview.js:100
 msgid "Restart Service"
-msgstr ""
+msgstr "重启服务"
 
 #: htdocs/luci-static/resources/view/ispapp/overview.js:108
 msgid "Last Edit Time"
-msgstr ""
+msgstr "最后编辑时间"
 
 #: htdocs/luci-static/resources/view/ispapp/overview.js:111
 #: htdocs/luci-static/resources/view/ispapp/overview.js:153
 msgid "Unknown"
-msgstr ""
+msgstr "未知"
 
 #: htdocs/luci-static/resources/view/ispapp/overview.js:114
 msgid "Active Time"
-msgstr ""
+msgstr "活动时间"
 
 #: htdocs/luci-static/resources/view/ispapp/overview.js:120
 msgid "CPU Usage"
-msgstr ""
+msgstr "CPU 使用率"
 
 #: htdocs/luci-static/resources/view/ispapp/overview.js:126
 msgid "Memory Usage (VmRSS)"
-msgstr ""
+msgstr "内存使用量 (VmRSS)"
 
 #: htdocs/luci-static/resources/view/ispapp/overview.js:132
 msgid "Threads"
-msgstr ""
+msgstr "线程"
 
 #: htdocs/luci-static/resources/view/ispapp/overview.js:138
 msgid "CPU Affinity"
-msgstr ""
+msgstr "CPU 亲和性"
 
 #: htdocs/luci-static/resources/view/ispapp/overview.js:144
 msgid "Process State"
-msgstr ""
+msgstr "进程状态"
 
 #: htdocs/luci-static/resources/view/ispapp/overview.js:150
 msgid "Device Mode"
-msgstr ""
+msgstr "设备模式"
 
 #: htdocs/luci-static/resources/view/ispapp/overview.js:156
 msgid "Server Live Status"
-msgstr ""
+msgstr "服务器实时状态"
 
 #: htdocs/luci-static/resources/view/ispapp/settings.js:39
 msgid "ISPApp Configuration"
-msgstr ""
+msgstr "ISPApp 配置"
 
 #: htdocs/luci-static/resources/view/ispapp/settings.js:39
 msgid "Configure ISPApp settings."
-msgstr ""
+msgstr "配置 ISPApp 设置。"
 
 #: htdocs/luci-static/resources/view/ispapp/settings.js:44
 msgid "Login"
-msgstr ""
+msgstr "登录"
 
 #: htdocs/luci-static/resources/view/ispapp/settings.js:44
 msgid "MAC address for login."
-msgstr ""
+msgstr "用于登录的 MAC 地址。"
 
 #: htdocs/luci-static/resources/view/ispapp/settings.js:51
 msgid "Domain"
-msgstr ""
+msgstr "域名"
 
 #: htdocs/luci-static/resources/view/ispapp/settings.js:51
 msgid "Domain name for top domain."
-msgstr ""
+msgstr "顶级域名的域名。"
 
 #: htdocs/luci-static/resources/view/ispapp/settings.js:59
 msgid "Listener Port"
-msgstr ""
+msgstr "监听端口"
 
 #: htdocs/luci-static/resources/view/ispapp/settings.js:59
 msgid "Port for listening."
-msgstr ""
+msgstr "用于监听的端口。"
 
 #: htdocs/luci-static/resources/view/ispapp/settings.js:67
 msgid "Key"
-msgstr ""
+msgstr "密钥"
 
 #: htdocs/luci-static/resources/view/ispapp/settings.js:67
 msgid "Key for authentication."
-msgstr ""
+msgstr "用于身份验证的密钥。"
 
 #: htdocs/luci-static/resources/view/ispapp/settings.js:78
 msgid "Access Token"
-msgstr ""
+msgstr "访问令牌"
 
 #: htdocs/luci-static/resources/view/ispapp/settings.js:78
 msgid "Access token for API access."
-msgstr ""
+msgstr "用于 API 访问的访问令牌。"
 
 #: htdocs/luci-static/resources/view/ispapp/settings.js:85
 msgid "Refresh Token"
-msgstr ""
+msgstr "刷新令牌"
 
 #: htdocs/luci-static/resources/view/ispapp/settings.js:85
 msgid "Refresh token for API access."
-msgstr ""
+msgstr "用于 API 访问的刷新令牌。"
 
 #: htdocs/luci-static/resources/view/ispapp/settings.js:92
 msgid "Connected"
-msgstr ""
+msgstr "已连接"
 
 #: htdocs/luci-static/resources/view/ispapp/settings.js:92
 msgid "Connection status."
-msgstr ""
+msgstr "连接状态。"
 
 #: htdocs/luci-static/resources/view/ispapp/settings.js:103
 msgid "Refresh connection"
-msgstr ""
+msgstr "刷新连接"
 
 #: htdocs/luci-static/resources/view/ispapp/settings.js:111
 msgid "Refresh token updated successfully."
-msgstr ""
+msgstr "刷新令牌更新成功。"
 
 #: htdocs/luci-static/resources/view/ispapp/settings.js:114
 msgid "Failed to update refresh token."
-msgstr ""
+msgstr "刷新令牌更新失败。"
 
 #: htdocs/luci-static/resources/view/ispapp/settings.js:119
 msgid "Update Interval"
-msgstr ""
+msgstr "更新间隔"
 
 #: htdocs/luci-static/resources/view/ispapp/settings.js:119
 msgid "Interval for updating data in seconds."
-msgstr ""
+msgstr "以秒为单位的数据更新间隔。"
 
 #: htdocs/luci-static/resources/view/ispapp/settings.js:147
 msgid "Device Signup"
-msgstr ""
+msgstr "设备注册"
 
 #: htdocs/luci-static/resources/view/ispapp/settings.js:162
 msgid "ISPApp is connected."
-msgstr ""
+msgstr "ISPApp 已连接。"
 
 #: htdocs/luci-static/resources/view/ispapp/settings.js:164
 #: htdocs/luci-static/resources/view/ispapp/settings.js:168
 msgid "ISPApp is not connected."
-msgstr ""
+msgstr "ISPApp 未连接。"

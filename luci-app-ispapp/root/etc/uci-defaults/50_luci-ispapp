@@ -7,5 +7,10 @@ uci -q batch <<-EOF >/dev/null
 	commit ucitrack
 EOF
 
+chmod +x /etc/init.d/ispapp
+chmod +x /bin/ispappd
+chmod +x /usr/libexec/rpcd/ispapp
+/etc/init.d/ispapp enable
+/etc/init.d/ispapp reload
 rm -f /tmp/luci-indexcache
 exit 0
