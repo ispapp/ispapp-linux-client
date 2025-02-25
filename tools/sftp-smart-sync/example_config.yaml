@@ -1,9 +1,0 @@
-remote:
-  host: "remote_host"
-  user: "remote_user"
-  password: "remote_password"
-sync_paths:
-  - remote: "/remote/path1"
-    local: "/local/path1"
-  - remote: "/remote/path2"
-    local: "/local/path2"
