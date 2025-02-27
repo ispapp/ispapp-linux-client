@@ -1,6 +1,12 @@
 {
     "files.associations": {
-        "string.h": "c"
+        "string.h": "c",
+        "ispappd.go": "go",
+    },
+    "go.useLanguageServer": true,
+    "gopls": {
+      "ui.semanticTokens": true,
+      "ui.completion.usePlaceholders": true
     },
     "Lua.diagnostics.globals": [
         "index",

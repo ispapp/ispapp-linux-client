@@ -4,15 +4,13 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os/exec"
 	"strings"
 	"encoding/json"
 	"net/http"
-	"os"
 	"time"
-
+	"strconv"
 	"github.com/digineo/go-uci"
 	"github.com/gorilla/websocket"
 )
