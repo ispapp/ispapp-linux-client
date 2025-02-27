@@ -36,12 +36,12 @@ end
 local function log_info(message)
     log_to_syslog("info", "[luci.ispapp]: " .. message)
 end
-local function log_warning(message)
-    log_to_syslog("info", "[luci.ispapp]: " .. message)
-end
-local function log_notice(message)
-    log_to_syslog("info", "[luci.ispapp]: " .. message)
-end
+-- local function log_warning(message)
+--     log_to_syslog("info", "[luci.ispapp]: " .. message)
+-- end
+-- local function log_notice(message)
+--     log_to_syslog("info", "[luci.ispapp]: " .. message)
+-- end
 -- return file content or nil
 local function catFile(file)
     local ok, content, error = pcall(fs.readfile, file)
@@ -637,8 +637,20 @@ local function getCPUInfo()
 end
 
 local function getHardwareSerialNumber()
-    local serial = sys.exec("cat /proc/cpuinfo | grep Serial")
-    return serial:match("Serial%s*:%s*(%S+)") or "Unknown"
+    local ok, serialnumber, err = pcall(sys.exec, "fw_printenv sn")
+    if ok and not err then
+        local sn = serialnumber:match("sn=(%S+)") or ""
+        if sn ~= "" then
+            return sn
+        end
+    end
+    -- cat /proc/cpuinfo
+    local cpuinfo = sys.exec("cat /proc/cpuinfo")
+    local serial = cpuinfo:match("Serial%s*:%s*(%S+)")
+    if serial then
+        return serial
+    end
+    return serial or "N/A"
 end
 
 -- Single function to fetch interfaces, check for bridge memberships, and gather network stats
@@ -1737,57 +1749,64 @@ local function getSystemInfo()
     }
 end
 local function GetTcpInfo()
-    -- we should not get [conntrack v1.4.8 (conntrack-tools): 78 flow entries have been shown.] in output
     local tcp = {
         uniqueIps = 0, -- Number of unique IPs in the connection table
-        slowedPairPackets = 0, -- Number of packets with the CWR and ECE flags set
-        cwr = 0, -- Number of packets with the CWR flag set
-        ece = 0, -- Number of packets with the ECE flag set
-        rst = 0, -- Number of packets with the RST flag set
-        syn = 0, -- Number of packets with the SYN flag set
-        urg = 0 -- Number of packets with the URG flag set
+        NoFlag = 0, -- Number of packets with no flags set
+        syn = 0, -- Number of packets with only the SYN flag set
+        SynAck = 0, -- Number of packets with both SYN and ACK flags set
+        Pester = 0, -- Number of packets with the P flag set
+        rst = 0, -- Number of packets with the R flag set
+        Folks = 0 -- Number of packets with the F flag set
     }
-    -- Execute conntrack command to get connection data
-    local ok, conntrack = pcall(sys.exec, "conntrack -L")
-    if ok then
-        local unique_ips = {}
-        -- Iterate through each line of the conntrack output
-        for line in conntrack:gmatch("[^\r\n]+") do
-            -- Extract source and destination IPs from the line
-            local src_ip = line:match("([%d]+%.[%d]+%.[%d]+%.[%d]+)")
-            local dst_ip = line:match("([%d]+%.[%d]+%.[%d]+%.[%d]+)")
 
-            -- Add IPs to the unique_ips set
-            if src_ip then
-                unique_ips[src_ip] = true
-            end
-            if dst_ip then
-                unique_ips[dst_ip] = true
-            end
+    local ipSet = {} -- To track unique IPs
 
-            -- Check for specific flags in the connection data
-            if line:match("SYN") then
-                tcp.syn = tcp.syn + 1
+    -- Capture 20 TCP packets
+    local command = "tcpdump -i any -nn -c 100 -tttt -vv tcp"
+    local handle = io.popen(command)
+    if not handle then
+        print("Error executing tcpdump.")
+        return nil
+    end
+
+    for line in handle:lines() do
+        -- Match the second line of the packet, which starts with an optional indent,
+        -- then source IP and port, ">" then destination IP and port, then "Flags [...]"
+        local src_ip, sport, dest_ip, dport, flags = line:match(
+            '^%s*([%d%.]+)%.(%d+)%s+>%s+([%d%.]+)%.(%d+):%s+Flags%s+%[([^%]]+)%]')
+        -- print(src_ip, sport, dest_ip, dport, flags)
+        if src_ip and dest_ip then
+            -- Register unique IP addresses
+            ipSet[src_ip] = true
+            ipSet[dest_ip] = true
+            flags = flags:gsub("%s+", "")
+            if flags == "." then
+                tcp.NoFlag = tcp.NoFlag + 1
             end
-            if line:match("RST") then
-                tcp.rst = tcp.rst + 1
+            if flags == "S" then
+                tcp.Security = tcp.Security + 1
             end
-            if line:match("CWR") then
-                tcp.cwr = tcp.cwr + 1
+            if flags == "S." then
+                tcp.SynAck = tcp.SynAck + 1
             end
-            if line:match("ECE") then
-                tcp.ece = tcp.ece + 1
+            if flags:find("P") then
+                tcp.Pester = tcp.Pester + 1
             end
-            if line:match("URG") then
-                tcp.urg = tcp.urg + 1
+            if flags:find("R") then
+                tcp.Real = tcp.Real + 1
             end
-        end
-        -- Calculate the number of unique IPs
-        tcp.uniqueIps = count_keys(unique_ips)
-        if tcp.cwr > 0 and tcp.ece > 0 then
-            tcp.slowedPairPackets = tcp.slowedPairPackets + 1
+            if flags:find("F") then
+                tcp.Folks = tcp.Folks + 1
+            end
         end
     end
+
+    -- Count unique IP addresses
+    for _ in pairs(ipSet) do
+        tcp.uniqueIps = tcp.uniqueIps + 1
+    end
+
+    handle:close()
     return tcp
 end
 
@@ -2128,11 +2147,11 @@ local function speedtest()
             table.insert(_iperf_servers, srv)
         end
     end
-    -- for _, server in ipairs(_iperf_servers) do
-    --     if server.COUNTRY == country then
-    --         _server = server
-    --     end
-    -- end
+    for _, server in ipairs(_iperf_servers) do
+        if server.COUNTRY == country then
+            _server = server
+        end
+    end
     if not _server.IP_HOST then
         _server = iperf_servers[math.random(#_iperf_servers)]
     end
@@ -2143,12 +2162,12 @@ local function speedtest()
     local cmd = ""
     if _server.V2 and version.V2 then
         cmd = string.format([[
-                        %s -c %s -i 1 -t 1 -P 10 -f m | awk '/SUM/ {if (down == "") down=$7; else up=$7} END {printf "{ \"down\": %.2f, \"up\": %.2f }\n", down, up}'
+                        %s -c %s -i 1 -t 1 -P 5 -f m | awk '/SUM/ {if (down == "") down=$7; else up=$7} END {printf "{ \"down\": %.2f, \"up\": %.2f }\n", down, up}'
                         ]], 'iperf', _server.IP_HOST)
     end
     if _server.V3 and version.V3 then
         cmd = string.format([[
-                    %s -c %s  -i 1 -t 1 -P 10 -f m | awk '/SUM.*sender/ {up=$6} /SUM.*receiver/ {down=$6} END {print "{ \"down\": " down ", \"up\": " up " }"}'
+                    %s -c %s  -i 1 -t 1 -P 5 -f m | awk '/SUM.*sender/ {up=$6} /SUM.*receiver/ {down=$6} END {print "{ \"down\": " down ", \"up\": " up " }"}'
                     ]], 'iperf3', _server.IP_HOST)
     end
     local ok, res, err = pcall(util.exec, cmd)
@@ -2417,7 +2436,7 @@ local methods = {
         end
     },
     signup = {
-        call = function ()
+        call = function()
             local ok, res, err = pcall(host_signup)
             return {
                 result = jsonc.stringify({
@@ -2728,6 +2747,13 @@ local methods = {
             r.result = jsonc.stringify({
                 cpu_usage = get_process_info(args.pid)
             })
+            return r
+        end
+    },
+    get_tcp_info = {
+        call = function()
+            local r = {}
+            r.result = jsonc.stringify(GetTcpInfo())
             return r
         end
     },
