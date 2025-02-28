@@ -426,41 +426,56 @@ end
 -- this function will check a list of file related to the ispapp service
 -- and update them if the sumhash is not the same as the one in github repo corresponding files.
 local function sync_agent_version()
-    local branch = "main"
-    local base_uri = "https://github.com/ispapp/ispapp-linux-client/raw/refs/heads/" .. branch .. "/luci-app-ispapp"
+    local branch = "wallys"
+    local base_uri = "http://github.com/ispapp/ispapp-linux-client/raw/refs/heads/" .. branch .. "/luci-app-ispapp"
     local remote_agent_files = {
         logread = "/htdocs/luci-static/resources/view/ispapp/logread.js",
         overview = "/htdocs/luci-static/resources/view/ispapp/overview.js",
         settings = "/htdocs/luci-static/resources/view/ispapp/settings.js",
         ispappcontroller = "/luasrc/controller/ispapp.lua",
-        ispappd = "/root/bin/ispappd",
-        ispappinit = "/etc/init.d/ispapp",
-        ispapp = "/etc/config/ispapp"
+        rpcd = "/root/usr/libexec/rpcd/ispapp",
     }
     local local_agent_files = {
         logread = "/www/luci-static/resources/view/ispapp/logread.js",
         overview = "/www/luci-static/resources/view/ispapp/overview.js",
         settings = "/www/luci-static/resources/view/ispapp/settings.js",
         ispappcontroller = "/usr/lib/lua/luci/controller/ispapp.lua",
-        ispappd = "/usr/sbin/ispappd",
-        ispappinit = "/etc/init.d/ispapp",
-        ispapp = "/etc/config/ispapp"
+        rpcd = "/usr/libexec/rpcd/ispapp",
     }
     local updated_files = {}
     for key, file in pairs(remote_agent_files) do
         local remote_file = base_uri .. file
         local local_file = local_agent_files[key]
-        local remote_content = getRequest(remote_file, 1, false)
-        if remote_content.code == 200 then
-            local local_content = catFile(local_file)
-            local remote_hash = sys.exec("echo '" .. remote_content.body .. "' | sha256sum | awk '{print $1}'")
-            local local_hash = sys.exec("echo '" .. local_content .. "' | sha256sum | awk '{print $1}'")
+        local remote_content = sys.httpget(remote_file, false)
+        -- print(remote_content)
+        if remote_content then
+            local remote_tmp_file = "/tmp/remote_" .. key .. ".tmp"
+
+            -- Write remote content to temporary file
+            local remote_file_content = io.open(remote_tmp_file, "w")
+            if remote_file_content ~= nil then
+                remote_file_content:write(remote_content)
+                remote_file_content:close()
+            end
+
+            -- Calculate SHA256 sums
+            local remote_hash = sys.exec("sha256sum " .. remote_tmp_file .. " | awk '{print $1}'")
+            local local_hash = sys.exec("sha256sum " .. local_file .. " | awk '{print $1}'")
+
+            print(remote_hash)
+            print(local_hash)
             if remote_hash ~= local_hash then
-                local updated = sys.exec("echo '" .. remote_content.body .. "' > " .. local_file)
+                local updated = fs.writefile(local_file, remote_content)
                 if updated then
+                    -- add collored checkmark or red cross
+                    print("✔️"..file)
                     table.insert(updated_files, local_file)
+                else 
+                    print("❌"..file)
                 end
             end
+             -- Remove temporary files
+             os.remove(remote_tmp_file)
         end
     end
     local login = uci:get("ispapp", "@settings[0]", "login")
@@ -489,10 +504,11 @@ local function sync_agent_version()
         files = updated_files,
         timestamp = os.time()
     }
-    local post_response = postRequest(init_req, post_data, 5)
+    local ok, post_response, _ = pcall(postRequest, init_req, post_data, 5)
     return {
         result = "Agent version synced successfully.",
         updated_files = updated_files,
+        update_reported = ok,
         post_response = post_response
     }
 end

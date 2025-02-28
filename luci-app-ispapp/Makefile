@@ -52,10 +52,9 @@ define Package/$(PKG_NAME)/description
 LuCI Support of Ispapp.co Agent
 endef
 
-define Package/luci-app-ispapp/install
-	# Install binary with correct permissions
+define Package/$(PKG_NAME)/install
 	$(INSTALL_DIR) $(1)/usr/sbin
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ispappd $(1)/usr/sbin/ispappd
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ispappd $(1)/usr/sbin/
 endef
 
 include $(TOPDIR)/feeds/luci/luci.mk

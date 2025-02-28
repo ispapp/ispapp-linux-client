@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/md5"
+	"crypto/tls"
 	"encoding/hex"
 	"fmt"
 	"log"
@@ -27,6 +28,12 @@ var (
 	refreshToken        = ""
 	configFilePath      = "/etc/config/ispapp"
 	uciTree             = uci.NewTree(configFilePath)
+	httpClient          = &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+		Timeout: 30 * time.Second,
+	}
 )
 
 type Event struct {
@@ -40,11 +47,25 @@ type Response struct {
 	UUID   string `json:"uuid"`
 	Stdout string `json:"stdout,omitempty"`
 	Stderr string `json:"stderr,omitempty"`
+	Data   json.RawMessage `json:"data,omitempty"`
+}
+
+// RpcdRequest represents the JSON structure for ubus calls
+type RpcdRequest struct {
+	Method string        `json:"method"`
+	Params []interface{} `json:"params"`
+}
+
+// RpcdResponse represents the JSON structure for ubus responses
+type RpcdResponse struct {
+	Result json.RawMessage `json:"result"`
 }
 
 func main() {
+	log.Println("Starting ispappd...")
 	for running {
 		if !authenticate() {
+			log.Println("Authentication failed, retrying...")
 			time.Sleep(reconnectInterval)
 			continue
 		}
@@ -177,12 +198,19 @@ func handleMessages() {
 			log.Printf("Error unmarshalling message: %v", err)
 			continue
 		}
-		if event.Type == "terminal" {
+		
+		switch event.Type {
+		case "terminal":
 			handleTerminal(event)
+		case "getupdate":
+			handleGetUpdate(event)
+		case "getconfig":
+			handleGetConfig(event)
+		case "speedtest":
+			handleSpeedTest(event)
+		default:
+			log.Printf("Unknown event type: %s", event.Type)
 		}
-		// if event.Type == "wireless" {
-		// 	handleWireless(event)
-		// }
 	}
 }
 
@@ -205,14 +233,123 @@ func handleTerminal(event Event) {
 	conn.WriteJSON(response)
 }
 
+func handleGetUpdate(event Event) {
+	log.Printf("Handling getupdate event: %s", event.UUID)
+	result, err := callRpcd("ispapp", "getupdate")
+	response := Response{
+		Type: "getupdate",
+		UUID: event.UUID,
+	}
+	
+	if err != nil {
+		response.Stderr = fmt.Sprintf("Error calling getupdate: %v", err)
+	} else {
+		response.Data = result
+	}
+	
+	if err := conn.WriteJSON(response); err != nil {
+		log.Printf("Error sending getupdate response: %v", err)
+	}
+}
+
+func handleGetConfig(event Event) {
+	log.Printf("Handling getconfig event: %s", event.UUID)
+	result, err := callRpcd("ispapp", "getconfig")
+	response := Response{
+		Type: "getconfig",
+		UUID: event.UUID,
+	}
+	
+	if err != nil {
+		response.Stderr = fmt.Sprintf("Error calling getconfig: %v", err)
+	} else {
+		response.Data = result
+	}
+	
+	if err := conn.WriteJSON(response); err != nil {
+		log.Printf("Error sending getconfig response: %v", err)
+	}
+}
+
+func handleSpeedTest(event Event) {
+	log.Printf("Handling speedtest event: %s", event.UUID)
+	
+	// Notify client that speedtest has started
+	startResponse := Response{
+		Type: "speedtest_status",
+		UUID: event.UUID,
+		Stdout: "Starting speedtest...",
+	}
+	conn.WriteJSON(startResponse)
+	
+	// Call the speedtest function from ispapp rpcd - simple direct ubus call
+	result, err := callRpcd("ispapp", "speedtest")
+	
+	response := Response{
+		Type: "speedtest",
+		UUID: event.UUID,
+	}
+	
+	if err != nil {
+		response.Stderr = fmt.Sprintf("Error running speedtest: %v", err)
+	} else {
+		response.Data = result
+	}
+	
+	if err := conn.WriteJSON(response); err != nil {
+		log.Printf("Error sending speedtest response: %v", err)
+	}
+}
+
+// callRpcd calls the rpcd service using ubus
+func callRpcd(service, method string, params ...interface{}) (json.RawMessage, error) {
+	// Build the ubus call command
+	args := []string{"call", service, method}
+	
+	// Add parameters if provided
+	var jsonParams string
+	if len(params) > 0 && params[0] != nil {
+		paramBytes, err := json.Marshal(params[0])
+		if err != nil {
+			return nil, fmt.Errorf("error marshalling params: %v", err)
+		}
+		jsonParams = string(paramBytes)
+		args = append(args, jsonParams)
+	}
+	
+	// Execute the ubus command
+	log.Printf("Executing: ubus %s", strings.Join(args, " "))
+	cmd := exec.Command("ubus", args...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("error calling ubus: %v, output: %s", err, output)
+	}
+	
+	// Return the raw JSON output
+	return output, nil
+}
+
 func updateThread() {
 	for running {
 		time.Sleep(updateInterval)
 		if conn == nil {
 			continue
 		}
-		event := Event{Type: "update"}
-		conn.WriteJSON(event)
+		
+		// Get update data from rpcd - simple direct ubus call
+		updateData, err := callRpcd("ispapp", "getupdate")
+		if err != nil {
+			log.Printf("Error getting update data: %v", err)
+			continue
+		}
+		
+		event := Event{
+			Type: "update",
+			Data: updateData,
+		}
+		if err := conn.WriteJSON(event); err != nil {
+			log.Printf("Error sending update: %v", err)
+		}
 	}
 }
 
@@ -222,8 +359,21 @@ func configThread() {
 		if conn == nil {
 			continue
 		}
-		event := Event{Type: "config"}
-		conn.WriteJSON(event)
+		
+		// Get config data from rpcd - simple direct ubus call
+		configData, err := callRpcd("ispapp", "getconfig")
+		if err != nil {
+			log.Printf("Error getting config data: %v", err)
+			continue
+		}
+		
+		event := Event{
+			Type: "config",
+			Data: configData,
+		}
+		if err := conn.WriteJSON(event); err != nil {
+			log.Printf("Error sending config: %v", err)
+		}
 	}
 }
 
