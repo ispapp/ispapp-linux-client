@@ -36,12 +36,12 @@ end
 local function log_info(message)
     log_to_syslog("info", "[luci.ispapp]: " .. message)
 end
-local function log_warning(message)
-    log_to_syslog("info", "[luci.ispapp]: " .. message)
-end
-local function log_notice(message)
-    log_to_syslog("info", "[luci.ispapp]: " .. message)
-end
+-- local function log_warning(message)
+--     log_to_syslog("info", "[luci.ispapp]: " .. message)
+-- end
+-- local function log_notice(message)
+--     log_to_syslog("info", "[luci.ispapp]: " .. message)
+-- end
 -- return file content or nil
 local function catFile(file)
     local ok, content, error = pcall(fs.readfile, file)
@@ -426,41 +426,56 @@ end
 -- this function will check a list of file related to the ispapp service
 -- and update them if the sumhash is not the same as the one in github repo corresponding files.
 local function sync_agent_version()
-    local branch = "main"
-    local base_uri = "https://github.com/ispapp/ispapp-linux-client/raw/refs/heads/" .. branch .. "/luci-app-ispapp"
+    local branch = "wallys"
+    local base_uri = "http://github.com/ispapp/ispapp-linux-client/raw/refs/heads/" .. branch .. "/luci-app-ispapp"
     local remote_agent_files = {
         logread = "/htdocs/luci-static/resources/view/ispapp/logread.js",
         overview = "/htdocs/luci-static/resources/view/ispapp/overview.js",
         settings = "/htdocs/luci-static/resources/view/ispapp/settings.js",
         ispappcontroller = "/luasrc/controller/ispapp.lua",
-        ispappd = "/root/bin/ispappd",
-        ispappinit = "/etc/init.d/ispapp",
-        ispapp = "/etc/config/ispapp"
+        rpcd = "/root/usr/libexec/rpcd/ispapp",
     }
     local local_agent_files = {
         logread = "/www/luci-static/resources/view/ispapp/logread.js",
         overview = "/www/luci-static/resources/view/ispapp/overview.js",
         settings = "/www/luci-static/resources/view/ispapp/settings.js",
         ispappcontroller = "/usr/lib/lua/luci/controller/ispapp.lua",
-        ispappd = "/usr/sbin/ispappd",
-        ispappinit = "/etc/init.d/ispapp",
-        ispapp = "/etc/config/ispapp"
+        rpcd = "/usr/libexec/rpcd/ispapp",
     }
     local updated_files = {}
     for key, file in pairs(remote_agent_files) do
         local remote_file = base_uri .. file
         local local_file = local_agent_files[key]
-        local remote_content = getRequest(remote_file, 1, false)
-        if remote_content.code == 200 then
-            local local_content = catFile(local_file)
-            local remote_hash = sys.exec("echo '" .. remote_content.body .. "' | sha256sum | awk '{print $1}'")
-            local local_hash = sys.exec("echo '" .. local_content .. "' | sha256sum | awk '{print $1}'")
+        local remote_content = sys.httpget(remote_file, false)
+        -- print(remote_content)
+        if remote_content then
+            local remote_tmp_file = "/tmp/remote_" .. key .. ".tmp"
+
+            -- Write remote content to temporary file
+            local remote_file_content = io.open(remote_tmp_file, "w")
+            if remote_file_content ~= nil then
+                remote_file_content:write(remote_content)
+                remote_file_content:close()
+            end
+
+            -- Calculate SHA256 sums
+            local remote_hash = sys.exec("sha256sum " .. remote_tmp_file .. " | awk '{print $1}'")
+            local local_hash = sys.exec("sha256sum " .. local_file .. " | awk '{print $1}'")
+
+            print(remote_hash)
+            print(local_hash)
             if remote_hash ~= local_hash then
-                local updated = sys.exec("echo '" .. remote_content.body .. "' > " .. local_file)
+                local updated = fs.writefile(local_file, remote_content)
                 if updated then
+                    -- add collored checkmark or red cross
+                    print("✔️"..file)
                     table.insert(updated_files, local_file)
+                else 
+                    print("❌"..file)
                 end
             end
+             -- Remove temporary files
+             os.remove(remote_tmp_file)
         end
     end
     local login = uci:get("ispapp", "@settings[0]", "login")
@@ -489,10 +504,11 @@ local function sync_agent_version()
         files = updated_files,
         timestamp = os.time()
     }
-    local post_response = postRequest(init_req, post_data, 5)
+    local ok, post_response, _ = pcall(postRequest, init_req, post_data, 5)
     return {
         result = "Agent version synced successfully.",
         updated_files = updated_files,
+        update_reported = ok,
         post_response = post_response
     }
 end
@@ -637,8 +653,20 @@ local function getCPUInfo()
 end
 
 local function getHardwareSerialNumber()
-    local serial = sys.exec("cat /proc/cpuinfo | grep Serial")
-    return serial:match("Serial%s*:%s*(%S+)") or "Unknown"
+    local ok, serialnumber, err = pcall(sys.exec, "fw_printenv sn")
+    if ok and not err then
+        local sn = serialnumber:match("sn=(%S+)") or ""
+        if sn ~= "" then
+            return sn
+        end
+    end
+    -- cat /proc/cpuinfo
+    local cpuinfo = sys.exec("cat /proc/cpuinfo")
+    local serial = cpuinfo:match("Serial%s*:%s*(%S+)")
+    if serial then
+        return serial
+    end
+    return serial or "N/A"
 end
 
 -- Single function to fetch interfaces, check for bridge memberships, and gather network stats
@@ -1542,6 +1570,111 @@ local function ParseWlanConfigList(device)
 
     return clients
 end
+
+-- Function to get the frequency from the channel
+local function get_wifi_params(device)
+    if not device or device == "" then
+        return nil, "Device name is required"
+    end
+
+    local function run_command(cmd, is_mac)
+        local handle = io.popen(cmd)
+        if not handle then return nil, "Failed to execute command" end
+        local result = handle:read("*a")
+        handle:close()
+        result = result and result:gsub("\n", ""):match(is_mac and "%S+" or "%-?%d+%.?%d*") or ""
+        return result ~= "" and result or nil, result == "" and "No data found" or nil
+    end
+
+    local params = {}
+    local errors = {}
+
+    params.noise, errors.noise = run_command("awk '$1 ~ /" .. device .. "/ {print $5}' /proc/net/wireless")
+    params.signal, errors.signal = run_command("awk '$1 ~ /" .. device .. "/ {print $3}' /proc/net/wireless")
+    params.channel, errors.channel = run_command("iw dev " .. device .. " info | grep channel | awk '{print $2}'")
+    params.frequency, errors.frequency = run_command("iw dev " .. device .. " info | grep channel | awk '{print $3}'")
+    params.ssid, errors.txPower = run_command("iw dev " .. device .. " info | grep ssid | awk '{print $2}'", true)
+    params.txPower, errors.txPower = run_command("iw dev " .. device .. " info | grep txpower | awk '{print $2}'")
+    -- params.quality, errors.quality = run_command("iw dev " .. device .. " info | grep Quality | awk '{print $2}'")
+    -- params.rate, errors.rate = run_command("iw dev " .. device .. " link | grep 'tx bitrate' | awk '{print $3}'")
+    params.chutil, errors.chutil = run_command("iw dev " .. device .. " survey dump | grep " .. device .. " | grep channel | awk '{print $2}'")
+    params.bandWidth, errors.bandWidth = run_command("iw dev " .. device .. " info | grep width | awk '{print $2}'")
+    params.mac, errors.mac = run_command("cat /sys/class/net/" .. device .. "/address",true)
+    params.mode, errors.mode = run_command("iw dev " .. device .. " info | grep type | awk '{print $2}'", true)
+    params.phy, errors.phy = run_command("cat /sys/class/net/" .. device .. "/phy80211/name")
+
+    -- Try to retrieve TXRATE and RSSI from wlanconfig
+    local wlanconfig_cmd = "wlanconfig " .. device .. " list"
+    local wlanconfig_output, _ = io.popen(wlanconfig_cmd)
+
+    if wlanconfig_output then
+        -- Split the wlanconfig output into lines
+        local lines = {}
+        for line in wlanconfig_output:lines() do
+            table.insert(lines, line)
+        end
+        -- Check if there is at least two lines (the second line contains the relevant data)
+        if #lines >= 2 then
+            -- Match the first line to find the position of TXRATE and RSSI
+            local txRate_pos = lines[1]:find("TXRATE")
+            local rssi_pos = lines[1]:find("RSSI")
+            local quality_pos = lines[1]:find("RXSEQ")
+
+            -- Extract TXRATE and RSSI from the second line based on the found positions
+            if txRate_pos and rssi_pos then
+                -- Find the values of TXRATE and RSSI in the second line
+                local txRate = lines[2]:sub(txRate_pos + 7, txRate_pos + 11):match("%S+")
+                local rssi = lines[2]:sub(rssi_pos + 7):match("(-?%d+)")
+                local quality = lines[2]:sub(quality_pos + 7):match("(-?%d+)")
+
+                if txRate then
+                    params.rate = txRate
+                end
+                if rssi then
+                    params.signal = tonumber(rssi)
+                end
+                if quality then
+                    params.quality = tonumber(quality)
+                end
+            end
+        end
+    end
+
+    -- Fallback to iw dev if quality or rate is not available
+    if not params.signal then
+        params.signal, errors.signal = run_command("iw dev " .. device .. " station dump | grep 'signal' | awk '{print $2}'")
+    end
+    if not params.rate then
+        params.rate, errors.rate = run_command("iw dev " .. device .. " station dump | grep 'tx bitrate' | awk '{print $3}'")
+    end
+    if not params.quality then
+        params.quality, errors.quality = run_command("iw dev " .. device .. " station dump | grep 'signal avg' | awk '{print $3}'")
+    end
+
+    -- Ensure values are correctly formatted
+    if params.noise then params.noise = tonumber(params.noise) end
+    if params.signal then params.signal = tonumber(params.signal) end
+    if params.channel then params.channel = tonumber(params.channel) end
+    if params.frequency then params.frequency = tonumber(params.frequency) end
+    if params.txPower then params.txPower = tonumber(params.txPower) end
+    if params.quality then params.quality = tonumber(params.quality) end
+    if params.rate then params.rate = tonumber(params.rate) end
+    if params.chutil then params.chutil = tonumber(params.chutil) end
+    if params.bandWidth then params.bandWidth = tonumber(params.bandWidth) end
+
+    -- Error handling
+    local valid_params = {}
+    for key, value in pairs(params) do
+        if value then
+            valid_params[key] = value
+        elseif errors[key] then
+            return nil, "Error retrieving " .. key .. ": " .. errors[key]
+        end
+    end
+
+    return valid_params, nil
+end
+
 -- function to collect clients
 local function GetWap()
     local devices = conn:call('iwinfo', 'devices', {})
@@ -1550,6 +1683,7 @@ local function GetWap()
     else
         devices = devices.devices
     end
+    nixio.nanosleep(1, 0)
     local wap = {}
     local clients = {}
     for _, device in ipairs(devices) do
@@ -1557,93 +1691,67 @@ local function GetWap()
         local wap_device = conn:call('iwinfo', 'info', {
             device = device
         })
-        local __clients = conn:call('iwinfo', 'assoclist', {
-            device = device
-        })
-        if #__clients.results == 0 then
-            local ok, _clients = pcall(ParseWlanConfigList, device)
-            if ok and #_clients > 0 then
-                local toSeconds = function(time)
-                    if not time then
-                        return 0
-                    end
-                    local parts = {}
-                    for part in time:gmatch("%d+") do
-                        table.insert(parts, part)
-                    end
-                    local seconds = 0
-                    if #parts == 1 then
-                        seconds = tonumber(parts[1]) or 0
-                    elseif #parts == 2 then
-                        seconds = tonumber(parts[1]) * 60 + tonumber(parts[2])
-                    elseif #parts == 3 then
-                        seconds = tonumber(parts[1]) * 3600 + tonumber(parts[2]) * 60 + tonumber(parts[3])
-                    elseif #parts == 4 then
-                        seconds = tonumber(parts[1]) * 86400 + tonumber(parts[2]) * 3600 + tonumber(parts[3]) * 60 +
-                                      tonumber(parts[4])
-                    end
-                    return seconds
+        local ok, _clients = pcall(ParseWlanConfigList, device)
+        if ok and #_clients > 0 then
+            local toSeconds = function(time)
+                if not time then
+                    return 0
                 end
-                local ratetobytes = function(rate)
-                    local _rate = rate:lower()
-                    _rate = _rate:gsub("m", "000000")
-                    _rate = _rate:gsub("k", "000")
-                    _rate = _rate:gsub("g", "000000000")
-                    _rate = _rate:gsub("b", "")
-                    return tonumber(_rate)
+                local parts = {}
+                for part in time:gmatch("%d+") do
+                    table.insert(parts, part)
                 end
-                local alreadyexist = {}
-                for _, client in pairs(_clients) do
-                    if not alreadyexist[client.addr] then
-                        local dhcps = getDhcpLeases()
-                        table.insert(clients, {
-                            mac = client.addr, -- MAC address
-                            info = "Station " .. client.addr, -- Optional description
-                            rssi = tonumber(client.rssi), -- Signal strength in dBm
-                            recBytes = ratetobytes(client.rxrate), -- 648M
-                            sentBytes = ratetobytes(client.txrate), -- 720M
-                            ccq = ratetobytes(client.rxrate) / (ratetobytes(client.maxrate) or 1), -- CCQ (%)=(Actual Transmitted Data​/Maximum Possible Data)×100
-                            noise = tonumber(client.snr) or 0, -- Noise level in dBm
-                            signal0 = tonumber(client.minrssi) or -1,
-                            signal1 = tonumber(client.rssi) or -1,
-                            signal2 = tonumber(client.maxrssi) or -1,
-                            dhcp = dhcps and dhcps[client.addr] or {
-                                hostname = "N/A",
-                                ip = "N/A",
-                                mac = client.addr,
-                                duid = "N/A"
-                            }, -- add it to db model
-                            signal3 = tonumber(client.rssi_combined) or -1,
-                            -- add estimate_distance
-                            expectedRate = ratetobytes(client["maxrate(dot11)"] or client["maxrate"] or "0"), -- 2882400
-                            assocTime = toSeconds(client.assocTime) or 0, -- 08:48:36 or  23:08:48:36
-                            beaconLoss = 0, -- Number of beacon losses (adjust if data exists)
-                            foundDescriptor = "wlanconfig parsed"
-                        })
-                        alreadyexist[client.addr] = true
-                    end
+                local seconds = 0
+                if #parts == 1 then
+                    seconds = tonumber(parts[1]) or 0
+                elseif #parts == 2 then
+                    seconds = tonumber(parts[1]) * 60 + tonumber(parts[2])
+                elseif #parts == 3 then
+                    seconds = tonumber(parts[1]) * 3600 + tonumber(parts[2]) * 60 + tonumber(parts[3])
+                elseif #parts == 4 then
+                    seconds = tonumber(parts[1]) * 86400 + tonumber(parts[2]) * 3600 + tonumber(parts[3]) * 60 +
+                                  tonumber(parts[4])
                 end
+                return seconds
             end
-        else
-            for mac, data in pairs(__clients.results) do
-                table.insert(clients, {
-                    mac = mac, -- MAC address
-                    info = "Station " .. mac, -- Optional description
-                    rssi = data.signal, -- Signal strength in dBm
-                    recBytes = data.rx_bytes, -- Received bytes
-                    sentBytes = data.tx_bytes, -- Sent bytes
-                    ccq = 100 * (1 - (data.inactive / 5000)), -- Example CCQ calculation
-                    noise = data.noise, -- Noise level in dBm
-                    signal0 = data.signal, -- Signal strength (use signal_avg if available)
-                    signal1 = data.signal_avg, -- Average signal (if applicable)
-                    signal2 = -1, -- Use -1 if not available
-                    signal3 = -1, -- Use -1 if not available
-                    expectedRate = data.tx_rate.rate, -- Expected data rate in Mbps
-                    assocTime = data.connected_time, -- Connected time in seconds
-                    beaconLoss = 0, -- Number of beacon losses (adjust if data exists)
-                    foundDescriptor = true, -- Assumes the descriptor was found
-                    dhcp = getDhcpLeases()[mac] or {}
-                })
+            local ratetobytes = function(rate)
+                local _rate = rate:lower()
+                _rate = _rate:gsub("m", "000000")
+                _rate = _rate:gsub("k", "000")
+                _rate = _rate:gsub("g", "000000000")
+                _rate = _rate:gsub("b", "")
+                return tonumber(_rate)
+            end
+            local alreadyexist = {}
+            for _, client in pairs(_clients) do
+                if not alreadyexist[client.addr] then
+                    local dhcps = getDhcpLeases()
+                    table.insert(clients, {
+                        mac = client.addr, -- MAC address
+                        info = "Station " .. client.addr, -- Optional description
+                        rssi = tonumber(client.rssi), -- Signal strength in dBm
+                        recBytes = ratetobytes(client.rxrate), -- 648M
+                        sentBytes = ratetobytes(client.txrate), -- 720M
+                        ccq = ratetobytes(client.rxrate) / (ratetobytes(client.maxrate) or 1), -- CCQ (%)=(Actual Transmitted Data​/Maximum Possible Data)×100
+                        noise = tonumber(client.snr) or 0, -- Noise level in dBm
+                        signal0 = tonumber(client.minrssi) or -1,
+                        signal1 = tonumber(client.rssi) or -1,
+                        signal2 = tonumber(client.maxrssi) or -1,
+                        dhcp = dhcps and dhcps[client.addr] or {
+                            hostname = "N/A",
+                            ip = "N/A",
+                            mac = client.addr,
+                            duid = "N/A"
+                        }, -- add it to db model
+                        signal3 = tonumber(client.rssi_combined) or -1,
+                        -- add estimate_distance
+                        expectedRate = ratetobytes(client["maxrate(dot11)"] or client["maxrate"] or "0"), -- 2882400
+                        assocTime = toSeconds(client.assocTime) or 0, -- 08:48:36 or  23:08:48:36
+                        beaconLoss = 0, -- Number of beacon losses (adjust if data exists)
+                        foundDescriptor = "wlanconfig parsed"
+                    })
+                    alreadyexist[client.addr] = true
+                end
             end
         end
         if wap_device then
@@ -1667,49 +1775,36 @@ local function GetWap()
                     return "iwinfo parsed - " .. device
                 end
             end
-            local skynetdata = conn:call("device", "getRadio", {
-                name = device
-            })
-            -- skynetdata return :
-            -- "phy": "ath0",
-            -- "ssid": "SecureWiFi",
-            -- "mac": "E0:5D:54:4B:E5:D7",
-            -- "mode": "Master",
-            -- "channelList": "1,2,3,4,5,6,7,8,9,10,11",
-            -- "curChannel": 6,
-            -- "freq": 2437,
-            -- "txPower": 29,
-            -- "quality": 0,
-            -- "signal": 3,
-            -- "noise": -91,
-            -- "rate": 688,
-            -- "chutil": 46,
-            -- "bandWidth": 20    
+            local params = get_wifi_params(device)
+            if params == nil then
+                params = {}
+            end
             table.insert(wap, {
                 interface = device,
-                ssid = uci:get("wireless", device, "ssid") or wap_device.bssid or "N/A",
+                -- ssid = uci:get("wireless", device, "ssid") or wap_device.bssid or "N/A",
+                ssid = params.ssid or wap_device.bssid or "N/A",
                 stations = clients or {},
                 -- signals should be Retrieveed from clients avg signals
                 signal0 = avgsignal("signal0", clients) or wap_device.quality_max,
                 signal1 = avgsignal("signal1", clients) or wap_device.quality_max,
                 signal2 = avgsignal("signal2", clients) or wap_device.quality_max,
                 signal3 = avgsignal("signal3", clients) or wap_device.quality_max,
-                noise = skynetdata.noise or tonumber(wap_device.noise) or 0,
                 foundDescriptor = getfoundDescriptor(),
                 key = getKey(device), -- get it from uci
                 keytypes = getEncryption(device), -- get it from uci
                 -- new params from skynetdata with default values
-                signal = skynetdata.signal or 0,
-                channel = skynetdata.curChannel or 0,
-                frequency = skynetdata.freq or 0,
-                txPower = skynetdata.txPower or 0,
-                quality = skynetdata.quality or 0,
-                rate = skynetdata.rate or 0,
-                chutil = skynetdata.chutil or 0,
-                bandWidth = skynetdata.bandWidth or 0,
-                mac = skynetdata.mac or "N/A",
-                mode = skynetdata.mode or "N/A",
-                phy = skynetdata.phy or "N/A"
+                noise = params.noise or tonumber(wap_device.noise) or 0,
+                signal = params.signal or 0,
+                channel = params.curChannel or 0,
+                frequency = params.freq or 0,
+                txPower = params.txPower or 0,
+                quality = params.quality or 0,
+                rate = params.rate or 0,
+                chutil = params.chutil or 0,
+                bandWidth = params.bandWidth or 0,
+                mac = params.mac or "N/A",
+                mode = params.mode or "N/A",
+                phy = params.phy or "N/A"
             })
         end
     end
@@ -1737,59 +1832,89 @@ local function getSystemInfo()
     }
 end
 local function GetTcpInfo()
-    -- we should not get [conntrack v1.4.8 (conntrack-tools): 78 flow entries have been shown.] in output
     local tcp = {
-        uniqueIps = 0, -- Number of unique IPs in the connection table
-        slowedPairPackets = 0, -- Number of packets with the CWR and ECE flags set
-        cwr = 0, -- Number of packets with the CWR flag set
-        ece = 0, -- Number of packets with the ECE flag set
-        rst = 0, -- Number of packets with the RST flag set
-        syn = 0, -- Number of packets with the SYN flag set
-        urg = 0 -- Number of packets with the URG flag set
+        uniqueIps = 0,          -- Number of unique IPs in the connection table
+        syn = 0,                -- Number of SYN packets
+        urg = 0,                -- Number of URG packets
+        rst = 0,                -- Number of RST packets
+        cwr = 0,                -- Number of CWR packets
+        slowedPairPackets = 0   -- Number of packets with both CWR and ECE flags set
     }
-    -- Execute conntrack command to get connection data
-    local ok, conntrack = pcall(sys.exec, "conntrack -L")
-    if ok then
+
+    -- Function to count unique IPs from /proc/net/nf_conntrack
+    local function countUniqueIps()
         local unique_ips = {}
-        -- Iterate through each line of the conntrack output
-        for line in conntrack:gmatch("[^\r\n]+") do
-            -- Extract source and destination IPs from the line
-            local src_ip = line:match("([%d]+%.[%d]+%.[%d]+%.[%d]+)")
-            local dst_ip = line:match("([%d]+%.[%d]+%.[%d]+%.[%d]+)")
+        local conntrack_file = io.open("/proc/net/nf_conntrack", "r")
+        if conntrack_file then
+            for line in conntrack_file:lines() do
+                if line:find("tcp") then
+                    local src_ip = line:match("src=([%d%.]+)")
+                    local dst_ip = line:match("dst=([%d%.]+)")
+                    if src_ip then unique_ips[src_ip] = true end
+                    if dst_ip then unique_ips[dst_ip] = true end
+                end
+            end
+            conntrack_file:close()
+        end
+        return unique_ips
+    end
 
-            -- Add IPs to the unique_ips set
-            if src_ip then
-                unique_ips[src_ip] = true
+    -- Function to parse /proc/net/netstat and extract TCP packet counts
+    local function parseNetstat()
+        local netstat_file = io.open("/proc/net/netstat", "r")
+        if netstat_file then
+            local headers, values
+            for line in netstat_file:lines() do
+                if line:find("^TcpExt:") then
+                    if not headers then
+                        headers = {}
+                        for header in line:gmatch("(%S+)") do
+                            table.insert(headers, header)
+                        end
+                    else
+                        values = {}
+                        for value in line:gmatch("(%d+)") do
+                            table.insert(values, tonumber(value))
+                        end
+                        break
+                    end
+                end
             end
-            if dst_ip then
-                unique_ips[dst_ip] = true
-            end
+            netstat_file:close()
 
-            -- Check for specific flags in the connection data
-            if line:match("SYN") then
-                tcp.syn = tcp.syn + 1
-            end
-            if line:match("RST") then
-                tcp.rst = tcp.rst + 1
-            end
-            if line:match("CWR") then
-                tcp.cwr = tcp.cwr + 1
-            end
-            if line:match("ECE") then
-                tcp.ece = tcp.ece + 1
-            end
-            if line:match("URG") then
-                tcp.urg = tcp.urg + 1
+            if headers and values then
+                local stats = {}
+                for i = 2, #headers do
+                    stats[headers[i]] = values[i]
+                end
+                return stats
             end
         end
-        -- Calculate the number of unique IPs
-        tcp.uniqueIps = count_keys(unique_ips)
-        if tcp.cwr > 0 and tcp.ece > 0 then
+        return nil
+    end
+
+    -- Count unique IPs
+    local unique_ips = countUniqueIps()
+    tcp.uniqueIps = 0
+    for _ in pairs(unique_ips) do
+        tcp.uniqueIps = tcp.uniqueIps + 1
+    end
+
+    -- Parse netstat for TCP packet counts
+    local netstat_stats = parseNetstat()
+    if netstat_stats then
+        tcp.syn = netstat_stats.TCPSynRetrans or 0
+        tcp.urg = netstat_stats.TCPUrgentPackets or 0
+        tcp.rst = netstat_stats.TCPAbortOnData or 0
+        tcp.cwr = netstat_stats.TCPCongestionRecovery or 0
+        if tcp.cwr > 0 and (netstat_stats.TCPECESent or 0) > 0 then
             tcp.slowedPairPackets = tcp.slowedPairPackets + 1
         end
     end
+
     return tcp
 end
+
 
 -- Function to generate a unique identifier based on system properties
 local function gather_unique_id()
@@ -2005,30 +2130,29 @@ local function AddCollectorsToConfig()
     local interface = get_interface_stats()
     local system = getSystemInfo()
     local tcp = GetTcpInfo()
-    local location = getExternalIpInfo()
-    local scanned = false
-    local wifi_area_scanning = {}
-    local scanningerr = nil
-    local lastTimeScanned = uci:get("ispapp", "@settings[0]", "lastTimeScanned")
-    if not lastTimeScanned then
-        uci:set("ispapp", "@settings[0]", "lastTimeScanned", os.time())
-        uci:commit("ispapp")
-        scanned, wifi_area_scanning, scanningerr = pcall(GetwifiScan)
-    else
-        -- compare in secconds and make sure it almost 10 minutes ago or more
-        local diff = os.time() - lastTimeScanned
-        if diff > 300 then
-            scanned, wifi_area_scanning, scanningerr = pcall(GetwifiScan)
-            if scanned then
-                uci:set("ispapp", "@settings[0]", "lastTimeScanned", os.time())
-                uci:commit("ispapp")
-            end
-        end
-    end
-    location = {
-        lat = location.latitude,
-        lng = location.longitude
-    }
+    -- local scanned = false
+    -- local wifi_area_scanning = {}
+    -- local scanningerr = nil
+    -- local lastTimeScanned = uci:get("ispapp", "@settings[0]", "lastTimeScanned")
+    -- if not lastTimeScanned then
+    --     uci:set("ispapp", "@settings[0]", "lastTimeScanned", os.time())
+    --     uci:commit("ispapp")
+    --     scanned, wifi_area_scanning, scanningerr = pcall(GetwifiScan)
+    -- else
+    --     -- compare in secconds and make sure it almost 10 minutes ago or more
+    --     local diff = os.time() - lastTimeScanned
+    --     if diff > 300 then
+    --         scanned, wifi_area_scanning, scanningerr = pcall(GetwifiScan)
+    --         if scanned then
+    --             uci:set("ispapp", "@settings[0]", "lastTimeScanned", os.time())
+    --             uci:commit("ispapp")
+    --         end
+    --     end
+    -- end
+    -- location = {
+    --     lat = location.latitude,
+    --     lng = location.longitude
+    -- }
     local configs = CollectConfigs()
     local pings = {}
     pings[1] = ping
@@ -2038,17 +2162,17 @@ local function AddCollectorsToConfig()
         interface = interface,
         system = system,
         tcp = tcp,
-        location = location,
+        -- location = location,
         arptable = getArpTable().devices,
         leases = getDhcpLeases(),
         topos = getEasyMesh().topo,
-        wifi_area_scanning = {},
+        -- wifi_area_scanning = {},
         spectralscan = {}
     }
     local spectral = get_spectral_data(100)
-    if scanned then
-        configs["collectors"].wifi_area_scanning = wifi_area_scanning
-    end
+    -- if scanned then
+    --     configs["collectors"].wifi_area_scanning = wifi_area_scanning
+    -- end
     if spectral.ok then
         configs["collectors"].spectralscan = spectral.result
     end
@@ -2056,6 +2180,7 @@ local function AddCollectorsToConfig()
 end
 local function syncConfigs()
     local configs = AddCollectorsToConfig()
+    print("configs collected")
     local host = uci:get("ispapp", "@settings[0]", "Domain")
     if not host then
         log_error("Failed to get server domain")
@@ -2128,11 +2253,11 @@ local function speedtest()
             table.insert(_iperf_servers, srv)
         end
     end
-    -- for _, server in ipairs(_iperf_servers) do
-    --     if server.COUNTRY == country then
-    --         _server = server
-    --     end
-    -- end
+    for _, server in ipairs(_iperf_servers) do
+        if server.COUNTRY == country then
+            _server = server
+        end
+    end
     if not _server.IP_HOST then
         _server = iperf_servers[math.random(#_iperf_servers)]
     end
@@ -2143,12 +2268,12 @@ local function speedtest()
     local cmd = ""
     if _server.V2 and version.V2 then
         cmd = string.format([[
-                        %s -c %s -i 1 -t 1 -P 10 -f m | awk '/SUM/ {if (down == "") down=$7; else up=$7} END {printf "{ \"down\": %.2f, \"up\": %.2f }\n", down, up}'
+                        %s -c %s -i 1 -t 1 -P 5 -f m | awk '/SUM/ {if (down == "") down=$7; else up=$7} END {printf "{ \"down\": %.2f, \"up\": %.2f }\n", down, up}'
                         ]], 'iperf', _server.IP_HOST)
     end
     if _server.V3 and version.V3 then
         cmd = string.format([[
-                    %s -c %s  -i 1 -t 1 -P 10 -f m | awk '/SUM.*sender/ {up=$6} /SUM.*receiver/ {down=$6} END {print "{ \"down\": " down ", \"up\": " up " }"}'
+                    %s -c %s  -i 1 -t 1 -P 5 -f m | awk '/SUM.*sender/ {up=$6} /SUM.*receiver/ {down=$6} END {print "{ \"down\": " down ", \"up\": " up " }"}'
                     ]], 'iperf3', _server.IP_HOST)
     end
     local ok, res, err = pcall(util.exec, cmd)
@@ -2389,7 +2514,7 @@ local CleanUp = function()
     end
 end
 local methods = {
-    test = {
+    get_wap = {
         call = function()
             local r = {}
             r.result = jsonc.stringify({
@@ -2417,7 +2542,7 @@ local methods = {
         end
     },
     signup = {
-        call = function ()
+        call = function()
             local ok, res, err = pcall(host_signup)
             return {
                 result = jsonc.stringify({
@@ -2728,6 +2853,20 @@ local methods = {
             r.result = jsonc.stringify({
                 cpu_usage = get_process_info(args.pid)
             })
+            return r
+        end
+    },
+    get_tcp_info = {
+        call = function()
+            local r = {}
+            r.result = jsonc.stringify(GetTcpInfo())
+            return r
+        end
+    },
+    get_ping = {
+        call = function()
+            local r = {}
+            r.result = jsonc.stringify(getPing())
             return r
         end
     },

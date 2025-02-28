@@ -139,16 +139,34 @@ local function start_daemon()
     threads[2] = coroutine.create(Config_thread)
     threads[3] = coroutine.create(HealthCheck_thread)
     
+    local function safe_resume(thread, name)
+        local ok, err = coroutine.resume(thread)
+        if not ok then
+            log_to_syslog("err", "[ispappd]: " .. name .. " error: " .. (err or "unknown error"))
+        end
+    end
+
+    local function watch_and_restart_threads()
+        for i, thread in ipairs(threads) do
+            if coroutine.status(thread) == "dead" then
+                log("Thread " .. i .. " is dead, restarting it...")
+                if i == 1 then
+                    threads[i] = coroutine.create(Update_thread)
+                elseif i == 2 then
+                    threads[i] = coroutine.create(Config_thread)
+                else
+                    threads[i] = coroutine.create(HealthCheck_thread)
+                end
+            end
+        end
+    end
+
     -- Manage threads in a round-robin fashion
     while running do
-        if #threads ~= 3 then
-            threads[1] = coroutine.create(Update_thread)
-            threads[2] = coroutine.create(Config_thread)
-            threads[3] = coroutine.create(HealthCheck_thread)
-        end
-        for _, thread in ipairs(threads) do
+        watch_and_restart_threads()
+        for i, thread in ipairs(threads) do
             if coroutine.status(thread) == "suspended" then
-                coroutine.resume(thread)
+                safe_resume(thread, "Thread " .. i)
             end
         end
         nixio.nanosleep(0, 100000000) -- Short sleep to avoid tight loop
