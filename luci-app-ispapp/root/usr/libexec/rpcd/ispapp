@@ -1768,17 +1768,11 @@ local function GetWap()
                 end
                 return sum / #clients
             end
-            local getfoundDescriptor = function()
-                if uci:get("wireless", device, "ssid") then
-                    return "wifi interface - " .. device
-                else
-                    return "iwinfo parsed - " .. device
-                end
-            end
             local params = get_wifi_params(device)
             if params == nil then
                 params = {}
             end
+            local foundDescriptor =  "wifi interface - " .. device .. " - " .. (params.chutil or "N/A")
             table.insert(wap, {
                 interface = device,
                 -- ssid = uci:get("wireless", device, "ssid") or wap_device.bssid or "N/A",
@@ -1789,7 +1783,7 @@ local function GetWap()
                 signal1 = avgsignal("signal1", clients) or wap_device.quality_max,
                 signal2 = avgsignal("signal2", clients) or wap_device.quality_max,
                 signal3 = avgsignal("signal3", clients) or wap_device.quality_max,
-                foundDescriptor = getfoundDescriptor(),
+                foundDescriptor = foundDescriptor,
                 key = getKey(device), -- get it from uci
                 keytypes = getEncryption(device), -- get it from uci
                 -- new params from skynetdata with default values
