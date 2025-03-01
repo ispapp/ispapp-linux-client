@@ -7,5 +7,7 @@ uci -q batch <<-EOF >/dev/null
 	commit ucitrack
 EOF
 
+chmod +x /etc/init.d/ispapp /usr/libexec/rpcd/ispapp /bin/ispappd
+
 rm -f /tmp/luci-indexcache
 exit 0

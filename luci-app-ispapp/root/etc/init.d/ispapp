@@ -1,144 +1,42 @@
 #!/bin/sh /etc/rc.common
-## ispapp service manager ##
-## path: /etc/init.d/ispapp
 
 START=99
-STOP=10
-PID_FILE="/var/run/ispappd.pid"
-LUA_SCRIPT="/bin/ispappd"
+USE_PROCD=1
 
-start() {
-    echo "Starting ispappd..."
-    
-    # Check if the PID file exists
-    if [ -f "$PID_FILE" ]; then
-        # Read the PID from the file
-        PID=$(cat "$PID_FILE")
-        
-        # Check if the process is still running
-        if ps -p $PID > /dev/null 2>&1; then
-            echo "ispappd is already running with PID $PID. Stopping it first..."
-            kill $PID
-            
-            # Wait for the process to terminate
-            wait $PID 2>/dev/null
-            
-            echo "Stopped existing instance of ispappd."
-        else
-            echo "Stale PID file found. Removing it."
-            rm -f "$PID_FILE"
-        fi
-    fi
-
-    # Start the Lua script in the background and save the new PID
-    /usr/bin/env lua "$LUA_SCRIPT" start &
-    ubus call ispapp reload_envirement
-    echo $! > "$PID_FILE"
-
-    echo "ispappd started with PID $(cat "$PID_FILE")"
+start_service() {
+    procd_open_instance
+    procd_set_param command /bin/ispappd start
+    procd_set_param respawn ${respawn_threshold:-3600} ${respawn_timeout:-5} ${respawn_retry:-5}
+    procd_set_param stdout 1
+    procd_set_param stderr 1
+    procd_set_param pidfile /var/run/ispappd.pid
+    procd_set_param file /etc/config/ispappd
+    procd_set_param limits nofile=65535
+    procd_set_param user ispapp
+    procd_set_param group ispapp
+    procd_set_param env HOME=/var/run/ispappd
+    procd_set_param env UCI_CONFIG=/etc/config/ispapp
+    procd_close_instance
 }
 
-stop() {
-    if [ -f "$PID_FILE" ]; then
-        PID=$(cat $PID_FILE)
-        echo "Stopping ispappd with PID $PID..."
-        
-        # Kill the process and remove the PID file
-        kill $PID && rm -f $PID_FILE
-        ps | grep '[i]spappd' | awk '{print $1}' | xargs kill -9
-        echo "ispappd stopped."
-    else
-        echo "ispappd is not running or PID file not found."
-    fi
+stop_service() {
+    procd_close_instance
 }
 
-restart() {
-    echo "Restarting ispappd..."
-    stop
-    sleep 1
-    start
+restart_service() {
+    procd_close_instance
+    start_service
 }
 
-reload() {
-    if [ -f "$PID_FILE" ]; then
-        PID=$(cat $PID_FILE)
-        echo "Reloading ispappd with PID $PID..."
-        
-        # Send SIGHUP to the process to reload configuration
-        kill -HUP $PID
-        echo "ispappd reloaded."
-    else
-        echo "ispappd is not running or PID file not found."
-    fi
+reload_service() {
+    procd_send_signal /var/run/ispappd.pid HUP
 }
 
-status() {
-    if [ -f "$PID_FILE" ]; then
-        PID=$(cat $PID_FILE)
-        if ps -p $PID > /dev/null 2>&1; then
-            echo "ispappd is running with PID $PID."
-        else
-            echo "ispappd is not running, but PID file exists."
-        fi
-    else
-        echo "ispappd is not running."
-    fi
+shutdown_service() {
+    procd_send_signal /var/run/ispappd.pid TERM
 }
 
-enable() {
-    # Check if we're already in an enable operation
-    if [ -f "/tmp/.ispapp_enabling" ]; then
-        echo "Enable operation already in progress..."
-        return 0
-    fi
-
-    # Create temporary lock file
-    touch "/tmp/.ispapp_enabling"
-
-    echo "Enabling ispappd service autostart..."
-    
-    # Create proper symlinks instead of calling self
-    ln -sf "/etc/init.d/ispapp" "/etc/rc.d/S99ispapp"
-    
-    # Update service status
+enable_service() {
     uci set ispapp.@settings[0].enabled=1
     uci commit ispapp
-    
-    # Remove lock file
-    rm -f "/tmp/.ispapp_enabling"
-    
-    echo "ispappd service autostart enabled."
-}
-
-disable() {
-    # Check if we're already in a disable operation
-    if [ -f "/tmp/.ispapp_disabling" ]; then
-        echo "Disable operation already in progress..."
-        return 0
-    fi
-
-    # Create temporary lock file
-    touch "/tmp/.ispapp_disabling"
-
-    echo "Disabling ispappd service autostart..."
-    
-    # Remove symlinks directly
-    rm -f "/etc/rc.d/S99ispapp"
-    
-    # Update service status
-    uci set ispapp.@settings[0].enabled=0
-    uci commit ispapp
-    
-    # Remove lock file
-    rm -f "/tmp/.ispapp_disabling"
-    
-    echo "ispappd service autostart disabled."
-}
-
-enabled() {
-    if [ "$(uci get ispapp.@settings[0].enabled)" -eq 1 ]; then
-        echo "ispappd service is enabled."
-    else
-        echo "ispappd service is disabled."
-    fi
 }
