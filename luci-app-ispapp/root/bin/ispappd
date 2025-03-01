@@ -4,9 +4,10 @@
 -- path: /bin/ispappd
 local nixio = require "nixio"
 local uci = require"luci.model.uci".cursor()
-local ubus = require "ubus"
+-- local ubus = require "ubus"
+local sys = require "luci.sys"
 local jsonc = require "luci.jsonc"
-local conn = ubus.connect()
+-- local conn = ubus.connect()
 -- Variables to manage threads and their respective sleep times
 local threads = {}
 local running = false
@@ -23,7 +24,23 @@ local maxinteger = 9223372036854775807/1024
 local function log_to_syslog(level, message) nixio.syslog(level, message) end
 -- priority Priority ["emerg", "alert", "crit", "err", "warning", "notice", "info", "debug"] 
 local function log(message) log_to_syslog("debug", "[ispappd]: " .. message) end
-
+local function rpcdCall(method, params)
+    local cmd = "lua /usr/libexec/rpcd/ispapp call ".. method
+    if (params and #params > 0) then
+        cmd = cmd .. " " .. jsonc.stringify(params)
+    end
+    local status, result, _ = pcall(sys.exec,cmd)
+    print("cmd: " .. cmd)
+    print("status: " .. (status and "true" or "false"))
+    print("result: " .. result)
+    if status  then
+        log("Call " .. method .. " successfully")
+    else
+        log("Failed to call " .. method .. " error: " ..
+                (status and jsonc.stringify(status) or "no error"))
+    end
+    return (status and result) and jsonc.parse(result) or nil
+end
 -- Function to load configuration and get sleep times for each thread
 local function load_config()
     local UpdateInterval = uci:get("ispapp", "@settings[0]", "updateInterval")
@@ -56,9 +73,9 @@ local function Update_thread()
             count = 0
         end
         log("Sending updates ..." .. " count: " .. count)
-        local update = conn:call("ispapp", "update", {})
-        local sentupdate = conn:call("ispapp", "sendupdate", {})
-        local terminal = conn:call("ispapp", "terminal", {})
+        local update = rpcdCall("update", {})
+        local sentupdate = rpcdCall("sendupdate", {})
+        local terminal = rpcdCall("terminal", {})
         if terminal and terminal.code == 200 then
             log("Terminal sent successfully" .. " count: " .. count)
         else
@@ -89,7 +106,7 @@ local function Config_thread()
             count = 0
         end
         log("Sending configs..." .. " count: " .. count)
-        local config = conn:call("ispapp", "config", {})
+        local config = rpcdCall("config", {})
         if config and config.code == 200 then
             log("Config sent successfully" .. " count: " .. count)
         else
@@ -109,7 +126,7 @@ local function HealthCheck_thread()
             count = 0
         end
         log("Reporting heath check..." .. " count: " .. count)
-        local health = conn:call("ispapp", "checkconnection", {})
+        local health = rpcdCall("checkconnection", {})
         if health and health.code == 200 then
             log("Health check reported successfully" .. " count: " .. count)
         else
@@ -216,7 +233,7 @@ end
 
 -- cleanup child process with ps:
 local CleanUp = function()
-    local status = conn:call("ispapp", "cleanup", {})
+    local status = sys.exec("ps | grep ispapp | grep -v grep | awk '{print $1}' | xargs kill -9")
     if status and status.status then
         log("CleanUp successfully")
     else
@@ -237,7 +254,7 @@ local action = arg[1]
 if action == "start" then
     -- Start the service by daemonizing it
     -- daemonize()
-    CleanUp()
+    -- nixio.nanosleep(1, 0) -- Sleep for 1 second before Starting
     start_daemon()
     log("ispappd started.")
 elseif action == "stop" then
@@ -245,7 +262,6 @@ elseif action == "stop" then
     CleanUp()
     log("ispappd stopped.")
 elseif action == "restart" then
-    CleanUp()
     restart_daemon()
     log("ispappd restarted.")
 else
