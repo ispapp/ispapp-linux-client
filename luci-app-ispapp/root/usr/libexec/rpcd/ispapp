@@ -779,7 +779,7 @@ local function getExternalIpInfo()
         end
         -- Check if JSON parsing is successful and then extract data
         if parsedData then
-            info.ip = parsedData.ip or "N/A"
+            info.ip = parsedData.realIp or "N/A"
             info.country = parsedData.country or "N/A"
             info.city = parsedData.city or "N/A"
             info.asn = getFullAsn(parsedData.asn) or "N/A"
@@ -1202,13 +1202,12 @@ end
 -- Function to get the WAN IP address
 local function getWanIp()
     -- Run the command to fetch global IPv4 addresses
-    local cmd =
-        "ip -4 addr show | awk '/global/ && /inet/ {print $2}' | cut -d'/' -f1 | awk '{printf \"%s%s\", (NR>1?\",\":\"\"), $0}'"
+    local cmd = "ip -4 addr show | awk '/global/ && /inet/ {print $2}' | cut -d'/' -f1 | awk '{printf \"%s%s\", (NR>1?\",\":\"\"), $0}'"
     local handle, res, _ = pcall(util.exec, cmd)
     if not handle then
         return nil, "Unable to execute command"
     end
-    return res or "N/A"
+    return res and res:match("%d+%.%d+%.%d+%.%d+") or "N/A"
 end
 -- ip -4 addr show | awk '/global/' | awk '/inet/ {print $2}' | cut -d'/' -f1
 
