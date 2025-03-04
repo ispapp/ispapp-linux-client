@@ -610,8 +610,7 @@ local function get_device_mode()
 end
 
 local function get_config()
-
-    local sections = uci:get_all("ispapp", "config")
+    local sections = uci:get_all("ispapp", "@settings[0]")
     return sections
 end
 
@@ -627,6 +626,7 @@ local function getReleaseValue(key)
     local pattern = key .. "='(.-)'"
     return release_info:match(pattern)
 end
+
 -- get the cupi information fro the file system 
 local function getCPUInfo()
     -- Execute the command to get the content of /proc/cpuinfo
@@ -667,6 +667,40 @@ local function getHardwareSerialNumber()
         return serial
     end
     return serial or "N/A"
+end
+
+-- Function to extract a value by key from the hardware info
+local function getBoardInfo()
+    -- check if /etc/img_version exist and get data with : as split char and those data as returns
+    -- manufacturer,version,model,env and get serial number from fw_printenv sn command after = sign
+    -- and if not exist we take 
+    -- cat /etc/device_info
+    -- DEVICE_MANUFACTURER='OpenWrt'
+    -- DEVICE_MANUFACTURER_URL='https://openwrt.org/'
+    -- DEVICE_PRODUCT='Generic'
+    -- DEVICE_REVISION='v0'
+    -- and serial number from cat /etc/board.json , model.id or from /proc/cpuinfo Serial
+    local board_info = {}
+    local img_version = io.open("/etc/img_version"):read("*a")
+    if img_version and img_version ~= nil then
+        board_info = {
+            hardwareMake = img_version:match("manufacturer:(%S+)") or "N/A",
+            hardwareModelNumber = img_version:match("model:(%S+)") or "N/A",
+            hardwareModel = img_version:match("model:(%S+)") or "N/A",
+            hardwareSerialNumber = sys.exec("fw_printenv sn"):match("sn=(%S+)") or "N/A",
+        }
+    else
+        local device_info = catFile("/etc/device_info")
+        if device_info then
+            board_info = {
+                hardwareMake = device_info:match("DEVICE_MANUFACTURER='(%S+)'") or "N/A",
+                hardwareModelNumber = device_info:match("DEVICE_REVISION='(%S+)'") or "N/A",
+                hardwareModel = device_info:match("DEVICE_PRODUCT='(%S+)'") or "N/A",
+                hardwareSerialNumber = getHardwareSerialNumber()
+            }
+        end
+    end
+    return board_info or {}
 end
 
 -- Single function to fetch interfaces, check for bridge memberships, and gather network stats
@@ -1218,6 +1252,7 @@ local function CollectConfigs()
     local ipinfo = getExternalIpInfo()
     local osrelease = parseOsRelease()
     local uptime, idle_time = get_uptime()
+    local board_info = getBoardInfo()
     local response = {
         agent = "openwrt",
         bandwidthTestSupport = commandExists("iperf") or commandExists("iperf3") or commandExists("btest"),
@@ -1225,10 +1260,10 @@ local function CollectConfigs()
         firmwareUpgradeSupport = commandExists("fwupgrade-tools"),
         fw = getReleaseValue("DISTRIB_DESCRIPTION"),
         hardwareCpuInfo = cpumodel .. ", " .. cpucores .. " cores",
-        hardwareMake = sys.exec("cat /tmp/sysinfo/board_name"):gsub("%s+$", ""),
-        hardwareModel = sys.exec("cat /sys/firmware/devicetree/base/model"),
-        hardwareModelNumber = sys.exec("cat /tmp/sysinfo/model"):gsub("%s+$", ""),
-        hardwareSerialNumber = getHardwareSerialNumber(),
+        hardwareMake = board_info.hardwareMake,
+        hardwareModel = board_info.hardwareModel,
+        hardwareModelNumber = board_info.hardwareModelNumber,
+        hardwareSerialNumber = board_info.hardwareSerialNumber,
         hostname = sys.hostname(),
         interfaces = getNetworkInterfaces(),
         lastConfigRequest = seq_lasttmp.lastConfigRequest,
@@ -2171,6 +2206,7 @@ local function AddCollectorsToConfig()
     end
     return configs
 end
+
 local function syncConfigs()
     local configs = AddCollectorsToConfig()
     print("configs collected")
@@ -2620,12 +2656,19 @@ local methods = {
             return r
         end
     },
-    collect_configs = {
+    get_config = {
         call = function()
             local r = {}
-            r.result = jsonc.stringify({
-                configs = CollectConfigs()
-            })
+            local configs = CollectConfigs()
+            r.result = jsonc.stringify(configs)
+            return r
+        end
+    },
+    get_update = {
+        call = function()
+            local r = {}
+            local collected = AddCollectorsToConfig()
+            r.result = jsonc.stringify(collected)
             return r
         end
     },
@@ -2853,6 +2896,13 @@ local methods = {
         call = function()
             local r = {}
             r.result = jsonc.stringify(GetTcpInfo())
+            return r
+        end
+    },
+    get_board_info = {
+        call = function()
+            local r = {}
+            r.result = jsonc.stringify(getBoardInfo())
             return r
         end
     },
