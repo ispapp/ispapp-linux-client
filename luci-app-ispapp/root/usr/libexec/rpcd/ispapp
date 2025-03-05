@@ -426,7 +426,7 @@ end
 -- this function will check a list of file related to the ispapp service
 -- and update them if the sumhash is not the same as the one in github repo corresponding files.
 local function sync_agent_version()
-    local branch = "wallys"
+    local branch = "skynet"
     local base_uri = "http://github.com/ispapp/ispapp-linux-client/raw/refs/heads/" .. branch .. "/luci-app-ispapp"
     local remote_agent_files = {
         logread = "/htdocs/luci-static/resources/view/ispapp/logread.js",
