@@ -1281,6 +1281,7 @@ local function CollectConfigs()
         usingWebSocket = is_using_websocket(),
         webshellSupport = true,
         wirelessConfigured = wirelessConfigured(),
+        WirelessConfig = catFile("/etc/config/wireless"),
         wirelessSupport = wirelessSupport()
     }
 
