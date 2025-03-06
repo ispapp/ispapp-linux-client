@@ -6,185 +6,200 @@
 #, fuzzy
 msgid ""
 msgstr ""
-"Project-Id-Version: \n"
+"Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2024-09-28 20:49+0100\n"
+"POT-Creation-Date: 2025-02-24 17:40+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Type: text/plain; charset=CHARSET\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Generator: Poedit 3.5\n"
 
-#: luasrc/controller/ispapp.lua:12
+#: luasrc/controller/ispapp.lua:8
 msgid "ISPApp"
 msgstr ""
 
-#: luasrc/controller/ispapp.lua:15
+#: luasrc/controller/ispapp.lua:11
 msgid "Overview"
 msgstr ""
 
-#: luasrc/controller/ispapp.lua:16 luasrc/model/cbi/ispapp/settings.lua:9
+#: luasrc/controller/ispapp.lua:12
+#: htdocs/luci-static/resources/view/ispapp/settings.js:40
 msgid "Settings"
 msgstr ""
 
-#: luasrc/controller/ispapp.lua:17
+#: luasrc/controller/ispapp.lua:13
 msgid "Log View"
 msgstr ""
 
-#: luasrc/model/cbi/ispapp/overview.lua:3
-msgid "ISP App Status"
+#: htdocs/luci-static/resources/view/ispapp/logread.js:22
+msgid "No ISPApp related logs yet!"
 msgstr ""
 
-#: luasrc/model/cbi/ispapp/overview.lua:3
-msgid "Displays current status of the ISP App"
+#: htdocs/luci-static/resources/view/ispapp/logread.js:29
+msgid "The syslog output, pre-filtered for ISPApp related messages only."
 msgstr ""
 
-#: luasrc/model/cbi/ispapp/overview.lua:7
-msgid "Service Overview"
+#: htdocs/luci-static/resources/view/ispapp/overview.js:66
+msgid "ISPApp Overview"
 msgstr ""
 
-#: luasrc/model/cbi/ispapp/overview.lua:10
+#: htdocs/luci-static/resources/view/ispapp/overview.js:66
+msgid "Overview of ISPApp service status and statistics."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/ispapp/overview.js:72
 msgid "Service Status"
 msgstr ""
 
-#: luasrc/model/cbi/ispapp/overview.lua:15
-msgid "Running"
+#: htdocs/luci-static/resources/view/ispapp/overview.js:84
+msgid "Start Service"
 msgstr ""
 
-#: luasrc/model/cbi/ispapp/overview.lua:17
-msgid "Not Running"
+#: htdocs/luci-static/resources/view/ispapp/overview.js:92
+msgid "Stop Service"
 msgstr ""
 
-#: luasrc/model/cbi/ispapp/overview.lua:22
+#: htdocs/luci-static/resources/view/ispapp/overview.js:100
+msgid "Restart Service"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/ispapp/overview.js:108
 msgid "Last Edit Time"
 msgstr ""
 
-#: luasrc/model/cbi/ispapp/overview.lua:28
+#: htdocs/luci-static/resources/view/ispapp/overview.js:111
+#: htdocs/luci-static/resources/view/ispapp/overview.js:153
+msgid "Unknown"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/ispapp/overview.js:114
 msgid "Active Time"
 msgstr ""
 
-#: luasrc/model/cbi/ispapp/overview.lua:34
+#: htdocs/luci-static/resources/view/ispapp/overview.js:120
 msgid "CPU Usage"
 msgstr ""
 
-#: luasrc/model/cbi/ispapp/overview.lua:40
-msgid "Network Speed"
+#: htdocs/luci-static/resources/view/ispapp/overview.js:126
+msgid "Memory Usage (VmRSS)"
 msgstr ""
 
-#: luasrc/model/cbi/ispapp/overview.lua:46
+#: htdocs/luci-static/resources/view/ispapp/overview.js:132
+msgid "Threads"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/ispapp/overview.js:138
+msgid "CPU Affinity"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/ispapp/overview.js:144
+msgid "Process State"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/ispapp/overview.js:150
 msgid "Device Mode"
 msgstr ""
 
-#: luasrc/model/cbi/ispapp/overview.lua:52
-msgid "Edit Settings"
+#: htdocs/luci-static/resources/view/ispapp/overview.js:156
+msgid "Server Live Status"
 msgstr ""
 
-#: luasrc/model/cbi/ispapp/overview.lua:58
-msgid "Sign In to ISPApp Cloud"
-msgstr ""
-
-#: luasrc/model/cbi/ispapp/settings.lua:5
+#: htdocs/luci-static/resources/view/ispapp/settings.js:39
 msgid "ISPApp Configuration"
 msgstr ""
 
-#: luasrc/model/cbi/ispapp/settings.lua:6
+#: htdocs/luci-static/resources/view/ispapp/settings.js:39
 msgid "Configure ISPApp settings."
 msgstr ""
 
-#: luasrc/model/cbi/ispapp/settings.lua:14
-msgid "Enabled"
-msgstr ""
-
-#: luasrc/model/cbi/ispapp/settings.lua:14
-msgid "Enable ISPApp."
-msgstr ""
-
-#: luasrc/model/cbi/ispapp/settings.lua:18
+#: htdocs/luci-static/resources/view/ispapp/settings.js:44
 msgid "Login"
 msgstr ""
 
-#: luasrc/model/cbi/ispapp/settings.lua:18
+#: htdocs/luci-static/resources/view/ispapp/settings.js:44
 msgid "MAC address for login."
 msgstr ""
 
-#: luasrc/model/cbi/ispapp/settings.lua:22
-msgid "Top Domain"
+#: htdocs/luci-static/resources/view/ispapp/settings.js:51
+msgid "Domain"
 msgstr ""
 
-#: luasrc/model/cbi/ispapp/settings.lua:22
+#: htdocs/luci-static/resources/view/ispapp/settings.js:51
 msgid "Domain name for top domain."
 msgstr ""
 
-#: luasrc/model/cbi/ispapp/settings.lua:26
-msgid "Top Listener Port"
+#: htdocs/luci-static/resources/view/ispapp/settings.js:59
+msgid "Listener Port"
 msgstr ""
 
-#: luasrc/model/cbi/ispapp/settings.lua:26
+#: htdocs/luci-static/resources/view/ispapp/settings.js:59
 msgid "Port for listening."
 msgstr ""
 
-#: luasrc/model/cbi/ispapp/settings.lua:30
-msgid "Top SMTP Port"
+#: htdocs/luci-static/resources/view/ispapp/settings.js:67
+msgid "Key"
 msgstr ""
 
-#: luasrc/model/cbi/ispapp/settings.lua:30
-msgid "SMTP port."
-msgstr ""
-
-#: luasrc/model/cbi/ispapp/settings.lua:34
-msgid "Top Key"
-msgstr ""
-
-#: luasrc/model/cbi/ispapp/settings.lua:34
+#: htdocs/luci-static/resources/view/ispapp/settings.js:67
 msgid "Key for authentication."
 msgstr ""
 
-#: luasrc/model/cbi/ispapp/settings.lua:38
-msgid "IP Bandwidth Test Server"
+#: htdocs/luci-static/resources/view/ispapp/settings.js:78
+msgid "Access Token"
 msgstr ""
 
-#: luasrc/model/cbi/ispapp/settings.lua:38
-msgid "IP address for bandwidth test server."
+#: htdocs/luci-static/resources/view/ispapp/settings.js:78
+msgid "Access token for API access."
 msgstr ""
 
-#: luasrc/model/cbi/ispapp/settings.lua:42
-msgid "BT User"
+#: htdocs/luci-static/resources/view/ispapp/settings.js:85
+msgid "Refresh Token"
 msgstr ""
 
-#: luasrc/model/cbi/ispapp/settings.lua:42
-msgid "Username for BT."
+#: htdocs/luci-static/resources/view/ispapp/settings.js:85
+msgid "Refresh token for API access."
 msgstr ""
 
-#: luasrc/model/cbi/ispapp/settings.lua:46
-msgid "BT Password"
+#: htdocs/luci-static/resources/view/ispapp/settings.js:92
+msgid "Connected"
 msgstr ""
 
-#: luasrc/model/cbi/ispapp/settings.lua:46
-msgid "Password for BT."
+#: htdocs/luci-static/resources/view/ispapp/settings.js:92
+msgid "Connection status."
 msgstr ""
 
-#: luasrc/model/cbi/ispapp/settings.lua:51
-msgid "Save and Apply"
+#: htdocs/luci-static/resources/view/ispapp/settings.js:103
+msgid "Refresh connection"
 msgstr ""
 
-#: luasrc/model/cbi/ispapp/settings.lua:72
-msgid "Unable to save changes: "
+#: htdocs/luci-static/resources/view/ispapp/settings.js:111
+msgid "Refresh token updated successfully."
 msgstr ""
 
-#: luasrc/model/cbi/ispapp/settings.lua:75
-msgid "Configuration changes have been saved."
+#: htdocs/luci-static/resources/view/ispapp/settings.js:114
+msgid "Failed to update refresh token."
 msgstr ""
 
-#: luasrc/model/cbi/ispapp/logread.lua:1
-msgid "ISP App Log"
+#: htdocs/luci-static/resources/view/ispapp/settings.js:119
+msgid "Update Interval"
 msgstr ""
 
-#: luasrc/model/cbi/ispapp/logread.lua:1
-msgid "Displays logs for ispapp"
+#: htdocs/luci-static/resources/view/ispapp/settings.js:119
+msgid "Interval for updating data in seconds."
 msgstr ""
 
-#: luasrc/model/cbi/ispapp/logread.lua:5
-msgid "ISP App Log Viewer"
+#: htdocs/luci-static/resources/view/ispapp/settings.js:147
+msgid "Device Signup"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/ispapp/settings.js:162
+msgid "ISPApp is connected."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/ispapp/settings.js:164
+#: htdocs/luci-static/resources/view/ispapp/settings.js:168
+msgid "ISPApp is not connected."
 msgstr ""

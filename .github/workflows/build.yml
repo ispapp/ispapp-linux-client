@@ -3,7 +3,7 @@ name: BUILD PACKAGES
 on:
   push:
     branches:
-      - skynet
+      - wallys
     paths:
       - 'luci-app-ispapp/**/*'
 

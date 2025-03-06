@@ -6,8 +6,8 @@ config settings
         option ListenerPort '443'
         option connected '0'
         option Key ''
-        option refreshToken 'N/A'
-        option accessToken 'N/A'
+        option refreshToken ''
+        option accessToken ''
         option updateInterval '1'
         option IperfServer ''
 
