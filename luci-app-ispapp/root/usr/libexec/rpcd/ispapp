@@ -2289,7 +2289,7 @@ local function speedtest()
         end
     end
     if not _server.IP_HOST then
-        _server = iperf_servers[math.random(#_iperf_servers)]
+        _server = iperf_servers[math.random(#_iperf_servers or 20)]
     end
     local user_select = uci:get("ispapp", "@settings[0]", "IperfServer")
     if user_select then
