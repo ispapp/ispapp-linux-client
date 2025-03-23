@@ -1823,7 +1823,7 @@ local function GetWap()
                 keytypes = getEncryption(device), -- get it from uci
                 -- new params from skynetdata with default values
                 noise = params.noise or tonumber(wap_device.noise) or 0,
-                signal = params.signal or 0,
+                signal = tonumber(params.signal or 0),
                 channel = params.curChannel or 0,
                 frequency = params.freq or 0,
                 txPower = params.txPower or 0,
