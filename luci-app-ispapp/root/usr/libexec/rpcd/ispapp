@@ -482,8 +482,9 @@ local function sync_agent_version()
     local domain = uci:get("ispapp", "@settings[0]", "Domain")
     local loaded = {}
     if not domain or domain == "" then
-        local _domain = sys.exec("fw_printenv prvdomain"):gsub("prvdomain=", "")
-        if _domain then
+        local ok,_domain,_ = pcall(sys.exec, "fw_printenv prvdomain")
+        if ok and _domain then
+            _domain = _domain:gsub("prvdomain=", "")
             uci:set("ispapp", "@settings[0]", "Domain", _domain)
         else
             uci:set("ispapp", "@settings[0]", "Domain", "prv.cloud.ispapp.co")
@@ -562,8 +563,10 @@ local save_to_envirement = function(data)
         saved["key"] = key
     end
     if domain and domain ~= "" then
-        sys.exec("fw_setenv prvdomain " .. domain)
-        saved["domain"] = domain
+        local ok,_domain,_ = pcall(sys.exec, "fw_printenv prvdomain")
+        if ok and _domain then
+            saved["domain"] = domain
+        end
     end
     return saved
 end
