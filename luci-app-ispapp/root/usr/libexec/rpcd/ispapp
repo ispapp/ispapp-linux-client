@@ -684,8 +684,20 @@ local function getBoardInfo()
     -- DEVICE_REVISION='v0'
     -- and serial number from cat /etc/board.json , model.id or from /proc/cpuinfo Serial
     local board_info = {}
-    local img_version = io.open("/etc/img_version"):read("*a")
-    if img_version and img_version ~= nil then
+    local _file = io.open("/etc/img_version")
+    if _file ~= nil then
+        local img_version = _file:read("*a")
+        local ok, sn, _ = pcall(sys.exec, "fw_printenv sn")
+        if ok and sn then
+            sn = sn:match("sn=(%S+)") or "N/A"
+        else
+            ok, sn, _ = pcall(sys.exec, "fw_printenv soc_hw_version")
+            if ok and sn then
+                sn = sn:match("soc_hw_version=(%S+)") or "N/A"
+            else
+                sn = 'N/A'
+            end
+        end
         board_info = {
             hardwareMake = img_version:match("manufacturer:(%S+)") or "N/A",
             hardwareModelNumber = img_version:match("model:(%S+)") or "N/A",

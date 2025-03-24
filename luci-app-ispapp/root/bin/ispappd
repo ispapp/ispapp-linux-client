@@ -12,7 +12,7 @@ local jsonc = require "luci.jsonc"
 local threads = {}
 local running = false
 local sleep_times = {
-    update_interval = 1, -- Default sleep time for WISP monitor (10s minimum)
+    update_interval = 5, -- Default sleep time for WISP monitor (10s minimum)
     config_interval = 5, -- Default sleep time for connection manager (10s minimum)
     heathcheck_interval = 10 -- Default sleep time for status reporter (10s minimum)
 }
