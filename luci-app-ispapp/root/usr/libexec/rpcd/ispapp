@@ -1215,7 +1215,15 @@ local function wirelessConfigured()
         local interface_type = uci:get("wireless", device, "type") or "N/A"
 
         -- Translate the band (hwmode) into readable format
+        -- Translate the band (hwmode) into readable format
         local band_readable = band_map[band] or "N/A"
+        
+        -- Try to get additional frequency information from iw dev command
+        local iw_info = sys.exec("iw dev " .. section.device .. " info 2>/dev/null")
+        local frequency = iw_info:match("channel%s+%d+%s+%((%d+)%s+MHz%)") or ""
+        if frequency and frequency ~= "" then
+            band_readable = band_readable .. " (" .. frequency .. " MHz)"
+        end
         -- local band_readable = band_map[band] or "N/A"
 
         -- Build the object structure
@@ -2512,15 +2520,11 @@ local function terminalHandler()
             local finalcmds = {}
             for _, cmd in ipairs(termRes.queue) do
                 local _, cmdRes, error = pcall(sys.exec, cmd.cmd)
-                local res = {
-                    cmd = cmd.cmd,
-                    uuidv4 = cmd.uuidv4,
-                    stdout = cmdRes or "",
-                    stderr = error or "",
-                    executed = true,
-                    delivered = true,
-                    timestamp = os.time()
-                }
+                local res = cmd
+                res.timestamp = os.time()
+                res.result = cmdRes
+                res.error = error
+                res.executed = true
                 table.insert(finalcmds, res)
             end
             local _responce = postRequest(termReq, finalcmds, 1)
