@@ -2513,6 +2513,7 @@ local function terminalHandler()
     end
     local port = uci:get("ispapp", "@settings[0]", "ListenerPort") or "443"
     local termReq = string.format('https://%s:%s/terminal', host, port)
+    local _responce = {}
     local responce = postRequest(termReq, {}, 1)
     if responce.code == 200 then
         local termRes = jsonc.parse(responce.body)
@@ -2522,12 +2523,12 @@ local function terminalHandler()
                 local _, cmdRes, error = pcall(sys.exec, cmd.cmd)
                 local res = cmd
                 res.timestamp = os.time()
-                res.result = cmdRes
-                res.error = error
+                res.stdout = cmdRes
+                res.stderr = error
                 res.executed = true
                 table.insert(finalcmds, res)
             end
-            local _responce = postRequest(termReq, finalcmds, 1)
+            _responce = postRequest(termReq, finalcmds, 1)
             if _responce.code == 200 then
                 log_info("Command executed successfully: " .. _responce.body)
             else
@@ -2541,7 +2542,8 @@ local function terminalHandler()
     return {
         code = responce.code,
         status = responce.status,
-        body = responce.body
+        body = responce.body,
+        sent = _responce
     }
 end
 
