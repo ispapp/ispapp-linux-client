@@ -1312,10 +1312,19 @@ local function CollectConfigs()
 end
 local function getPing()
     local ping_data = {
-        host = "1.1.1.1"
+        host = "1.1.1.1" -- default ping target
     }
+    local pingtarget0 = uci:get("ispapp", "@settiongs[0]", "Domain")
+    if pingtarget0 and pingtarget0 ~= "" then
+        ping_data.host = pingtarget0
+    end
+    local pingtarget1 = uci:get("ispapp", "@settiongs[0]", "pingtarget")
+    if pingtarget1 and pingtarget1 ~= "" then
+        ping_data.host = pingtarget1
+    end
+    -- Check if the ping command is available
     local okcmd, pingcmd = pcall(util.exec, string.format([[
-    ping -c 3 %s -q | tail -1 | awk -F' = ' '{split($2, arr, "/"); gsub(" ms", "", arr[1]); gsub(" ms", "", arr[2]); gsub(" ms", "", arr[3]); print "{\"min\": " arr[1] ", \"avg\": " arr[2] ", \"max\": " arr[3] "}"}'
+    ping -c 5 %s -q | tail -1 | awk -F' = ' '{split($2, arr, "/"); gsub(" ms", "", arr[1]); gsub(" ms", "", arr[2]); gsub(" ms", "", arr[3]); print "{\"min\": " arr[1] ", \"avg\": " arr[2] ", \"max\": " arr[3] "}"}'
     ]], ping_data.host))
     if not okcmd then
         return {
