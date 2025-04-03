@@ -422,6 +422,13 @@ local function verify_config()
         result = "Configuration already exists."
     }
 end
+-- this function will check if the device is online or offline
+local function internet_check()
+    local handle = io.popen("ping -c 1 -W 2 8.8.8.8 > /dev/null 2>&1 && echo 1 || echo 0")
+    local result = handle:read("*a")
+    handle:close()
+    return tonumber(result) == 1  -- Convert result to number and check if it's 1
+end
 
 -- this function will check a list of file related to the ispapp service
 -- and update them if the sumhash is not the same as the one in github repo corresponding files.
@@ -443,6 +450,13 @@ local function sync_agent_version()
         rpcd = "/usr/libexec/rpcd/ispapp",
     }
     local updated_files = {}
+    local is_internet = internet_check()
+    if not is_internet then
+        return {
+            error = "No internet connection.",
+            result = "Agent version sync failed."
+        }
+    end
     for key, file in pairs(remote_agent_files) do
         local remote_file = base_uri .. file
         local local_file = local_agent_files[key]
