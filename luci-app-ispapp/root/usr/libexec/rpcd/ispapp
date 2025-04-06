@@ -1324,15 +1324,15 @@ local function CollectConfigs()
 
     return response
 end
-local function getPing()
+local function getPing(target)
     local ping_data = {
-        host = "1.1.1.1" -- default ping target
+        host = "cloud.ispapp.co" -- default ping target
     }
     local pingtarget0 = uci:get("ispapp", "@settiongs[0]", "Domain")
     if pingtarget0 and pingtarget0 ~= "" then
         ping_data.host = pingtarget0
     end
-    local pingtarget1 = uci:get("ispapp", "@settiongs[0]", "pingtarget")
+    local pingtarget1 = target
     if pingtarget1 and pingtarget1 ~= "" then
         ping_data.host = pingtarget1
     end
