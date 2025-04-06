@@ -1,0 +1,83 @@
+.PHONY: build clean test debug release openwrt-targets
+
+# Program configuration
+PROG=agent
+DIST_DIR=dist
+VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "unknown")
+
+# Go configuration
+GO=go
+GO_FLAGS=-trimpath -ldflags "-s -w -X main.version=$(VERSION)"
+GO_FILES=$(shell find . -name "*.go" -type f | grep -v "_test.go")
+
+# Platform settings
+GOOS?=$(shell go env GOOS)
+GOARCH?=$(shell go env GOARCH)
+GOMIPS?=softfloat
+
+# Cross compile settings for OpenWrt (multiple architectures)
+openwrt-targets: openwrt-mips openwrt-mipsle openwrt-arm openwrt-aarch64 openwrt-x86_64
+
+openwrt-mips:
+	@echo "Building for OpenWrt MIPS..."
+	@mkdir -p $(DIST_DIR)
+	@GOOS=linux GOARCH=mips GOMIPS=softfloat $(GO) build $(GO_FLAGS) -o $(DIST_DIR)/$(PROG)-mips ./cmd/agent
+
+openwrt-mipsle:
+	@echo "Building for OpenWrt MIPS Little Endian..."
+	@mkdir -p $(DIST_DIR)
+	@GOOS=linux GOARCH=mipsle GOMIPS=softfloat $(GO) build $(GO_FLAGS) -o $(DIST_DIR)/$(PROG)-mipsle ./cmd/agent
+
+openwrt-arm:
+	@echo "Building for OpenWrt ARM..."
+	@mkdir -p $(DIST_DIR)
+	@GOOS=linux GOARCH=arm GOARM=7 $(GO) build $(GO_FLAGS) -o $(DIST_DIR)/$(PROG)-arm ./cmd/agent
+
+openwrt-aarch64:
+	@echo "Building for OpenWrt ARM64..."
+	@mkdir -p $(DIST_DIR)
+	@GOOS=linux GOARCH=arm64 $(GO) build $(GO_FLAGS) -o $(DIST_DIR)/$(PROG)-arm64 ./cmd/agent
+
+openwrt-x86_64:
+	@echo "Building for OpenWrt x86_64..."
+	@mkdir -p $(DIST_DIR)
+	@GOOS=linux GOARCH=amd64 $(GO) build $(GO_FLAGS) -o $(DIST_DIR)/$(PROG)-x86_64 ./cmd/agent
+
+openwrt-arm_cortex:
+	@echo "Building for OpenWrt arm_cortex-a7_neon-vfpv4..."
+	@mkdir -p $(DIST_DIR)
+	@GOOS=android GOARCH=arm $(GO) build $(GO_FLAGS) -o $(DIST_DIR)/$(PROG)-arm ./cmd/agent
+# Standard build
+build:
+	@mkdir -p $(DIST_DIR)
+	@echo "Building binary for $(GOOS)/$(GOARCH)..."
+	@GOOS=$(GOOS) GOARCH=$(GOARCH) $(GO) build $(GO_FLAGS) -o $(DIST_DIR)/$(PROG) ./cmd/agent
+
+# Clean outputs
+clean:
+	@echo "Cleaning up..."
+	@rm -rf $(DIST_DIR)
+
+# Run tests
+test:
+	@echo "Running tests..."
+	@$(GO) test -v ./...
+
+# Create config directory for testing
+config-dir:
+	@mkdir -p $(DIST_DIR)/config
+	@cp -f files/ispapp $(DIST_DIR)/config/ispapp
+
+# Debug on remote device
+debug: build config-dir
+	@echo "Starting debug on device..."
+	@./scripts/debug.sh ${DEVICE_IP} ${DEVICE_USER} ${DEVICE_PORT}
+
+# Create release package
+release: build
+	@echo "Creating release package..."
+	@mkdir -p $(DIST_DIR)/release
+	@cp $(DIST_DIR)/$(PROG) $(DIST_DIR)/release/
+	@cp -r config $(DIST_DIR)/release/
+	@cd $(DIST_DIR)/release && tar -czf ../ispapp-agent-$(VERSION).tar.gz .
+	@echo "Release package created: $(DIST_DIR)/ispapp-agent-$(VERSION).tar.gz"
