@@ -2085,7 +2085,7 @@ local function tokenrefrech()
     if not accessToken then
         accessToken = "" -- default value
     end
-    local uri = string.format('https://' .. host .. ':' .. port .. '/auth/refresh' .. "?accessToken=" .. accessToken)
+    local uri = string.format('https://' .. host .. ':' .. port .. '/auth/refresh' .. "?accessToken=" .. (accessToken or ''))
     local res = getRequest(uri, 1)
     if res.code == 200 then
         local tokens = jsonc.parse(res.body)
