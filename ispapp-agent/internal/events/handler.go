@@ -163,6 +163,17 @@ func (h *Handler) SignUp() error {
 	return nil
 }
 
+// SaveTokens saves the access and refresh tokens
+func (h *Handler) SaveTokens(accessToken, refreshToken string) error {
+	if err := h.Config.UpdateTokens(accessToken, refreshToken); err != nil {
+		h.Log.Errorf("Failed to save tokens: %v", err)
+		return err
+	}
+
+	h.Log.Info("Tokens saved successfully")
+	return nil
+}
+
 // CheckConnection validates and refreshes the authentication token
 func (h *Handler) CheckConnection() error {
 	domain := h.Config.GetString("Domain")

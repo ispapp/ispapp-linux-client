@@ -269,3 +269,65 @@ func (c *Client) handleOutgoingMessages() {
 		}
 	}
 }
+
+// Authenticate authenticates the client with the WebSocket server
+func (c *Client) Authenticate(login, key string) error {
+	authPayload := map[string]string{
+		"action": "auth",
+		"payload": map[string]string{
+			"login": login,
+			"key":   key,
+		},
+	}
+
+	return c.Send("auth", authPayload)
+}
+
+// RefreshToken refreshes the authentication token
+func (c *Client) RefreshToken(refreshToken string) error {
+	refreshPayload := map[string]string{
+		"action": "refreshToken",
+		"payload": map[string]string{
+			"refreshToken": refreshToken,
+		},
+	}
+
+	return c.Send("refreshToken", refreshPayload)
+}
+
+// ReportEvent sends an event to the WebSocket server
+func (c *Client) ReportEvent(eventType string, data interface{}) error {
+	eventPayload := map[string]interface{}{
+		"action":  eventType,
+		"payload": data,
+	}
+
+	return c.Send(eventType, eventPayload)
+}
+
+// SelfHeal attempts to reconnect and reauthenticate if the connection is lost
+func (c *Client) SelfHeal() {
+	go func() {
+		for {
+			select {
+			case <-c.ctx.Done():
+				return
+			default:
+				if c.conn == nil {
+					c.log.Warn("Connection lost. Attempting to reconnect...")
+					if err := c.Connect(); err != nil {
+						c.log.Errorf("Reconnection failed: %v", err)
+						time.Sleep(c.reconnectWait)
+						continue
+					}
+
+					// Reauthenticate after reconnecting
+					if err := c.Authenticate(c.deviceID, c.authToken); err != nil {
+						c.log.Errorf("Reauthentication failed: %v", err)
+					}
+				}
+				time.Sleep(time.Second)
+			}
+		}
+	}()
+}

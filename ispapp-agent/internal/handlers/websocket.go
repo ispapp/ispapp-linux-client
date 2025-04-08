@@ -33,7 +33,24 @@ func (h *WebSocketHandler) Name() string {
 	return "websocket"
 }
 
-// Start initializes the handler
+// RegisterDevice sends device registration data to the server
+func (h *WebSocketHandler) RegisterDevice() error {
+	registrationData := map[string]interface{}{
+		"hostname":  h.config.DeviceID,
+		"device_id": h.config.DeviceID,
+		"key":       h.config.AuthToken,
+	}
+
+	if err := h.client.ReportEvent("auth", registrationData); err != nil {
+		h.log.Errorf("Failed to register device: %v", err)
+		return err
+	}
+
+	h.log.Info("Device registered successfully")
+	return nil
+}
+
+// Start initializes the handler with registration and self-healing
 func (h *WebSocketHandler) Start() error {
 	h.log.Info("WebSocket handler starting")
 
@@ -53,9 +70,16 @@ func (h *WebSocketHandler) Start() error {
 		return err
 	}
 
+	// Register the device
+	if err := h.RegisterDevice(); err != nil {
+		return err
+	}
+
+	// Start self-healing mechanism
+	h.client.SelfHeal()
+
 	// Send initial status message
 	go func() {
-		// Wait a bit to ensure connection is established
 		time.Sleep(2 * time.Second)
 		h.sendStatusMessage()
 	}()
