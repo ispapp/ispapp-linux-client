@@ -2082,6 +2082,9 @@ local function tokenrefrech()
     local host = uci:get("ispapp", "@settings[0]", "Domain")
     local port = uci:get("ispapp", "@settings[0]", "ListenerPort")
     local accessToken = uci:get("ispapp", "@settings[0]", "accessToken")
+    if not accessToken then
+        accessToken = "" -- default value
+    end
     local uri = string.format('https://' .. host .. ':' .. port .. '/auth/refresh' .. "?accessToken=" .. accessToken)
     local res = getRequest(uri, 1)
     if res.code == 200 then
