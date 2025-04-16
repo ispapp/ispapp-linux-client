@@ -74,7 +74,7 @@ type ClientHandler struct {
 
 // OnClose handles connection close events
 func (h *ClientHandler) OnClose(socket *gws.Conn, err error) {
-	h.client.log.Infof("WebSocket connection closed: %v", err)
+	h.client.log.Infof("WebSocket connection closed: %v", err.Error())
 	h.client.mutex.Lock()
 	h.client.conn = nil
 	h.client.mutex.Unlock()
@@ -127,7 +127,6 @@ func (c *Client) Connect() error {
 	}
 
 	c.log.Infof("Connecting to WebSocket server: %s", c.url)
-
 	// Add auth token and device ID to header
 	header := http.Header{}
 	if c.authToken != "" {
@@ -136,7 +135,7 @@ func (c *Client) Connect() error {
 	if c.deviceID != "" {
 		header.Add("X-Device-ID", c.deviceID)
 	}
-
+	// load configs if needed
 	// Configure client options
 	clientOptions := &gws.ClientOption{
 		Addr:                c.url,
@@ -151,6 +150,7 @@ func (c *Client) Connect() error {
 	// Connect to the WebSocket server
 	conn, _, err := gws.NewClient(eventHandler, clientOptions)
 	if err != nil {
+		c.log.Errorf("WebSocket dial error: %v", err)
 		return fmt.Errorf("websocket dial error: %v", err)
 	}
 
@@ -272,7 +272,8 @@ func (c *Client) handleOutgoingMessages() {
 
 // Authenticate authenticates the client with the WebSocket server
 func (c *Client) Authenticate(login, key string) error {
-	authPayload := map[string]string{
+	c.log.Infof("Authenticating with login: %s", login)
+	authPayload := map[string]interface{}{
 		"action": "auth",
 		"payload": map[string]string{
 			"login": login,
@@ -280,12 +281,16 @@ func (c *Client) Authenticate(login, key string) error {
 		},
 	}
 
-	return c.Send("auth", authPayload)
+	err := c.Send("auth", authPayload)
+	if err != nil {
+		c.log.Errorf("Authentication failed: %v", err)
+	}
+	return err
 }
 
 // RefreshToken refreshes the authentication token
 func (c *Client) RefreshToken(refreshToken string) error {
-	refreshPayload := map[string]string{
+	refreshPayload := map[string]interface{}{
 		"action": "refreshToken",
 		"payload": map[string]string{
 			"refreshToken": refreshToken,

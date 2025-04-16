@@ -2,9 +2,11 @@ package config
 
 import (
 	"fmt"
-	uci "ispapp-agent/internal/uci"
+	"ispapp-agent/internal/config/muci"
 	"os"
+	"os/exec"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/sirupsen/logrus"
@@ -67,20 +69,26 @@ func (c *UCIConfig) Load() error {
 	}
 
 	// Load UCI configuration
-	ctx := uci.NewTree(c.uciRoot)
-	defer ctx.Revert()
+	uciInstance := muci.NewUCI()
+	configFile := fmt.Sprintf("%s/%s", c.uciRoot, UCIConfigPackage)
+	config, err := muci.LoadConfig(configFile)
+	if err != nil {
+		return fmt.Errorf("failed to load UCI config: %v", err)
+	}
+	uciInstance.Configs[UCIConfigPackage] = config
 
 	// Load settings section
-	if err := c.loadSettings(ctx); err != nil {
+	if err := c.loadSettings(uciInstance); err != nil {
 		return fmt.Errorf("failed to load settings: %v", err)
 	}
+	c.log.Infof("Loaded settings: %+v", c)
 
 	// Load overview section
-	if err := c.loadOverview(ctx); err != nil {
+	if err := c.loadOverview(uciInstance); err != nil {
 		return fmt.Errorf("failed to load overview: %v", err)
 	}
 
-	c.log.Info("UCI configuration loaded successfully")
+	c.log.Infof("UCI configuration loaded successfully : %+v", c)
 	return nil
 }
 
@@ -92,22 +100,27 @@ func (c *UCIConfig) Save() error {
 	c.log.Info("Saving UCI configuration")
 
 	// Create UCI instance
-	ctx := uci.NewTree(c.uciRoot)
-	defer ctx.Revert()
+	uciInstance := muci.NewUCI()
+	configFile := fmt.Sprintf("%s/%s", c.uciRoot, UCIConfigPackage)
+	config, err := muci.LoadConfig(configFile)
+	if err != nil {
+		return fmt.Errorf("failed to load UCI config for saving: %v", err)
+	}
+	uciInstance.Configs[UCIConfigPackage] = config
 
 	// Save settings section
-	if err := c.saveSettings(ctx); err != nil {
+	if err := c.saveSettings(uciInstance); err != nil {
 		return fmt.Errorf("failed to save settings: %v", err)
 	}
 
 	// Save overview section
-	if err := c.saveOverview(ctx); err != nil {
+	if err := c.saveOverview(uciInstance); err != nil {
 		return fmt.Errorf("failed to save overview: %v", err)
 	}
 
-	// Commit changes
-	if err := ctx.Commit(); err != nil {
-		return fmt.Errorf("failed to commit UCI config: %v", err)
+	// Save the configuration to disk
+	if err := config.Save(); err != nil {
+		return fmt.Errorf("failed to save UCI config: %v", err)
 	}
 
 	c.log.Info("UCI configuration saved successfully")
@@ -145,9 +158,14 @@ func (c *UCIConfig) SetConnected(connected bool) error {
 
 	c.Connected = connected
 
-	// Create UCI instance
-	ctx := uci.NewTree(c.uciRoot)
-	defer ctx.Revert()
+	// Create UCI instance using our custom muci package
+	uciInstance := muci.NewUCI()
+	configFile := fmt.Sprintf("%s/%s", c.uciRoot, UCIConfigPackage)
+	config, err := muci.LoadConfig(configFile)
+	if err != nil {
+		return fmt.Errorf("failed to load UCI config for setting connected status: %v", err)
+	}
+	uciInstance.Configs[UCIConfigPackage] = config
 
 	// Set value
 	connValue := "0"
@@ -155,13 +173,13 @@ func (c *UCIConfig) SetConnected(connected bool) error {
 		connValue = "1"
 	}
 
-	if ok := ctx.Set(UCIConfigPackage, UCIConfigSettingsSection, "connected", connValue); !ok {
-		return fmt.Errorf("failed to set connected status")
+	if err := config.Set(UCIConfigSettingsSection, "settings", "connected", connValue, false); err != nil {
+		return fmt.Errorf("failed to set connected status: %v", err)
 	}
 
-	// Commit changes
-	if err := ctx.Commit(); err != nil {
-		return fmt.Errorf("failed to commit UCI config: %v", err)
+	// Save the configuration to disk
+	if err := config.Save(); err != nil {
+		return fmt.Errorf("failed to save UCI config: %v", err)
 	}
 
 	return nil
@@ -176,21 +194,25 @@ func (c *UCIConfig) UpdateTokens(accessToken, refreshToken string) error {
 	c.RefreshToken = refreshToken
 
 	// Create UCI instance
-	ctx := uci.NewTree(c.uciRoot)
-	defer ctx.Revert()
+	uciInstance := muci.NewUCI()
+	configFile := fmt.Sprintf("%s/%s", c.uciRoot, UCIConfigPackage)
+	config, err := muci.LoadConfig(configFile)
+	if err != nil {
+		return fmt.Errorf("failed to load UCI config for token update: %v", err)
+	}
+	uciInstance.Configs[UCIConfigPackage] = config
 
-	// Set tokens
-	if ok := ctx.Set(UCIConfigPackage, UCIConfigSettingsSection, "accessToken", accessToken); !ok {
-		return fmt.Errorf("failed to set access token")
+	if err := config.Set(UCIConfigSettingsSection, "settings", "accessToken", accessToken, false); err != nil {
+		return fmt.Errorf("failed to set access token: %v", err)
 	}
 
-	if ok := ctx.Set(UCIConfigPackage, UCIConfigSettingsSection, "refreshToken", refreshToken); !ok {
-		return fmt.Errorf("failed to set refresh token")
+	if err := config.Set(UCIConfigSettingsSection, "settings", "refreshToken", refreshToken, false); err != nil {
+		return fmt.Errorf("failed to set refresh token: %v", err)
 	}
 
-	// Commit changes
-	if err := ctx.Commit(); err != nil {
-		return fmt.Errorf("failed to commit UCI config: %v", err)
+	// Save the configuration to disk
+	if err := config.Save(); err != nil {
+		return fmt.Errorf("failed to save UCI config: %v", err)
 	}
 
 	return nil
@@ -217,18 +239,21 @@ func (c *UCIConfig) ensureConfigExists() error {
 // createDefaultConfig creates a default UCI configuration
 func (c *UCIConfig) createDefaultConfig() error {
 	// Create UCI instance
-	ctx := uci.NewTree(c.uciRoot)
-	defer ctx.Revert()
-
+	configFile := fmt.Sprintf("%s/%s", c.uciRoot, UCIConfigPackage)
+	config, err := muci.LoadConfig(configFile)
+	if err != nil {
+		return fmt.Errorf("failed to load UCI config: %v", err)
+	}
+	// defer ctx.Revert()
 	// Create settings section
-	if err := ctx.AddSection(UCIConfigPackage, UCIConfigSettingsSection, "settings"); err != nil {
+	if err := config.AddSection("settings", "settings"); err != nil {
 		return fmt.Errorf("failed to create settings section: %v", err)
 	}
 
 	// Set default settings
 	defaults := map[string]string{
 		"enabled":        "1",
-		"login":          "",
+		"login":          "00000000-000-0000-0000-000000000000",
 		"Domain":         "prv.cloud.ispapp.co",
 		"ListenerPort":   "443",
 		"connected":      "0",
@@ -240,7 +265,7 @@ func (c *UCIConfig) createDefaultConfig() error {
 	}
 
 	for key, value := range defaults {
-		if ok := ctx.Set(UCIConfigPackage, UCIConfigSettingsSection, key, value); !ok {
+		if err := config.Set(UCIConfigSettingsSection, UCIConfigSettingsSection, key, value, len(strings.Split(value, " ")) > 0); err != nil {
 			return fmt.Errorf("failed to set default setting %s", key)
 		}
 	}
@@ -255,13 +280,13 @@ func (c *UCIConfig) createDefaultConfig() error {
 	}
 
 	for _, target := range defaultTargets {
-		if ok := ctx.Set(UCIConfigPackage, UCIConfigSettingsSection, "pingTargets", target); !ok {
-			return fmt.Errorf("failed to add default ping target")
+		if err := config.Set(UCIConfigSettingsSection, "settings", "pingTargets", target, true); err != nil {
+			return fmt.Errorf("failed to add default ping target: %v", err)
 		}
 	}
 
 	// Create overview section
-	if err := ctx.AddSection(UCIConfigPackage, UCIConfigOverviewSection, "overview"); err != nil {
+	if err := config.AddSection(UCIConfigOverviewSection, UCIConfigOverviewSection); err != nil {
 		return fmt.Errorf("failed to create overview section: %v", err)
 	}
 
@@ -273,13 +298,13 @@ func (c *UCIConfig) createDefaultConfig() error {
 	}
 
 	for key, value := range overviewDefaults {
-		if ok := ctx.Set(UCIConfigPackage, UCIConfigOverviewSection, key, value); !ok {
-			return fmt.Errorf("failed to set default overview setting %s", key)
+		if err := config.Set(UCIConfigOverviewSection, UCIConfigOverviewSection, key, value, false); err != nil {
+			return fmt.Errorf("failed to set default overview setting %s: %v", key, err)
 		}
 	}
 
 	// Commit changes
-	if err := ctx.Commit(); err != nil {
+	if err := config.Save(); err != nil {
 		return fmt.Errorf("failed to commit UCI config: %v", err)
 	}
 
@@ -287,111 +312,161 @@ func (c *UCIConfig) createDefaultConfig() error {
 }
 
 // loadSettings loads the settings section
-func (c *UCIConfig) loadSettings(ctx uci.Tree) error {
-	// Get "enabled" value
-	enabledValues, ok := ctx.Get(UCIConfigPackage, UCIConfigSettingsSection, "enabled")
-	if !ok || len(enabledValues) == 0 {
-		return fmt.Errorf("failed to get 'enabled' value got:%v", enabledValues)
+func (c *UCIConfig) loadSettings(uci *muci.UCI) error {
+	config := uci.Configs[UCIConfigPackage]
+
+	// Get "enabled"
+	enabledValue, err := config.Get(UCIConfigSettingsSection, "settings", "enabled")
+	if err != nil {
+		c.log.Errorf("failed to get 'enabled' value: %v", err)
+		c.Enabled = false // Default to false if not found
+	} else {
+		if strValue, ok := enabledValue.(string); ok {
+			c.Enabled = strValue == "1"
+		}
 	}
-	c.Enabled = enabledValues[0] == "1"
 
 	// Get "login" value
-	loginValues, ok := ctx.Get(UCIConfigPackage, UCIConfigSettingsSection, "login")
-	if ok && len(loginValues) > 0 {
-		c.Login = loginValues[0]
+	loginValue, err := config.Get(UCIConfigSettingsSection, "settings", "login")
+	if err == nil {
+		if strValue, ok := loginValue.(string); ok {
+			c.Login = strValue
+			c.log.Infof("Loaded Login: %s", c.Login)
+		}
+	} else {
+		c.Login = "00000000-0000-0000-0000-000000000000" // Default value
+	}
+	if c.Login == "" || c.Login == "00000000-0000-0000-0000-000000000000" {
+		c.log.Warn("Login not found in UCI configuration, using default value")
+		if err := c.getFromFlash("login"); err != nil {
+			c.log.Errorf("Failed to get login from flash memory: %v", err)
+		} else {
+			c.log.Infof("Loaded Login from flash: %s", c.Login)
+		}
 	}
 
 	// Get "Domain" value
-	domainValues, ok := ctx.Get(UCIConfigPackage, UCIConfigSettingsSection, "Domain")
-	if ok && len(domainValues) > 0 {
-		c.Domain = domainValues[0]
+	domainValue, err := config.Get(UCIConfigSettingsSection, "settings", "Domain")
+	if err == nil {
+		if strValue, ok := domainValue.(string); ok {
+			c.Domain = strValue
+			c.log.Infof("Loaded Domain: %s", c.Domain)
+		}
+	} else {
+		c.log.Warn("Domain not found in UCI configuration")
 	}
 
 	// Get "connected" value
-	connectedValues, ok := ctx.Get(UCIConfigPackage, UCIConfigSettingsSection, "connected")
-	if ok && len(connectedValues) > 0 {
-		c.Connected = connectedValues[0] == "1"
+	connectedValue, err := config.Get(UCIConfigSettingsSection, "settings", "connected")
+	if err == nil {
+		if strValue, ok := connectedValue.(string); ok {
+			c.Connected = strValue == "1"
+		}
+	} else {
+		c.Connected = false
 	}
 
 	// Get "Key" value
-	keyValues, ok := ctx.Get(UCIConfigPackage, UCIConfigSettingsSection, "Key")
-	if ok && len(keyValues) > 0 {
-		c.Key = keyValues[0]
+	keyValue, err := config.Get(UCIConfigSettingsSection, "settings", "Key")
+	if err == nil {
+		if strValue, ok := keyValue.(string); ok {
+			c.Key = strValue
+		}
 	}
 
 	// Get "refreshToken" value
-	refreshTokenValues, ok := ctx.Get(UCIConfigPackage, UCIConfigSettingsSection, "refreshToken")
-	if ok && len(refreshTokenValues) > 0 {
-		c.RefreshToken = refreshTokenValues[0]
+	refreshTokenValue, err := config.Get(UCIConfigSettingsSection, "settings", "refreshToken")
+	if err == nil {
+		if strValue, ok := refreshTokenValue.(string); ok {
+			c.RefreshToken = strValue
+		}
 	}
 
 	// Get "accessToken" value
-	accessTokenValues, ok := ctx.Get(UCIConfigPackage, UCIConfigSettingsSection, "accessToken")
-	if ok && len(accessTokenValues) > 0 {
-		c.AccessToken = accessTokenValues[0]
+	accessTokenValue, err := config.Get(UCIConfigSettingsSection, "settings", "accessToken")
+	if err == nil {
+		if strValue, ok := accessTokenValue.(string); ok {
+			c.AccessToken = strValue
+		}
 	}
 
 	// Get "IperfServer" value
-	iperfServerValues, ok := ctx.Get(UCIConfigPackage, UCIConfigSettingsSection, "IperfServer")
-	if ok && len(iperfServerValues) > 0 {
-		c.IperfServer = iperfServerValues[0]
+	iperfServerValue, err := config.Get(UCIConfigSettingsSection, "settings", "IperfServer")
+	if err == nil {
+		if strValue, ok := iperfServerValue.(string); ok {
+			c.IperfServer = strValue
+		}
 	}
 
 	// Get and convert "ListenerPort" value
-	listenerPortValues, ok := ctx.Get(UCIConfigPackage, UCIConfigSettingsSection, "ListenerPort")
-	if ok && len(listenerPortValues) > 0 {
-		if port, err := strconv.Atoi(listenerPortValues[0]); err == nil {
-			c.ListenerPort = port
-		} else {
-			c.ListenerPort = 443 // Default if parsing fails
+	listenerPortValue, err := config.Get(UCIConfigSettingsSection, "settings", "ListenerPort")
+	if err == nil {
+		if strValue, ok := listenerPortValue.(string); ok {
+			if port, err := strconv.Atoi(strValue); err == nil {
+				c.ListenerPort = port
+			} else {
+				c.ListenerPort = 443 // Default if parsing fails
+			}
 		}
 	} else {
 		c.ListenerPort = 443 // Default if missing
 	}
 
 	// Get and convert "updateInterval" value
-	updateIntervalValues, ok := ctx.Get(UCIConfigPackage, UCIConfigSettingsSection, "updateInterval")
-	if ok && len(updateIntervalValues) > 0 {
-		if interval, err := strconv.Atoi(updateIntervalValues[0]); err == nil {
-			c.UpdateInterval = interval
-		} else {
-			c.UpdateInterval = 1 // Default if parsing fails
+	updateIntervalValue, err := config.Get(UCIConfigSettingsSection, "settings", "updateInterval")
+	if err == nil {
+		if strValue, ok := updateIntervalValue.(string); ok {
+			if interval, err := strconv.Atoi(strValue); err == nil {
+				c.UpdateInterval = interval
+			} else {
+				c.UpdateInterval = 1 // Default if parsing fails
+			}
 		}
 	} else {
 		c.UpdateInterval = 1 // Default if missing
 	}
 
 	// Get "pingTargets" list
-	pingTargetsValues, ok := ctx.Get(UCIConfigPackage, UCIConfigSettingsSection, "pingTargets")
-	if ok {
-		c.PingTargets = pingTargetsValues
+	pingTargetsValue, err := config.Get(UCIConfigSettingsSection, "settings", "pingTargets")
+	if err == nil {
+		if listValue, ok := pingTargetsValue.([]string); ok {
+			c.PingTargets = listValue
+		}
 	}
 
 	return nil
 }
 
 // loadOverview loads the overview section
-func (c *UCIConfig) loadOverview(ctx uci.Tree) error {
+func (c *UCIConfig) loadOverview(uci *muci.UCI) error {
+	config := uci.Configs[UCIConfigPackage]
+
 	// Get "enabled" value
-	enabledValues, ok := ctx.Get(UCIConfigPackage, UCIConfigOverviewSection, "enabled")
-	if !ok || len(enabledValues) == 0 {
-		return fmt.Errorf("failed to get 'enabled' value in overview section")
+	enabledValue, err := config.Get(UCIConfigOverviewSection, "overview", "enabled")
+	if err != nil {
+		return fmt.Errorf("failed to get 'enabled' value in overview section: %v", err)
 	}
-	c.OverviewEnabled = enabledValues[0] == "1"
+	if strValue, ok := enabledValue.(string); ok {
+		c.OverviewEnabled = strValue == "1"
+	}
 
 	// Get "highrefresh" value
-	highRefreshValues, ok := ctx.Get(UCIConfigPackage, UCIConfigOverviewSection, "highrefresh")
-	if ok && len(highRefreshValues) > 0 {
-		c.HighRefresh = highRefreshValues[0] == "1"
+	highRefreshValue, err := config.Get(UCIConfigOverviewSection, "overview", "highrefresh")
+	if err == nil {
+		if strValue, ok := highRefreshValue.(string); ok {
+			c.HighRefresh = strValue == "1"
+		}
 	}
 
 	// Get and convert "refreshInterval" value
-	refreshIntervalValues, ok := ctx.Get(UCIConfigPackage, UCIConfigOverviewSection, "refreshInterval")
-	if ok && len(refreshIntervalValues) > 0 {
-		if interval, err := strconv.Atoi(refreshIntervalValues[0]); err == nil {
-			c.RefreshInterval = interval
-		} else {
-			c.RefreshInterval = 0 // Default if parsing fails
+	refreshIntervalValue, err := config.Get(UCIConfigOverviewSection, "overview", "refreshInterval")
+	if err == nil {
+		if strValue, ok := refreshIntervalValue.(string); ok {
+			if interval, err := strconv.Atoi(strValue); err == nil {
+				c.RefreshInterval = interval
+			} else {
+				c.RefreshInterval = 0 // Default if parsing fails
+			}
 		}
 	} else {
 		c.RefreshInterval = 0 // Default if missing
@@ -401,7 +476,9 @@ func (c *UCIConfig) loadOverview(ctx uci.Tree) error {
 }
 
 // saveSettings saves the settings section
-func (c *UCIConfig) saveSettings(ctx uci.Tree) error {
+func (c *UCIConfig) saveSettings(uci *muci.UCI) error {
+	config := uci.Configs[UCIConfigPackage]
+
 	// Save all settings
 	settingsMap := map[string]string{
 		"enabled":        boolToUCI(c.Enabled),
@@ -417,18 +494,53 @@ func (c *UCIConfig) saveSettings(ctx uci.Tree) error {
 	}
 
 	for key, value := range settingsMap {
-		if ok := ctx.Set(UCIConfigPackage, UCIConfigSettingsSection, key, value); !ok {
-			return fmt.Errorf("failed to set %s", key)
+		if err := config.Set(UCIConfigSettingsSection, "settings", key, value, false); err != nil {
+			return fmt.Errorf("failed to set %s: %v", key, err)
 		}
 	}
 
-	// Handle pingTargets list - first delete existing
-	ctx.Del(UCIConfigPackage, UCIConfigSettingsSection, "pingTargets")
-
-	// Add each ping target
+	// Handle ping targets as a list
 	for _, target := range c.PingTargets {
-		if ok := ctx.Set(UCIConfigPackage, UCIConfigSettingsSection, "pingTargets", target); !ok {
-			return fmt.Errorf("failed to add ping target: %v", target)
+		if err := config.Set(UCIConfigSettingsSection, "settings", "pingTargets", target, true); err != nil {
+			return fmt.Errorf("failed to set pingTargets: %v", err)
+		}
+	}
+
+	// Persist login to flash memory
+	if c.Login != "" && c.Login != "00000000-0000-0000-0000-000000000000" {
+		if err := persistToFlash("login", c.Login); err != nil {
+			return fmt.Errorf("failed to persist login to flash memory: %v", err)
+		}
+	}
+
+	// Persist values to flash memory only when they are valid
+	if c.Key != "" {
+		if err := persistToFlash("Key", c.Key); err != nil {
+			return fmt.Errorf("failed to persist Key to flash memory: %v", err)
+		}
+	}
+
+	if c.RefreshToken != "" {
+		if err := persistToFlash("refreshToken", c.RefreshToken); err != nil {
+			return fmt.Errorf("failed to persist refreshToken to flash memory: %v", err)
+		}
+	}
+
+	if c.AccessToken != "" {
+		if err := persistToFlash("accessToken", c.AccessToken); err != nil {
+			return fmt.Errorf("failed to persist accessToken to flash memory: %v", err)
+		}
+	}
+
+	if c.IperfServer != "" {
+		if err := persistToFlash("IperfServer", c.IperfServer); err != nil {
+			return fmt.Errorf("failed to persist IperfServer to flash memory: %v", err)
+		}
+	}
+
+	if c.Domain != "" {
+		if err := persistToFlash("Domain", c.Domain); err != nil {
+			return fmt.Errorf("failed to persist Domain to flash memory: %v", err)
 		}
 	}
 
@@ -436,7 +548,9 @@ func (c *UCIConfig) saveSettings(ctx uci.Tree) error {
 }
 
 // saveOverview saves the overview section
-func (c *UCIConfig) saveOverview(ctx uci.Tree) error {
+func (c *UCIConfig) saveOverview(uci *muci.UCI) error {
+	config := uci.Configs[UCIConfigPackage]
+
 	// Save all settings
 	overviewMap := map[string]string{
 		"enabled":         boolToUCI(c.OverviewEnabled),
@@ -445,9 +559,66 @@ func (c *UCIConfig) saveOverview(ctx uci.Tree) error {
 	}
 
 	for key, value := range overviewMap {
-		if ok := ctx.Set(UCIConfigPackage, UCIConfigOverviewSection, key, value); !ok {
-			return fmt.Errorf("failed to set %s", key)
+		if err := config.Set(UCIConfigOverviewSection, "overview", key, value, false); err != nil {
+			return fmt.Errorf("failed to set %s: %v", key, err)
 		}
+	}
+
+	return nil
+}
+
+func (c *UCIConfig) getFromFlash(key string) error {
+	value, err := getFromFlash(key)
+	// find the exact field and set it
+	if key == "login" {
+		c.Login = value
+	} else if key == "Key" {
+		c.Key = value
+	} else if key == "refreshToken" {
+		c.RefreshToken = value
+	} else if key == "accessToken" {
+		c.AccessToken = value
+	} else if key == "IperfServer" {
+		c.IperfServer = value
+	} else if key == "Domain" {
+		c.Domain = value
+	} else if key == "ListenerPort" {
+		if port, err := strconv.Atoi(value); err == nil {
+			c.ListenerPort = port
+		}
+	}
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func getFromFlash(key string) (string, error) {
+	cmd := exec.Command("fw_printenv", key)
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("fw_printenv failed: %v", err)
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
+// persistToFlash persists a key-value pair to flash memory using fw_setenv
+func persistToFlash(key, value string) error {
+	cmd := exec.Command("fw_setenv", key, value)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("fw_setenv failed: %v", err)
+	}
+
+	// Verify the value with fw_printenv
+	verifyCmd := exec.Command("fw_printenv", key)
+	output, err := verifyCmd.Output()
+	if err != nil {
+		return fmt.Errorf("fw_printenv failed: %v", err)
+	}
+
+	if !strings.Contains(string(output), fmt.Sprintf("%s=%s", key, value)) {
+		return fmt.Errorf("verification failed: expected %s=%s, got %s", key, value, string(output))
 	}
 
 	return nil

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"ispapp-agent/internal/config"
+	"ispapp-agent/internal/tools/constants"
 	"ispapp-agent/internal/websocket"
 
 	"github.com/sirupsen/logrus"
@@ -36,9 +37,9 @@ func (h *WebSocketHandler) Name() string {
 // RegisterDevice sends device registration data to the server
 func (h *WebSocketHandler) RegisterDevice() error {
 	registrationData := map[string]interface{}{
-		"hostname":  h.config.DeviceID,
-		"device_id": h.config.DeviceID,
-		"key":       h.config.AuthToken,
+		"hostname":  constants.Cfg.DeviceID,
+		"device_id": constants.Cfg.DeviceID,
+		"key":       constants.Cfg.AuthToken,
 	}
 
 	if err := h.client.ReportEvent("auth", registrationData); err != nil {
@@ -53,13 +54,13 @@ func (h *WebSocketHandler) RegisterDevice() error {
 // Start initializes the handler with registration and self-healing
 func (h *WebSocketHandler) Start() error {
 	h.log.Info("WebSocket handler starting")
-
 	// Create WebSocket client
+
 	h.client = websocket.NewClient(
-		h.config.WSEndpoint,
+		constants.Cfg.WSEndpoint,
 		h.log,
-		h.config.DeviceID,
-		h.config.AuthToken,
+		constants.Cfg.DeviceID,
+		constants.Cfg.AuthToken,
 	)
 
 	// Register message handlers

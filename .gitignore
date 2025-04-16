@@ -4,5 +4,6 @@ ispappd/src/test.c
 arch_device_map.json
 toh.json
 vrnetlab
-ispapp-agent/dist/
-ispapp-agent/dist/agent
+ispapp-agent/dist/*
+ispapp-agent/files/ispapp
+ispapp-agent/dist/config/ispapp

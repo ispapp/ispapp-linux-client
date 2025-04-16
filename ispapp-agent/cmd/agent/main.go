@@ -7,6 +7,7 @@ import (
 
 	"ispapp-agent/internal/agent"
 	"ispapp-agent/internal/config"
+	"ispapp-agent/internal/tools/constants"
 
 	"github.com/sirupsen/logrus"
 )
@@ -19,25 +20,25 @@ func main() {
 
 	// Set reasonable default log level
 	log.SetLevel(logrus.InfoLevel)
-
+	var err error
 	// Load configuration
-	cfg, err := config.Load(log)
+	constants.Cfg, err = config.Load(log)
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
 	// Update log level from config
-	logLevel, err := logrus.ParseLevel(cfg.LogLevel)
+	logLevel, err := logrus.ParseLevel(constants.Cfg.LogLevel)
 	if err == nil {
 		log.SetLevel(logLevel)
 	}
 
 	// Log config source and key settings
-	log.Infof("Using device ID: %s", cfg.DeviceID)
-	log.Infof("API endpoint: %s", cfg.ServerURL)
+	log.Infof("Using device ID: %s", constants.Cfg.DeviceID)
+	log.Infof("API endpoint: %s", constants.Cfg.ServerURL)
 
 	// Initialize agent
-	a, err := agent.New(cfg, log)
+	a, err := agent.New(constants.Cfg, log)
 	if err != nil {
 		log.Fatalf("Failed to initialize agent: %v", err)
 	}
