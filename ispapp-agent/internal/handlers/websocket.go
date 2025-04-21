@@ -1,10 +1,13 @@
 package handlers
 
 import (
+	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"ispapp-agent/internal/config"
@@ -16,150 +19,204 @@ import (
 
 // WebSocketHandler handles WebSocket connectivity
 type WebSocketHandler struct {
-	log    *logrus.Logger
-	client *websocket.Client
-	config *config.Config
+	BaseHandler
+	log       *logrus.Logger
+	client    *websocket.Client
+	config    *config.Config
+	ctx       context.Context
+	cancel    context.CancelFunc
+	wg        sync.WaitGroup
+	connected bool
+	reconnectAttempts int
 }
 
 // NewWebSocketHandler creates a new WebSocket handler
 func NewWebSocketHandler(config *config.Config, log *logrus.Logger) *WebSocketHandler {
+	ctx, cancel := context.WithCancel(context.Background())
+	
 	return &WebSocketHandler{
-		log:    log,
-		config: config,
+		BaseHandler: NewBaseHandler("websocket"),
+		log:         log,
+		config:      config,
+		ctx:         ctx,
+		cancel:      cancel,
+		connected:   false,
+		reconnectAttempts: 0,
 	}
-}
-
-// Name returns the handler's name
-func (h *WebSocketHandler) Name() string {
-	return "websocket"
 }
 
 // RegisterDevice sends device registration data to the server
 func (h *WebSocketHandler) RegisterDevice() error {
-	registrationData := map[string]interface{}{
-		"hostname":  constants.Cfg.DeviceID,
-		"device_id": constants.Cfg.DeviceID,
-		"key":       constants.Cfg.AuthToken,
+	if h.client == nil {
+		return fmt.Errorf("websocket client not initialized")
 	}
-
-	if err := h.client.ReportEvent("auth", registrationData); err != nil {
-		h.log.Errorf("Failed to register device: %v", err)
-		return err
+	
+	h.log.Info("Registering device with server...")
+	
+	// Prepare registration data
+	regData := map[string]interface{}{
+		"device_id": h.config.DeviceID,
+		"version":   constants.AppVersion,
+		"platform":  "openwrt",
+		// Add more registration data as needed
 	}
-
+	
+	// Send registration message
+	err := h.client.SendJSON("register", regData)
+	if err != nil {
+		return fmt.Errorf("failed to register device: %w", err)
+	}
+	
 	h.log.Info("Device registered successfully")
 	return nil
 }
 
 // Start initializes the handler with registration and self-healing
 func (h *WebSocketHandler) Start() error {
-	h.log.Info("WebSocket handler starting")
-	// Create WebSocket client
+	h.log.Info("Starting WebSocket handler...")
+	
+	// Create websocket client
+	wsURL := fmt.Sprintf("wss://%s:%s/api/v1/ws", 
+		h.config.ServerURL, 
+		h.config.ListenerPort)
+		
+	h.client = websocket.NewClient(wsURL, h.config.DeviceID, h.log)
+	
+	// Setup message handlers
+	h.setupMessageHandlers()
+	
+	// Start connection manager
+	h.wg.Add(1)
+	go h.connectionManager()
+	
+	return nil
+}
 
-	h.client = websocket.NewClient(
-		constants.Cfg.WSEndpoint,
-		h.log,
-		constants.Cfg.DeviceID,
-		constants.Cfg.AuthToken,
-	)
+func (h *WebSocketHandler) setupMessageHandlers() {
+	// Register message handlers for different message types
+	h.client.OnMessage("command", h.handleCommandMessage)
+	h.client.OnMessage("config", h.handleConfigMessage)
+	// Add more message handlers as needed
+}
 
-	// Register message handlers
-	h.registerMessageHandlers()
-
-	// Start the WebSocket client
-	if err := h.client.Start(); err != nil {
-		return err
+func (h *WebSocketHandler) handleCommandMessage(data map[string]interface{}) {
+	h.log.Debugf("Received command: %v", data)
+	
+	cmd, ok := data["command"].(string)
+	if !ok {
+		h.log.Error("Invalid command format")
+		return
 	}
+	
+	switch cmd {
+	case "reboot":
+		h.executeReboot()
+	case "status":
+		h.sendStatusResponse()
+	// Add more command handlers
+	default:
+		h.log.Warnf("Unknown command: %s", cmd)
+	}
+}
 
+func (h *WebSocketHandler) handleConfigMessage(data map[string]interface{}) {
+	h.log.Debugf("Received config update: %v", data)
+	// Implement config update logic
+}
+
+func (h *WebSocketHandler) executeReboot() {
+	h.log.Info("Executing reboot command")
+	cmd := exec.Command("reboot")
+	if err := cmd.Run(); err != nil {
+		h.log.Errorf("Reboot failed: %v", err)
+	}
+}
+
+func (h *WebSocketHandler) sendStatusResponse() {
+	// Implementation for sending status back to server
+}
+
+func (h *WebSocketHandler) connectionManager() {
+	defer h.wg.Done()
+	
+	// Initial connection
+	h.connect()
+	
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	
+	for {
+		select {
+		case <-h.ctx.Done():
+			h.log.Debug("Connection manager shutting down")
+			return
+			
+		case <-ticker.C:
+			if !h.connected {
+				h.reconnectWithBackoff()
+			} else {
+				// Send heartbeat/ping to keep connection alive
+				if err := h.client.Ping(); err != nil {
+					h.log.Warn("Connection appears to be down, reconnecting...")
+					h.connected = false
+				}
+			}
+		}
+	}
+}
+
+func (h *WebSocketHandler) connect() {
+	h.log.Info("Connecting to WebSocket server...")
+	
+	err := h.client.Connect()
+	if err != nil {
+		h.log.Errorf("Failed to connect: %v", err)
+		h.connected = false
+		return
+	}
+	
 	// Register the device
 	if err := h.RegisterDevice(); err != nil {
-		return err
+		h.log.Errorf("Registration failed: %v", err)
+		h.client.Disconnect()
+		h.connected = false
+		return
 	}
+	
+	h.connected = true
+	h.reconnectAttempts = 0
+	h.log.Info("Successfully connected to server")
+}
 
-	// Start self-healing mechanism
-	h.client.SelfHeal()
-
-	// Send initial status message
-	go func() {
-		time.Sleep(2 * time.Second)
-		h.sendStatusMessage()
-	}()
-
-	return nil
+func (h *WebSocketHandler) reconnectWithBackoff() {
+	// Exponential backoff with max delay of 5 minutes
+	maxDelay := 300.0
+	delay := math.Min(30.0 * math.Pow(1.5, float64(h.reconnectAttempts)), maxDelay)
+	
+	h.log.Infof("Reconnecting in %d seconds (attempt %d)...", int(delay), h.reconnectAttempts+1)
+	time.Sleep(time.Duration(delay) * time.Second)
+	
+	h.reconnectAttempts++
+	h.connect()
 }
 
 // Stop shutdowns the handler
 func (h *WebSocketHandler) Stop() error {
-	h.log.Info("WebSocket handler stopping")
+	h.log.Info("Stopping WebSocket handler...")
+	
+	// Signal connection manager to stop
+	h.cancel()
+	
+	// Disconnect WebSocket if connected
 	if h.client != nil {
-		// Send offline status before stopping
-		h.sendOfflineStatus()
-		return h.client.Stop()
+		h.client.Disconnect()
 	}
+	
+	// Wait for all goroutines to finish
+	h.wg.Wait()
+	
+	h.log.Info("WebSocket handler stopped")
 	return nil
-}
-
-// Register handlers for different message types
-func (h *WebSocketHandler) registerMessageHandlers() {
-	// Handle ping messages
-	h.client.RegisterHandler("ping", func(message websocket.Message) error {
-		h.log.Debug("Received ping, sending pong")
-		return h.client.Send("pong", nil)
-	})
-
-	// Handle command messages
-	h.client.RegisterHandler("command", func(message websocket.Message) error {
-		h.log.Info("Received command from server")
-		// Process command
-		// ...
-		return nil
-	})
-
-	// Add more handlers as needed
-}
-
-// Send a status message with basic device information
-func (h *WebSocketHandler) sendStatusMessage() {
-	hostname, _ := os.Hostname()
-
-	statusInfo := map[string]interface{}{
-		"device_id": h.config.DeviceID,
-		"hostname":  hostname,
-		"status":    "online",
-		"version":   "1.0.0", // This should be fetched from app version
-		"uptime":    getSystemUptime(),
-	}
-
-	if err := h.client.Send("status", statusInfo); err != nil {
-		h.log.Errorf("Failed to send status message: %v", err)
-	}
-}
-
-// Send offline status before shutdown
-func (h *WebSocketHandler) sendOfflineStatus() {
-	statusInfo := map[string]interface{}{
-		"device_id": h.config.DeviceID,
-		"status":    "offline",
-	}
-
-	// Try to send but don't wait too long
-	sendDone := make(chan bool)
-	go func() {
-		err := h.client.Send("status", statusInfo)
-		if err != nil {
-			h.log.Debugf("Failed to send offline status: %v", err)
-		}
-		sendDone <- true
-	}()
-
-	// Give it a second to send before continuing
-	select {
-	case <-sendDone:
-		// Message sent
-	case <-time.After(time.Second):
-		// Timeout, continue with shutdown
-		h.log.Debug("Timed out waiting to send offline status")
-	}
 }
 
 // getSystemUptime returns the system uptime in seconds

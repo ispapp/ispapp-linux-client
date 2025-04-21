@@ -1,4 +1,4 @@
-.PHONY: build clean test debug release openwrt-targets
+.PHONY: build clean test debug release openwrt-targets openwrt-arm openwrt-mipsle openwrt-arm_cortex
 
 # Program configuration
 PROG=agent
@@ -16,7 +16,7 @@ GOARCH?=$(shell go env GOARCH)
 GOMIPS?=softfloat
 
 # Cross compile settings for OpenWrt (multiple architectures)
-openwrt-targets: openwrt-mips openwrt-mipsle openwrt-arm openwrt-aarch64 openwrt-x86_64
+openwrt-targets: openwrt-mips openwrt-mipsle openwrt-arm openwrt-aarch64 openwrt-x86_64 openwrt-arm_cortex
 
 openwrt-mips:
 	@echo "Building for OpenWrt MIPS..."
@@ -47,6 +47,7 @@ openwrt-arm_cortex:
 	@echo "Building for OpenWrt arm_cortex-a7_neon-vfpv4..."
 	@mkdir -p $(DIST_DIR)
 	@GOOS=android GOARCH=arm $(GO) build $(GO_FLAGS) -o $(DIST_DIR)/$(PROG)-arm ./cmd/agent
+
 # Standard build
 build:
 	@mkdir -p $(DIST_DIR)

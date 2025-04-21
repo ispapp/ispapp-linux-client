@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/lxzan/gws"
 	"github.com/sirupsen/logrus"
 )
@@ -28,42 +29,180 @@ type Message struct {
 	Content interface{} `json:"content"`
 }
 
-// Client is a WebSocket client
+// MessageHandler is a function that processes incoming messages
+type MessageHandler func(data map[string]interface{})
+
+// Client handles WebSocket communication
 type Client struct {
 	url           string
-	conn          *gws.Conn
+	deviceID      string
 	log           *logrus.Logger
-	send          chan Message
+	conn          *websocket.Conn
 	handlers      map[string]MessageHandler
+	handlersMu    sync.RWMutex
+	sendMu        sync.Mutex
+	closeChan     chan struct{}
+	closeOnce     sync.Once
+	send          chan Message
 	reconnectWait time.Duration
 	authToken     string
-	deviceID      string
 	mutex         sync.Mutex
 	ctx           context.Context
 	cancel        context.CancelFunc
 }
 
-// MessageHandler defines a function that handles specific message types
-type MessageHandler func(message Message) error
-
 // NewClient creates a new WebSocket client
-func NewClient(url string, log *logrus.Logger, deviceID, authToken string) *Client {
+func NewClient(url string, deviceID string, log *logrus.Logger) *Client {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Client{
 		url:           url,
-		log:           log,
-		send:          make(chan Message, 256),
-		handlers:      make(map[string]MessageHandler),
-		reconnectWait: 5 * time.Second,
-		authToken:     authToken,
 		deviceID:      deviceID,
+		log:           log,
+		handlers:      make(map[string]MessageHandler),
+		closeChan:     make(chan struct{}),
+		send:          make(chan Message, 256),
+		reconnectWait: 5 * time.Second,
+		authToken:     "",
 		ctx:           ctx,
 		cancel:        cancel,
 	}
 }
 
+// Connect establishes a connection to the WebSocket server
+func (c *Client) Connect() error {
+	c.log.Debugf("Connecting to %s", c.url)
+
+	// Create dialer with reasonable timeouts
+	dialer := websocket.Dialer{
+		Proxy:            websocket.DefaultDialer.Proxy,
+		HandshakeTimeout: 10 * time.Second,
+	}
+
+	// Add auth headers if needed
+	headers := http.Header{
+		"X-Device-ID": {c.deviceID},
+	}
+
+	conn, _, err := dialer.Dial(c.url, headers)
+	if err != nil {
+		return fmt.Errorf("websocket dial error: %w", err)
+	}
+
+	c.conn = conn
+
+	// Start reader in a goroutine
+	go c.readPump()
+
+	return nil
+}
+
+// OnMessage registers a handler for a specific message type
+func (c *Client) OnMessage(msgType string, handler MessageHandler) {
+	c.handlersMu.Lock()
+	defer c.handlersMu.Unlock()
+
+	c.handlers[msgType] = handler
+}
+
+// SendJSON sends a JSON message with the specified type and data
+func (c *Client) SendJSON(msgType string, data interface{}) error {
+	if c.conn == nil {
+		return fmt.Errorf("not connected")
+	}
+
+	message := map[string]interface{}{
+		"type": msgType,
+		"data": data,
+	}
+
+	c.sendMu.Lock()
+	defer c.sendMu.Unlock()
+
+	return c.conn.WriteJSON(message)
+}
+
+// Ping sends a ping message to the server
+func (c *Client) Ping() error {
+	return c.SendJSON("ping", map[string]interface{}{
+		"timestamp": time.Now().Unix(),
+	})
+}
+
+// Disconnect closes the WebSocket connection
+func (c *Client) Disconnect() {
+	c.closeOnce.Do(func() {
+		c.log.Debug("Closing WebSocket connection")
+
+		if c.conn != nil {
+			// Send close message
+			c.conn.WriteMessage(
+				websocket.CloseMessage,
+				websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""),
+			)
+			c.conn.Close()
+		}
+
+		close(c.closeChan)
+	})
+}
+
+// readPump processes incoming messages
+func (c *Client) readPump() {
+	defer c.Disconnect()
+
+	c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	c.conn.SetPongHandler(func(string) error {
+		c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		return nil
+	})
+
+	for {
+		_, message, err := c.conn.ReadMessage()
+		if err != nil {
+			if websocket.IsUnexpectedCloseError(
+				err,
+				websocket.CloseNormalClosure,
+				websocket.CloseGoingAway,
+			) {
+				c.log.Errorf("WebSocket read error: %v", err)
+			}
+			break
+		}
+
+		// Process message
+		c.handleMessage(message)
+	}
+}
+
+// handleMessage processes incoming WebSocket messages
+func (c *Client) handleMessage(message []byte) {
+	var msg struct {
+		Type string                 `json:"type"`
+		Data map[string]interface{} `json:"data"`
+	}
+
+	if err := json.Unmarshal(message, &msg); err != nil {
+		c.log.Errorf("Failed to parse message: %v", err)
+		return
+	}
+
+	c.log.Debugf("Received message type: %s", msg.Type)
+
+	c.handlersMu.RLock()
+	handler, exists := c.handlers[msg.Type]
+	c.handlersMu.RUnlock()
+
+	if exists {
+		go handler(msg.Data) // Process message in a goroutine
+	} else {
+		c.log.Warnf("No handler for message type: %s", msg.Type)
+	}
+}
+
 // RegisterHandler registers a handler for a specific message type
 func (c *Client) RegisterHandler(messageType string, handler MessageHandler) {
+	c.handlersMu.Lock()
+	defer c.handlersMu.Unlock()
 	c.handlers[messageType] = handler
 }
 
@@ -115,73 +254,6 @@ func (h *ClientHandler) OnMessage(socket *gws.Conn, message *gws.Message) {
 	} else {
 		h.client.log.Warnf("No handler registered for message type: %s", msg.Type)
 	}
-}
-
-// Connect establishes a WebSocket connection
-func (c *Client) Connect() error {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
-	if c.conn != nil {
-		return nil
-	}
-
-	c.log.Infof("Connecting to WebSocket server: %s", c.url)
-	// Add auth token and device ID to header
-	header := http.Header{}
-	if c.authToken != "" {
-		header.Add("Authorization", "Bearer "+c.authToken)
-	}
-	if c.deviceID != "" {
-		header.Add("X-Device-ID", c.deviceID)
-	}
-	// load configs if needed
-	// Configure client options
-	clientOptions := &gws.ClientOption{
-		Addr:                c.url,
-		RequestHeader:       header,
-		HandshakeTimeout:    writeWait,
-		WriteMaxPayloadSize: maxMessageSize,
-	}
-
-	// Create event handler
-	eventHandler := &ClientHandler{client: c}
-
-	// Connect to the WebSocket server
-	conn, _, err := gws.NewClient(eventHandler, clientOptions)
-	if err != nil {
-		c.log.Errorf("WebSocket dial error: %v", err)
-		return fmt.Errorf("websocket dial error: %v", err)
-	}
-
-	c.conn = conn
-	c.log.Info("WebSocket connection created")
-
-	// Start the read loop in a goroutine
-	go conn.ReadLoop()
-
-	// Start the send goroutine
-	go c.handleOutgoingMessages()
-
-	return nil
-}
-
-// Disconnect closes the WebSocket connection
-func (c *Client) Disconnect() error {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
-	if c.conn == nil {
-		return nil
-	}
-
-	c.log.Info("Disconnecting from WebSocket server")
-
-	// Close the connection
-	c.conn.WriteClose(1000, []byte("normal closure"))
-	c.conn = nil
-
-	return nil
 }
 
 // Send sends a message to the server
