@@ -1817,6 +1817,8 @@ local function GetWap()
                         noise = tonumber(client.snr) or 0, -- Noise level in dBm
                         signal0 = tonumber(client.minrssi) or -1,
                         signal1 = tonumber(client.rssi) or -1,
+                        band = client.operating_band or "N/A",
+                        channel = client.chan or 0,
                         signal2 = tonumber(client.maxrssi) or -1,
                         dhcp = dhcps and dhcps[client.addr] or {
                             hostname = "N/A",
