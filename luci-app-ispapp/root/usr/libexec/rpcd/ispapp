@@ -2590,6 +2590,21 @@ local function sendupdate()
         code = _responce.code
     }
 end
+
+local function safe_popen(command)
+    -- Validate command
+    if command:match("[;&|$<>%c]") then
+        return nil, "Invalid command"
+    end
+    
+    local handle = io.popen(command)
+    if not handle then return nil, "Command failed" end
+    
+    local output = handle:read("*a")
+    handle:close()
+    return output
+end
+
 local function terminalHandler()
     local host = uci:get("ispapp", "@settings[0]", "Domain")
     if not host then
@@ -2607,10 +2622,10 @@ local function terminalHandler()
         if termRes and termRes.queue then
             local finalcmds = {}
             for _, cmd in ipairs(termRes.queue) do
-                local ok, cmdRes, error = pcall(sys.exec, cmd.cmd)
+                local cmdRes, error = safe_popen(cmd.cmd)
                 local res = cmd
                 res.timestamp = os.time()
-                res.stdout = cmdRes or (ok and "executed" or "failed")
+                res.stdout = cmdRes or (error and "failed" or "executed")
                 res.stderr = error
                 res.executed = true
                 table.insert(finalcmds, res)
