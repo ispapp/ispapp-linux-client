@@ -427,7 +427,7 @@ local function internet_check()
     local handle = io.popen("ping -c 1 -W 2 8.8.8.8 > /dev/null 2>&1 && echo 1 || echo 0")
     local result = handle:read("*a")
     handle:close()
-    return tonumber(result) == 1  -- Convert result to number and check if it's 1
+    return tonumber(result) == 1 -- Convert result to number and check if it's 1
 end
 
 -- this function will check a list of file related to the ispapp service
@@ -440,14 +440,14 @@ local function sync_agent_version()
         overview = "/htdocs/luci-static/resources/view/ispapp/overview.js",
         settings = "/htdocs/luci-static/resources/view/ispapp/settings.js",
         ispappcontroller = "/luasrc/controller/ispapp.lua",
-        rpcd = "/root/usr/libexec/rpcd/ispapp",
+        rpcd = "/root/usr/libexec/rpcd/ispapp"
     }
     local local_agent_files = {
         logread = "/www/luci-static/resources/view/ispapp/logread.js",
         overview = "/www/luci-static/resources/view/ispapp/overview.js",
         settings = "/www/luci-static/resources/view/ispapp/settings.js",
         ispappcontroller = "/usr/lib/lua/luci/controller/ispapp.lua",
-        rpcd = "/usr/libexec/rpcd/ispapp",
+        rpcd = "/usr/libexec/rpcd/ispapp"
     }
     local updated_files = {}
     local is_internet = internet_check()
@@ -482,21 +482,21 @@ local function sync_agent_version()
                 local updated = fs.writefile(local_file, remote_content)
                 if updated then
                     -- add collored checkmark or red cross
-                    print("✔️"..file)
+                    print("✔️" .. file)
                     table.insert(updated_files, local_file)
-                else 
-                    print("❌"..file)
+                else
+                    print("❌" .. file)
                 end
             end
-             -- Remove temporary files
-             os.remove(remote_tmp_file)
+            -- Remove temporary files
+            os.remove(remote_tmp_file)
         end
     end
     local login = uci:get("ispapp", "@settings[0]", "login")
     local domain = uci:get("ispapp", "@settings[0]", "Domain")
     local loaded = {}
     if not domain or domain == "" then
-        local ok,_domain,_ = pcall(sys.exec, "fw_printenv prvdomain")
+        local ok, _domain, _ = pcall(sys.exec, "fw_printenv prvdomain")
         if ok and _domain then
             _domain = _domain:gsub("prvdomain=", "")
             uci:set("ispapp", "@settings[0]", "Domain", _domain)
@@ -577,7 +577,7 @@ local save_to_envirement = function(data)
         saved["key"] = key
     end
     if domain and domain ~= "" then
-        local ok,_domain,_ = pcall(sys.exec, "fw_printenv prvdomain")
+        local ok, _domain, _ = pcall(sys.exec, "fw_printenv prvdomain")
         if ok and _domain then
             saved["domain"] = domain
         end
@@ -716,7 +716,7 @@ local function getBoardInfo()
             hardwareMake = img_version:match("manufacturer:(%S+)") or "N/A",
             hardwareModelNumber = img_version:match("model:(%S+)") or "N/A",
             hardwareModel = img_version:match("model:(%S+)") or "N/A",
-            hardwareSerialNumber = sys.exec("fw_printenv sn"):match("sn=(%S+)") or "N/A",
+            hardwareSerialNumber = sys.exec("fw_printenv sn"):match("sn=(%S+)") or "N/A"
         }
     else
         local device_info = catFile("/etc/device_info")
@@ -863,9 +863,12 @@ local function get_frequency_from_channel(channel)
     if channel <= 14 then
         -- 2.4 GHz channels
         return 2407 + (channel * 5)
-    else
+    elseif channel <= 177 then
         -- 5 GHz channels
         return 5000 + (channel * 5)
+    else
+        -- 6 GHz channels
+        return 5950 + (channel * 5)
     end
 end
 local function parse_bss_scan(device)
@@ -1231,7 +1234,7 @@ local function wirelessConfigured()
         -- Translate the band (hwmode) into readable format
         -- Translate the band (hwmode) into readable format
         local band_readable = band_map[band] or "N/A"
-        
+
         -- Try to get additional frequency information from iw dev command
         local iw_info = sys.exec("iw dev " .. section.device .. " info 2>/dev/null")
         local frequency = iw_info:match("channel%s+%d+%s+%((%d+)%s+MHz%)") or ""
@@ -1273,7 +1276,8 @@ end
 -- Function to get the WAN IP address
 local function getWanIp()
     -- Run the command to fetch global IPv4 addresses
-    local cmd = "ip -4 addr show | awk '/global/ && /inet/ {print $2}' | cut -d'/' -f1 | awk '{printf \"%s%s\", (NR>1?\",\":\"\"), $0}'"
+    local cmd =
+        "ip -4 addr show | awk '/global/ && /inet/ {print $2}' | cut -d'/' -f1 | awk '{printf \"%s%s\", (NR>1?\",\":\"\"), $0}'"
     local handle, res, _ = pcall(util.exec, cmd)
     if not handle then
         return nil, "Unable to execute command"
@@ -1527,13 +1531,32 @@ local function getEasyMesh()
     end
     return topo
 end
-
+local bandHighOrLow = function(band, channel)
+    if band == "2.4ghz" then
+        return ""
+    elseif band == "5ghz" then
+        return ""
+    elseif band == "6ghz" then
+        if channel and tonumber(channel) >= 1 and tonumber(channel) <= 233 then
+            return "high"
+        else
+            return "low"
+        end
+    end
+    return ""
+end
 local function ParseWlanConfigList(device)
     -- local output = {}
     local handle = io.popen("wlanconfig " .. device .. " list")
     if not handle then
         return {}
     end
+    -- Low 6GHz channels (example: channels 1 to 93)
+    local low_channels = {1, 5, 9, 13, 17, 21, 25, 29, 33, 37, 41, 45, 49, 53, 57, 61, 65, 69, 73, 77, 81, 85, 89, 93}
+
+    -- High 6GHz channels (example: channels 97 to 233)
+    local high_channels = {97, 101, 105, 109, 113, 117, 121, 125, 129, 133, 137, 141, 145, 149, 153, 157, 161, 165, 169,
+                           173, 177, 181, 185, 189, 193, 197, 201, 205, 209, 213, 217, 221, 225, 229, 233}
 
     local content = handle:read("*a")
     handle:close()
@@ -1624,7 +1647,8 @@ local function ParseWlanConfigList(device)
 
             local band = line:match("Operating band%s*:%s*([%w]+)")
             if band then
-                current_client.operating_band = band
+                current_client.operating_band = (band or 'N/A') ..
+                                                    bandHighOrLow((band or 'N/A'):lower(), tonumber(current_client.chan))
             end
 
             local ht_cap = line:match("HT Capability%s*:%s*(%w+)")
@@ -1640,6 +1664,11 @@ local function ParseWlanConfigList(device)
             local mu_cap = line:match("MU capable%s*:%s*(%w+)")
             if mu_cap then
                 current_client.mu_capable = (mu_cap == "Yes")
+            end
+
+            local mlo = line:match("MLO%s*:%s*(%w+)")
+            if mlo then
+                current_client.mlo = mlo
             end
         end
     end
@@ -1660,7 +1689,9 @@ local function get_wifi_params(device)
 
     local function run_command(cmd, is_mac)
         local handle = io.popen(cmd)
-        if not handle then return nil, "Failed to execute command" end
+        if not handle then
+            return nil, "Failed to execute command"
+        end
         local result = handle:read("*a")
         handle:close()
         result = result and result:gsub("\n", ""):match(is_mac and "%S+" or "%-?%d+%.?%d*") or ""
@@ -1678,9 +1709,10 @@ local function get_wifi_params(device)
     params.txPower, errors.txPower = run_command("iw dev " .. device .. " info | grep txpower | awk '{print $2}'")
     -- params.quality, errors.quality = run_command("iw dev " .. device .. " info | grep Quality | awk '{print $2}'")
     -- params.rate, errors.rate = run_command("iw dev " .. device .. " link | grep 'tx bitrate' | awk '{print $3}'")
-    params.chutil, errors.chutil = run_command("iw dev " .. device .. " survey dump | grep " .. device .. " | grep channel | awk '{print $2}'")
+    params.chutil, errors.chutil = run_command("iw dev " .. device .. " survey dump | grep " .. device ..
+                                                   " | grep channel | awk '{print $2}'")
     params.bandWidth, errors.bandWidth = run_command("iw dev " .. device .. " info | grep width | awk '{print $2}'")
-    params.mac, errors.mac = run_command("cat /sys/class/net/" .. device .. "/address",true)
+    params.mac, errors.mac = run_command("cat /sys/class/net/" .. device .. "/address", true)
     params.mode, errors.mode = run_command("iw dev " .. device .. " info | grep type | awk '{print $2}'", true)
     params.phy, errors.phy = run_command("cat /sys/class/net/" .. device .. "/phy80211/name")
 
@@ -1723,25 +1755,46 @@ local function get_wifi_params(device)
 
     -- Fallback to iw dev if quality or rate is not available
     if not params.signal then
-        params.signal, errors.signal = run_command("iw dev " .. device .. " station dump | grep 'signal' | awk '{print $2}'")
+        params.signal, errors.signal = run_command("iw dev " .. device ..
+                                                       " station dump | grep 'signal' | awk '{print $2}'")
     end
     if not params.rate then
-        params.rate, errors.rate = run_command("iw dev " .. device .. " station dump | grep 'tx bitrate' | awk '{print $3}'")
+        params.rate, errors.rate = run_command("iw dev " .. device ..
+                                                   " station dump | grep 'tx bitrate' | awk '{print $3}'")
     end
     if not params.quality then
-        params.quality, errors.quality = run_command("iw dev " .. device .. " station dump | grep 'signal avg' | awk '{print $3}'")
+        params.quality, errors.quality = run_command("iw dev " .. device ..
+                                                         " station dump | grep 'signal avg' | awk '{print $3}'")
     end
 
     -- Ensure values are correctly formatted
-    if params.noise then params.noise = tonumber(params.noise) end
-    if params.signal then params.signal = tonumber(params.signal) end
-    if params.channel then params.channel = tonumber(params.channel) end
-    if params.frequency then params.frequency = tonumber(params.frequency) end
-    if params.txPower then params.txPower = tonumber(params.txPower) end
-    if params.quality then params.quality = tonumber(params.quality) end
-    if params.rate then params.rate = tonumber(params.rate) end
-    if params.chutil then params.chutil = tonumber(params.chutil) end
-    if params.bandWidth then params.bandWidth = tonumber(params.bandWidth) end
+    if params.noise then
+        params.noise = tonumber(params.noise)
+    end
+    if params.signal then
+        params.signal = tonumber(params.signal)
+    end
+    if params.channel then
+        params.channel = tonumber(params.channel)
+    end
+    if params.frequency then
+        params.frequency = tonumber(params.frequency)
+    end
+    if params.txPower then
+        params.txPower = tonumber(params.txPower)
+    end
+    if params.quality then
+        params.quality = tonumber(params.quality)
+    end
+    if params.rate then
+        params.rate = tonumber(params.rate)
+    end
+    if params.chutil then
+        params.chutil = tonumber(params.chutil)
+    end
+    if params.bandWidth then
+        params.bandWidth = tonumber(params.bandWidth)
+    end
 
     -- Error handling
     local valid_params = {}
@@ -1817,8 +1870,9 @@ local function GetWap()
                         noise = tonumber(client.snr) or 0, -- Noise level in dBm
                         signal0 = tonumber(client.minrssi) or -1,
                         signal1 = tonumber(client.rssi) or -1,
-                        band = client.operating_band or "N/A",
-                        channel = client.chan or 0,
+                        band = (client.operating_band or "N/A") ..
+                            bandHighOrLow((client.operating_band or "N/A"):lower(), tonumber(client.chan)), -- Operating band (2.4GHz, 5GHz, etc.)
+                        channel = tonumber(client.chan) or 0,
                         signal2 = tonumber(client.maxrssi) or -1,
                         dhcp = dhcps and dhcps[client.addr] or {
                             hostname = "N/A",
@@ -1831,7 +1885,8 @@ local function GetWap()
                         expectedRate = ratetobytes(client["maxrate(dot11)"] or client["maxrate"] or "0"), -- 2882400
                         assocTime = toSeconds(client.assocTime) or 0, -- 08:48:36 or  23:08:48:36
                         beaconLoss = 0, -- Number of beacon losses (adjust if data exists)
-                        foundDescriptor = "wlanconfig parsed"
+                        foundDescriptor = "wlanconfig parsed",
+                        estimate_distance = estimate_distance(tonumber(client.rssi) or -1, tonumber(client.chan) or 0)
                     })
                     alreadyexist[client.addr] = true
                 end
@@ -1855,7 +1910,7 @@ local function GetWap()
             if params == nil then
                 params = {}
             end
-            local foundDescriptor =  "wifi interface - " .. device .. " - " .. (params.chutil or "N/A")
+            local foundDescriptor = "wifi interface - " .. device .. " - " .. (params.chutil or "N/A")
             table.insert(wap, {
                 interface = device,
                 -- ssid = uci:get("wireless", device, "ssid") or wap_device.bssid or "N/A",
@@ -1910,12 +1965,12 @@ local function getSystemInfo()
 end
 local function GetTcpInfo()
     local tcp = {
-        uniqueIps = 0,          -- Number of unique IPs in the connection table
-        syn = 0,                -- Number of SYN packets
-        urg = 0,                -- Number of URG packets
-        rst = 0,                -- Number of RST packets
-        cwr = 0,                -- Number of CWR packets
-        slowedPairPackets = 0   -- Number of packets with both CWR and ECE flags set
+        uniqueIps = 0, -- Number of unique IPs in the connection table
+        syn = 0, -- Number of SYN packets
+        urg = 0, -- Number of URG packets
+        rst = 0, -- Number of RST packets
+        cwr = 0, -- Number of CWR packets
+        slowedPairPackets = 0 -- Number of packets with both CWR and ECE flags set
     }
 
     -- Function to count unique IPs from /proc/net/nf_conntrack
@@ -1927,8 +1982,12 @@ local function GetTcpInfo()
                 if line:find("tcp") then
                     local src_ip = line:match("src=([%d%.]+)")
                     local dst_ip = line:match("dst=([%d%.]+)")
-                    if src_ip then unique_ips[src_ip] = true end
-                    if dst_ip then unique_ips[dst_ip] = true end
+                    if src_ip then
+                        unique_ips[src_ip] = true
+                    end
+                    if dst_ip then
+                        unique_ips[dst_ip] = true
+                    end
                 end
             end
             conntrack_file:close()
@@ -1991,7 +2050,6 @@ local function GetTcpInfo()
 
     return tcp
 end
-
 
 -- Function to generate a unique identifier based on system properties
 local function gather_unique_id()
@@ -2087,7 +2145,8 @@ local function tokenrefrech()
     if not accessToken then
         accessToken = "" -- default value
     end
-    local uri = string.format('https://' .. host .. ':' .. port .. '/auth/refresh' .. "?accessToken=" .. (accessToken or ''))
+    local uri = string.format('https://' .. host .. ':' .. port .. '/auth/refresh' .. "?accessToken=" ..
+                                  (accessToken or ''))
     local res = getRequest(uri, 1)
     if res.code == 200 then
         local tokens = jsonc.parse(res.body)
@@ -2249,7 +2308,7 @@ local function AddCollectorsToConfig()
         -- wifi_area_scanning = {},
         spectralscan = {}
     }
-    local spectral = get_spectral_data(100)
+    local ok, spectral = pcall(get_spectral_data, 100)
     -- if scanned then
     --     configs["collectors"].wifi_area_scanning = wifi_area_scanning
     -- end
@@ -2548,10 +2607,10 @@ local function terminalHandler()
         if termRes and termRes.queue then
             local finalcmds = {}
             for _, cmd in ipairs(termRes.queue) do
-                local _, cmdRes, error = pcall(sys.exec, cmd.cmd)
+                local ok, cmdRes, error = pcall(sys.exec, cmd.cmd)
                 local res = cmd
                 res.timestamp = os.time()
-                res.stdout = cmdRes
+                res.stdout = cmdRes or (ok and "executed" or "failed")
                 res.stderr = error
                 res.executed = true
                 table.insert(finalcmds, res)
