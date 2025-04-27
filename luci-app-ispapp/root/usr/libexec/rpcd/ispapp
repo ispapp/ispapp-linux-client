@@ -2593,10 +2593,6 @@ end
 
 local function safe_popen(command)
     -- Validate command
-    if command:match("[;&|$<>%c]") then
-        return nil, "Invalid command"
-    end
-    
     local handle = io.popen(command)
     if not handle then return nil, "Command failed" end
     
