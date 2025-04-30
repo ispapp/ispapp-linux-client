@@ -1470,10 +1470,64 @@ local function getDhcpLeases()
     end
     return leases
 end
-
+-- Used function to get IP neighbor information from ARP table
+local function getIpNeigh(mac)
+    local file = io.open("/proc/net/arp", "r")
+    if not file then
+        return {}
+    end
+    local output = {
+        ip = "N/A",
+        flags = "N/A",
+        hwtype = "N/A",
+        mac = "N/A",
+        mask = "N/A",
+        device = "N/A"
+    }
+   --- find the mac address or mac minus last hex in the arp table and return output
+    for line in file:lines() do
+        local ip, flags, hwtype, macaddr, mask, device = line:match("(%S+)%s+(%S+)%s+(%S+)%s+(%S+)%s+(%S+)%s+(%S+)")
+        if mac and macaddr then
+            if mac == macaddr or mac == macaddr:sub(1, -3) then
+                output.ip = ip
+                output.flags = flags
+                output.hwtype = hwtype
+                output.mac = macaddr
+                output.mask = mask
+                output.device = device
+            end
+        end
+    end
+    file:close()
+    return output
+end
 -- parse arp table into a table
 local function getArpTable()
-    -- Execute ARP command and capture output
+    -- Execute ARP command and capture output or use getIpNeigh function
+    local ip_neigh = getIpNeigh()
+    if next(ip_neigh) ~= nil then
+        local devices = {}
+        for ip, info in pairs(ip_neigh) do
+            if not devices[info.device] then
+                devices[info.device] = {
+                    name = info.device,
+                    clients = {}
+                }
+            end
+            table.insert(devices[info.device].clients, {
+                ip = ip,
+                mac = info.mac,
+                flags = "0x2", -- Default flag
+                hwtype = "0x1", -- Default hardware type
+                mask = "*"
+            })
+        end
+        return {
+            devices = devices
+        }
+    end
+    
+    -- Fallback to direct parsing if getIpNeigh returns empty
     local handle = io.popen("cat /proc/net/arp")
     if handle == nil then
         return {
@@ -1481,6 +1535,7 @@ local function getArpTable()
         }
     end
     local result = handle:read("*a")
+    handle:close()
     handle:close()
 
     -- Initialize return table
@@ -1551,12 +1606,6 @@ local function ParseWlanConfigList(device)
     if not handle then
         return {}
     end
-    -- Low 6GHz channels (example: channels 1 to 93)
-    local low_channels = {1, 5, 9, 13, 17, 21, 25, 29, 33, 37, 41, 45, 49, 53, 57, 61, 65, 69, 73, 77, 81, 85, 89, 93}
-
-    -- High 6GHz channels (example: channels 97 to 233)
-    local high_channels = {97, 101, 105, 109, 113, 117, 121, 125, 129, 133, 137, 141, 145, 149, 153, 157, 161, 165, 169,
-                           173, 177, 181, 185, 189, 193, 197, 201, 205, 209, 213, 217, 221, 225, 229, 233}
 
     local content = handle:read("*a")
     handle:close()
@@ -1825,6 +1874,10 @@ local function GetWap()
         local wap_device = conn:call('iwinfo', 'info', {
             device = device
         })
+        local iwinfo = get_wifi_params(device)
+        if iwinfo and iwinfo.ssid then
+            wap_device.ssid = iwinfo.ssid
+        end
         local ok, _clients = pcall(ParseWlanConfigList, device)
         if ok and #_clients > 0 then
             local toSeconds = function(time)
@@ -1859,7 +1912,7 @@ local function GetWap()
             local alreadyexist = {}
             for _, client in pairs(_clients) do
                 if not alreadyexist[client.addr] then
-                    local dhcps = getDhcpLeases()
+                    local dhcps = getIpNeigh(client.addr) -- Updated to use getDhcpLeases()
                     table.insert(clients, {
                         mac = client.addr, -- MAC address
                         info = "Station " .. client.addr, -- Optional description
@@ -1874,12 +1927,18 @@ local function GetWap()
                             bandHighOrLow((client.operating_band or "N/A"):lower(), tonumber(client.chan)), -- Operating band (2.4GHz, 5GHz, etc.)
                         channel = tonumber(client.chan) or 0,
                         signal2 = tonumber(client.maxrssi) or -1,
-                        dhcp = dhcps and dhcps[client.addr] or {
+                        dhcp = dhcps and {
+                            hostname = dhcps.device or "N/A",
+                            ip = dhcps.ip or "N/A",
+                            mac = dhcps.mac or "N/A",
+                            duid = "N/A"
+                        } or {
                             hostname = "N/A",
                             ip = "N/A",
                             mac = client.addr,
                             duid = "N/A"
                         }, -- add it to db model
+                        ssid = wap_device.ssid or "N/A", -- SSID of the access point
                         signal3 = tonumber(client.rssi_combined) or -1,
                         -- add estimate_distance
                         expectedRate = ratetobytes(client["maxrate(dot11)"] or client["maxrate"] or "0"), -- 2882400
@@ -2120,6 +2179,54 @@ local function check_domain()
     return {
         status = responce.code
     }
+end
+-- Function to get and parse ethtool statistics for a network interface
+function get_ethtool_stats(interface_name)
+    -- Validate input
+    if not interface_name or type(interface_name) ~= "string" then
+        return nil, "Interface name must be a non-empty string"
+    end
+    
+    -- Execute the ethtool command
+    local cmd = "ethtool -S " .. interface_name
+    local file = io.popen(cmd)
+    
+    if not file then
+        return nil, "Failed to execute ethtool command"
+    end
+    
+    local output = file:read("*all")
+    file:close()
+    
+    -- Check if the command was successful
+    if not output or output == "" then
+        return nil, "No output from ethtool command"
+    end
+    
+    -- Parse the output
+    local stats = {
+        interface = interface_name,
+        metrics = {}
+    }
+    
+    -- Skip the first line which contains "NIC statistics:"
+    local lines = {}
+    for line in output:gmatch("[^\r\n]+") do
+        table.insert(lines, line)
+    end
+    
+    -- Process each metric line
+    for i = 2, #lines do
+        local line = lines[i]
+        -- Extract metric name and value
+        local name, value = line:match("%s*([%w_]+):%s*(%d+)")
+        
+        if name and value then
+            stats.metrics[name] = tonumber(value)
+        end
+    end
+    
+    return stats
 end
 local function GetTokens(uri)
     local res = getRequest(uri, 1)
@@ -3009,6 +3116,16 @@ local methods = {
             r.result = jsonc.stringify({
                 cpu_usage = get_process_info(args.pid)
             })
+            return r
+        end
+    },
+    get_ethtool_stats = {
+        args = {
+            interface = "string"
+        },
+        call = function(args)
+            local r = {}
+            r.result = jsonc.stringify(get_ethtool_stats(args.interface))
             return r
         end
     },
