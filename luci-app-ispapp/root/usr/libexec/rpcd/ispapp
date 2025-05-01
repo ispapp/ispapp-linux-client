@@ -2181,7 +2181,7 @@ local function check_domain()
     }
 end
 -- Function to get and parse ethtool statistics for a network interface
-function get_ethtool_stats(interface_name)
+local function get_ethtool_stats(interface_name)
     -- Validate input
     if not interface_name or type(interface_name) ~= "string" then
         return nil, "Interface name must be a non-empty string"
