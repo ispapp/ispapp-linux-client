@@ -2971,7 +2971,7 @@ local function AddCollectorsToConfig()
     local pings = {}
     pings[1] = ping
     local temp = get_average_temperature()
-    local _, spectral = pcall(get_spectral_data, 100)
+    local spectral = get_spectral_data()
     configs["collectors"] = {
         ping = pings,
         wap = wap,
