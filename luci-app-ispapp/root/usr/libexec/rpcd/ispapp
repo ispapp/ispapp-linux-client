@@ -426,15 +426,9 @@ end
 local function get_spectral_data(inter)
     local ok, _, _ = pcall(util.exec, string.format("spectraltool -i %s get_samples 100 -x 1", inter))
     local parsed, csv, _ = pcall(extract_spectral_samples, "./outFile")
-    if not parsed or not ok then
-        return {
-            error = "Failed to parse spectral data.",
-            ok = false
-        }
-    end
     return {
         result = csv,
-        ok = ok
+        ok = parsed
     }
 end
 -- Function to make an HTTP request and ignore SSL verification
@@ -2988,11 +2982,11 @@ local function AddCollectorsToConfig()
         -- wifi_area_scanning = {},
         spectralscan = ""
     }
-    local ok, spectral = pcall(get_spectral_data, 100)
+    local _, spectral = pcall(get_spectral_data, 100)
     -- if scanned then
     --     configs["collectors"].wifi_area_scanning = wifi_area_scanning
     -- end
-    if ok and spectral.ok then
+    if spectral then
         configs["collectors"].spectralscan = spectral.result
     else
         configs["collectors"].spectralscan = ""
@@ -3655,7 +3649,7 @@ local methods = {
             local r = {}
             local inter = args.interface or "wifi0"
             local ok, _, _err = pcall(util.exec, string.format("spectraltool -i %s get_samples 500 -x 1 -l ','", inter))
-            local parsed, json, err = pcall(parse_spectral_data, "./outFile")
+            local parsed, json, err = pcall(extract_spectral_samples, "./outFile")
             r.result = jsonc.stringify({
                 status = ok,
                 parsed = parsed,
