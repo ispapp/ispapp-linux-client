@@ -2639,50 +2639,41 @@ local function get_average_temperature()
     local temps = {}
 
     -- Get list of thermal zones
-    local handle = io.popen("ls -d /sys/class/thermal/thermal_zone*/")
+    local handle = io.popen("ls -d /sys/class/thermal/thermal_zone*/temp")
     local result = handle and handle:read("*a") or ""
     if not result or result == "" then
         log_error("Failed to read thermal zones")
-        return {
-            average = 0,
-            count = 0,
-            individual = {}
-        }
+        return nil
+    end
+    -- Split the result into lines
+    local zones = {}
+    for line in result:gmatch("[^\r\n]+") do
+        table.insert(zones, line)
     end
 
-    -- Process each thermal zone
-    for zone in string.gmatch(result, "/sys/class/thermal/thermal_zone%d+/") do
-        -- Extract zone number
-        local zone_num = string.match(zone, "thermal_zone(%d+)")
-
-        -- Read temperature from the zone
-        local temp_file = io.open("/sys/class/thermal/thermal_zone" .. zone_num .. "/temp", "r")
-        if temp_file then
-            local temp = temp_file:read("*n")
-            temp_file:close()
-
-            -- Convert from millidegrees to degrees Celsius
-            temp = temp / 1000
-
-            -- Add to our tracking variables
-            total_temp = total_temp + temp
-            count = count + 1
-            temps[tonumber(zone_num)] = temp
+    -- Iterate through each thermal zone and read the temperature
+    for _, zone in ipairs(zones) do
+        local temp_handle = io.open(zone, "r")
+        if temp_handle then
+            local temp = temp_handle:read("*n") -- Read the temperature value
+            if temp then
+                table.insert(temps, temp / 1000) -- Convert to Celsius
+                total_temp = total_temp + (temp / 1000)
+                count = count + 1
+            end
+            temp_handle:close()
+        else
+            log_error("Failed to open thermal zone file: " .. zone)
         end
     end
 
-    -- Calculate average
-    local avg_temp = 0
-    if count > 0 then
-        avg_temp = total_temp / count
-    end
-    if handle then
-        handle:close()
-    end
+    -- Calculate the average temperature
+    local avg_temp = count > 0 and total_temp / count or 0
+    -- Return the average temperature and count of thermal zones
     return {
         average = avg_temp,
         count = count,
-        individual = temps
+        temps = temps
     }
 end
 local function AddCollectorsToConfig()
@@ -2724,7 +2715,7 @@ local function AddCollectorsToConfig()
         system = system,
         tcp = tcp,
         sensors = {
-            temperature = get_average_temperature(),
+            temperature = get_average_temperature().average,
             gps = get_gps_data()
         },
         -- location = location,
