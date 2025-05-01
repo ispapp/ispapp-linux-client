@@ -2456,6 +2456,7 @@ local function GetWap()
                             bandHighOrLow((client.operating_band or "N/A"):lower(), tonumber(client.chan)), -- Operating band (2.4GHz, 5GHz, etc.)
                         channel = tonumber(client.chan) or 0,
                         signal2 = tonumber(client.maxrssi) or -1,
+                        encryption = getEncryption(device) or "N/A", -- Encryption type (WPA, WPA2, etc.)
                         dhcp = dhcps and {
                             hostname = dhcps.device or "N/A",
                             ip = dhcps.ip or "N/A",
@@ -2467,7 +2468,7 @@ local function GetWap()
                             mac = client.addr,
                             duid = "N/A"
                         }, -- add it to db model
-                        ssid = wap_device.ssid or "N/A", -- SSID of the access point
+                        ssid = iwinfo.ssid or "N/A", -- SSID of the access point
                         signal3 = tonumber(client.rssi_combined) or -1,
                         -- add estimate_distance
                         expectedRate = ratetobytes(client["maxrate(dot11)"] or client["maxrate"] or "0"), -- 2882400
