@@ -2467,7 +2467,7 @@ local function GetWap()
                             mac = client.addr,
                             duid = "N/A"
                         }, -- add it to db model
-                        ssid = iwinfo  and iwinfo.ssid or "N/A", -- SSID of the access point
+                        ssid = iwinfo and iwinfo.ssid or "N/A", -- SSID of the access point
                         signal3 = tonumber(client.rssi_combined) or -1,
                         -- add estimate_distance
                         expectedRate = ratetobytes(client["maxrate(dot11)"] or client["maxrate"] or "0"), -- 2882400
