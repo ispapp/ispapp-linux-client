@@ -2567,6 +2567,50 @@ local function GetWap()
     end
     return wap or {}
 end
+-- Function to get average temperature across all thermal zones
+local function get_average_temperature()
+    local total_temp = 0
+    local count = 0
+    local temps = {}
+
+    -- Get list of thermal zones
+    local handle = io.popen("ls -d /sys/class/thermal/thermal_zone*/temp")
+    local result = handle and handle:read("*a") or ""
+    if not result or result == "" then
+        log_error("Failed to read thermal zones")
+        return nil
+    end
+    -- Split the result into lines
+    local zones = {}
+    for line in result:gmatch("[^\r\n]+") do
+        table.insert(zones, line)
+    end
+
+    -- Iterate through each thermal zone and read the temperature
+    for _, zone in ipairs(zones) do
+        local temp_handle = io.open(zone, "r")
+        if temp_handle then
+            local temp = temp_handle:read("*n") -- Read the temperature value
+            if temp then
+                table.insert(temps, temp / 1000) -- Convert to Celsius
+                total_temp = total_temp + (temp / 1000)
+                count = count + 1
+            end
+            temp_handle:close()
+        else
+            log_error("Failed to open thermal zone file: " .. zone)
+        end
+    end
+
+    -- Calculate the average temperature
+    local avg_temp = count > 0 and total_temp / count or 0
+    -- Return the average temperature and count of thermal zones
+    return {
+        average = avg_temp,
+        count = count,
+        temps = temps
+    }
+end
 local function getSystemInfo()
     return {
         load = {
@@ -2585,7 +2629,8 @@ local function getSystemInfo()
             mount = "/",
             used = tonumber(sys.exec("df / | grep / | awk '{print $3}'")),
             avail = tonumber(sys.exec("df / | grep / | awk '{print $4}'"))
-        }}
+        }},
+        temperature = get_average_temperature(),
     }
 end
 local function GetTcpInfo()
@@ -2888,50 +2933,7 @@ local function check_service()
     end
     return output
 end
--- Function to get average temperature across all thermal zones
-local function get_average_temperature()
-    local total_temp = 0
-    local count = 0
-    local temps = {}
 
-    -- Get list of thermal zones
-    local handle = io.popen("ls -d /sys/class/thermal/thermal_zone*/temp")
-    local result = handle and handle:read("*a") or ""
-    if not result or result == "" then
-        log_error("Failed to read thermal zones")
-        return nil
-    end
-    -- Split the result into lines
-    local zones = {}
-    for line in result:gmatch("[^\r\n]+") do
-        table.insert(zones, line)
-    end
-
-    -- Iterate through each thermal zone and read the temperature
-    for _, zone in ipairs(zones) do
-        local temp_handle = io.open(zone, "r")
-        if temp_handle then
-            local temp = temp_handle:read("*n") -- Read the temperature value
-            if temp then
-                table.insert(temps, temp / 1000) -- Convert to Celsius
-                total_temp = total_temp + (temp / 1000)
-                count = count + 1
-            end
-            temp_handle:close()
-        else
-            log_error("Failed to open thermal zone file: " .. zone)
-        end
-    end
-
-    -- Calculate the average temperature
-    local avg_temp = count > 0 and total_temp / count or 0
-    -- Return the average temperature and count of thermal zones
-    return {
-        average = avg_temp,
-        count = count,
-        temps = temps
-    }
-end
 local function AddCollectorsToConfig()
     local ping = getPing()
     local wap = GetWap()
