@@ -1710,6 +1710,223 @@ local function get_ethtool_stats(interface_name)
 
     return stats
 end
+-- Function to get comprehensive network interface data
+local function get_interface_data(interface_name)
+    -- Initialize result object with structure matching the provided schema
+    local result = {
+        If = interface_name,
+        DefaultIf = "",
+        Mac = "",
+        RecBytes = 0,
+        Up = false,
+        Type = "",
+        BridgeMembers = {},
+        RecPackets = 0,
+        RecErrors = 0,
+        RecDrops = 0,
+        SentBytes = 0,
+        SentPackets = 0,
+        LinkSpeed = 0,
+        SentErrors = 0,
+        SentDrops = 0,
+        CarrierChanges = 0,
+        Carrier = 0,
+        CarrierUpCount = 0,
+        CarrierDownCount = 0,
+        Present = false,
+        External = false,
+        Ipv6 = false,
+        Macs = 0,
+        Mtu = 0,
+        LinkSupported = {},
+        LinkAdvertising = {},
+        LinkPartnerAdvertising = {},
+        Multicast = false
+    }
+    
+    -- Check if interface exists
+    local handle = io.open("/sys/class/net/" .. interface_name, "r")
+    if not handle then
+        return result -- Interface doesn't exist
+    end
+    handle:close()
+    result.Present = true
+    
+    -- Get basic interface data using "ip" command
+    handle = io.popen("ip -statistics link show " .. interface_name .. " 2>/dev/null")
+    local ip_output = handle and handle:read("*a")
+    if handle then
+        handle:close()
+    end
+    
+    -- Parse MAC address
+    result.Mac = ip_output:match("link/[%w]+ ([%x:]+)")
+    
+    -- Parse MTU
+    local mtu = ip_output:match("mtu (%d+)")
+    if mtu then result.Mtu = tonumber(mtu) end
+    
+    -- Check if interface is UP
+    result.Up = ip_output:match("state UP") ~= nil
+    
+    -- Parse statistics
+    local rx_bytes = ip_output:match("RX:[%s%w]+%s+bytes%s+(%d+)")
+    local rx_packets = ip_output:match("RX:[%s%w]+%s+packets%s+(%d+)")
+    local rx_errors = ip_output:match("RX:[%s%w]+%s+errors%s+(%d+)")
+    local rx_dropped = ip_output:match("RX:[%s%w]+%s+dropped%s+(%d+)")
+    local tx_bytes = ip_output:match("TX:[%s%w]+%s+bytes%s+(%d+)")
+    local tx_packets = ip_output:match("TX:[%s%w]+%s+packets%s+(%d+)")
+    local tx_errors = ip_output:match("TX:[%s%w]+%s+errors%s+(%d+)")
+    local tx_dropped = ip_output:match("TX:[%s%w]+%s+dropped%s+(%d+)")
+    
+    -- Convert to numbers with proper type
+    if rx_bytes then result.RecBytes = tonumber(rx_bytes) end
+    if rx_packets then result.RecPackets = tonumber(rx_packets) end
+    if rx_errors then result.RecErrors = tonumber(rx_errors) end
+    if rx_dropped then result.RecDrops = tonumber(rx_dropped) end
+    if tx_bytes then result.SentBytes = tonumber(tx_bytes) end
+    if tx_packets then result.SentPackets = tonumber(tx_packets) end
+    if tx_errors then result.SentErrors = tonumber(tx_errors) end
+    if tx_dropped then result.SentDrops = tonumber(tx_dropped) end
+    
+    -- Check multicast flag
+    result.Multicast = ip_output:match("MULTICAST") ~= nil
+    
+    -- Get interface type and check if it's a bridge
+    handle = io.popen("ip -d link show " .. interface_name .. " 2>/dev/null")
+    local ip_detail_output = handle and handle:read("*a")
+    if handle then
+        handle:close()
+    end
+    
+    -- Determine interface type
+    if ip_detail_output:match("vlan") then
+        result.Type = "vlan"
+    elseif ip_detail_output:match("bridge") then
+        result.Type = "bridge"
+    elseif ip_detail_output:match("bond") then
+        result.Type = "bond"
+    elseif ip_detail_output:match("dummy") then
+        result.Type = "dummy"
+    elseif ip_detail_output:match("tun") or ip_detail_output:match("tap") then
+        result.Type = "virtual"
+    elseif ip_output:match("link/ether") then
+        result.Type = "ethernet"
+    elseif ip_output:match("link/loopback") then
+        result.Type = "loopback"
+    else
+        result.Type = "unknown"
+    end
+    
+    -- Get bridge members if it's a bridge
+    if result.Type == "bridge" then
+        handle = io.popen("ls -la /sys/class/net/" .. interface_name .. "/brif/ 2>/dev/null")
+        local bridge_output = handle and handle:read("*a")
+        if handle then
+            handle:close()
+        end
+        
+        for member in bridge_output:gmatch("%->[%s/]+%w+/([%w%-]+)") do
+            table.insert(result.BridgeMembers, member)
+        end
+    end
+    
+    -- Get ethtool information for physical interfaces
+    if result.Type == "ethernet" then
+        handle = io.popen("ethtool " .. interface_name .. " 2>/dev/null")
+        local ethtool_output = handle and handle:read("*a")
+        if handle then
+            handle:close()
+        end
+        
+        -- Check for carrier
+        local link_detected = ethtool_output:match("Link detected:%s+(%w+)")
+        if link_detected == "yes" then
+            result.Carrier = 1
+        end
+        
+        -- Parse supported link modes
+        for mode in ethtool_output:gmatch("Supported link modes:%s+(.-)Supported pause") do
+            for speed in mode:gmatch("(%d+baseT[/%w]+)") do
+                table.insert(result.LinkSupported, speed)
+            end
+        end
+        
+        -- Parse advertised link modes
+        for mode in ethtool_output:gmatch("Advertised link modes:%s+(.-)Advertised pause") do
+            for speed in mode:gmatch("(%d+baseT[/%w]+)") do
+                table.insert(result.LinkAdvertising, speed)
+            end
+        end
+        
+        -- Parse link partner advertised modes
+        for mode in ethtool_output:gmatch("Link partner advertised link modes:%s+(.-)Link partner advertised pause") do
+            for speed in mode:gmatch("(%d+baseT[/%w]+)") do
+                table.insert(result.LinkPartnerAdvertising, speed)
+            end
+        end
+        
+        -- Get carrier changes
+        local handle = io.open("/sys/class/net/" .. interface_name .. "/carrier_changes", "r")
+        if handle then
+            local carrier_changes = handle:read("*n")
+            handle:close()
+            if carrier_changes then
+                result.CarrierChanges = tonumber(carrier_changes)
+                -- Estimate up/down counts - each change is either up or down
+                result.CarrierUpCount = math.floor(result.CarrierChanges / 2)
+                result.CarrierDownCount = math.floor(result.CarrierChanges / 2)
+                -- If current state is up, increment up count
+                if result.Carrier == 1 then
+                    result.CarrierUpCount = result.CarrierUpCount + 1
+                end
+            end
+        end
+    end
+    
+    -- Check if it's the default interface by checking routing
+    handle = io.popen("ip route get 8.8.8.8 2>/dev/null")
+    local default_output = handle and handle:read("*a")
+    if handle then
+        handle:close()
+    end
+    
+    local default_dev = default_output:match("dev%s+([%w%.%-]+)")
+    if default_dev == interface_name then
+        result.DefaultIf = interface_name
+    end
+    
+    -- Check IPv6 capability
+    handle = io.popen("ip -6 addr show dev " .. interface_name .. " 2>/dev/null")
+    local ipv6_output = handle and handle:read("*a")
+    if handle then
+        handle:close()
+    end
+    
+    if ipv6_output:match("inet6") then
+        result.Ipv6 = true
+    end
+    
+    -- Check external status (heuristic: assume non-loopback physical interfaces are external)
+    if result.Type == "ethernet" and interface_name:match("^(eth%d+|wan%d*|wwan%d*)$") then
+        result.External = true
+    end
+    
+    -- Get MAC address table count if it's a bridge
+    if result.Type == "bridge" then
+        handle = io.popen("bridge fdb show br " .. interface_name .. " 2>/dev/null | wc -l")
+        local mac_count = handle and handle:read("*n")
+        if handle then
+            handle:close()
+        end
+        
+        if mac_count then
+            result.Macs = tonumber(mac_count)
+        end
+    end
+    
+    return result
+end
 -- Function to get interface statistics
 local function get_interface_stats()
     local interfaces = {}
@@ -1719,6 +1936,7 @@ local function get_interface_stats()
         for name, iface_status in pairs(devices) do
             -- ubus -v call network.device status '{"name":"<name>"}'
             local ethtoolstatsok, ethtoolstats, ethtoolstatserr = pcall(get_ethtool_stats, name) -- Get ethtool stats for eth0
+            local ifacedata = get_interface_data(name) -- Get interface data for eth0
             local stats = iface_status.statistics or {}
             local interf = {}
             interf["if"] = name
@@ -1729,34 +1947,34 @@ local function get_interface_stats()
             interf["recPackets"] = stats.rx_packets or 0
             interf["recErrors"] = stats.rx_errors or 0
             interf["recDrops"] = stats.rx_dropped or 0
-            interf["up"] = iface_status.up or false
+            interf["up"] = ifacedata.Up or false
             interf["sentBytes"] = stats.tx_bytes or 0
             interf["sentPackets"] = stats.tx_packets or 0
             interf["sentErrors"] = stats.tx_errors or 0
             interf["sentDrops"] = stats.tx_dropped or 0
-            interf["carrierChanges"] = tonumber(catFile("/sys/class/net/" .. name .. "/carrier_changes")) or 0
-            interf["type"] = iface_status.type or "N/A"
-            interf["bridge-members"] = iface_status["bridge-members"] or {}
-            interf["macs"] = 0
+            interf["carrierChanges"] = ifacedata.CarrierChanges or 0
+            interf["type"] = ifacedata.Type or "unknown"
+            interf["bridge-members"] = ifacedata.BridgeMembers or {}
+            interf["macs"] = ifacedata.Macs or 0
             interf["foundDescriptor"] = "ubus parsed"
-            local link_speed = tonumber(catFile("/sys/class/net/" .. name .. "/speed") or 0)
+            local link_speed = ifacedata.link_speed or 0
             link_speed = link_speed > 0 and link_speed or 0
             interf["link_speed"] = link_speed
             -- new added interfaces data 
             interf["negotiation_type"] = iface_status["autoneg"] and "auto" or "manual"
-            interf["carrier"] = tonumber(iface_status.carrier) or 0
-            interf["carrier_up_count"] = tonumber(catFile("/sys/class/net/" .. name .. "/carrier_up_count")) or 0
-            interf["carrier_down_count"] = tonumber(catFile("/sys/class/net/" .. name .. "/carrier_down_count")) or 0
-            interf["present"] = iface_status.present or false
-            interf["external"] = iface_status.external or false
-            interf["ipv6"] = iface_status.ipv6 or false
-            interf["mtu"] = tonumber(catFile("/sys/class/net/" .. name .. "/mtu")) or 0
-            interf["link-supported"] = iface_status["link-supported"] or {}
-            interf["link-advertising"] = iface_status["link-advertising"] or {}
-            interf["link-partner-advertising"] = iface_status["link-partner-advertising"] or {}
-            interf["stats"] = ethtoolstatsok and ethtoolstats or {}
-            interf["multicast"] = iface_status["multicast"] or false
-            interf["ipv6"] = iface_status["ipv6"] or false
+            interf["carrier"] = ifacedata.Carrier or 0
+            interf["carrier_up_count"] = ifacedata.CarrierUpCount or 0
+            interf["carrier_down_count"] = ifacedata.CarrierDownCount or 0
+            interf["present"] = ifacedata.Present or false
+            interf["external"] = ifacedata.External or false
+            interf["ipv6"] = ifacedata.Ipv6 or false
+            interf["mtu"] = ifacedata.Mtu or 0
+            interf["link-supported"] = ifacedata.LinkSupported or {}
+            interf["link-advertising"] = ifacedata.LinkAdvertising or {}
+            interf["link-partner-advertising"] = ifacedata.LinkPartnerAdvertising or {}
+            interf["stats"] = ethtoolstats and ethtoolstats.metrics or {}
+            interf["multicast"] = ifacedata.Multicast or false
+
             table.insert(interfaces, interf)
         end
     else
