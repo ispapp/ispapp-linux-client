@@ -1662,6 +1662,54 @@ local function getPing(target)
     }
     return ping_data
 end
+-- Function to get and parse ethtool statistics for a network interface
+local function get_ethtool_stats(interface_name)
+    -- Validate input
+    if not interface_name or type(interface_name) ~= "string" then
+        return nil, "Interface name must be a non-empty string"
+    end
+
+    -- Execute the ethtool command
+    local cmd = "ethtool -S " .. interface_name
+    local file = io.popen(cmd)
+
+    if not file then
+        return nil, "Failed to execute ethtool command"
+    end
+
+    local output = file:read("*all")
+    file:close()
+
+    -- Check if the command was successful
+    if not output or output == "" then
+        return nil, "No output from ethtool command"
+    end
+
+    -- Parse the output
+    local stats = {
+        interface = interface_name,
+        metrics = {}
+    }
+
+    -- Skip the first line which contains "NIC statistics:"
+    local lines = {}
+    for line in output:gmatch("[^\r\n]+") do
+        table.insert(lines, line)
+    end
+
+    -- Process each metric line
+    for i = 2, #lines do
+        local line = lines[i]
+        -- Extract metric name and value
+        local name, value = line:match("%s*([%w_]+):%s*(%d+)")
+
+        if name and value then
+            stats.metrics[name] = tonumber(value)
+        end
+    end
+
+    return stats
+end
 -- Function to get interface statistics
 local function get_interface_stats()
     local interfaces = {}
@@ -1670,6 +1718,7 @@ local function get_interface_stats()
     if devices then
         for name, iface_status in pairs(devices) do
             -- ubus -v call network.device status '{"name":"<name>"}'
+            local ethtoolstatsok, ethtoolstats, ethtoolstatserr = pcall(get_ethtool_stats, name) -- Get ethtool stats for eth0
             local stats = iface_status.statistics or {}
             local interf = {}
             interf["if"] = name
@@ -1705,6 +1754,7 @@ local function get_interface_stats()
             interf["link-supported"] = iface_status["link-supported"] or {}
             interf["link-advertising"] = iface_status["link-advertising"] or {}
             interf["link-partner-advertising"] = iface_status["link-partner-advertising"] or {}
+            interf["stats"] = ethtoolstatsok and ethtoolstats or {}
             interf["multicast"] = iface_status["multicast"] or false
             interf["ipv6"] = iface_status["ipv6"] or false
             table.insert(interfaces, interf)
@@ -2443,54 +2493,7 @@ local function check_domain()
         status = responce.code
     }
 end
--- Function to get and parse ethtool statistics for a network interface
-local function get_ethtool_stats(interface_name)
-    -- Validate input
-    if not interface_name or type(interface_name) ~= "string" then
-        return nil, "Interface name must be a non-empty string"
-    end
 
-    -- Execute the ethtool command
-    local cmd = "ethtool -S " .. interface_name
-    local file = io.popen(cmd)
-
-    if not file then
-        return nil, "Failed to execute ethtool command"
-    end
-
-    local output = file:read("*all")
-    file:close()
-
-    -- Check if the command was successful
-    if not output or output == "" then
-        return nil, "No output from ethtool command"
-    end
-
-    -- Parse the output
-    local stats = {
-        interface = interface_name,
-        metrics = {}
-    }
-
-    -- Skip the first line which contains "NIC statistics:"
-    local lines = {}
-    for line in output:gmatch("[^\r\n]+") do
-        table.insert(lines, line)
-    end
-
-    -- Process each metric line
-    for i = 2, #lines do
-        local line = lines[i]
-        -- Extract metric name and value
-        local name, value = line:match("%s*([%w_]+):%s*(%d+)")
-
-        if name and value then
-            stats.metrics[name] = tonumber(value)
-        end
-    end
-
-    return stats
-end
 local function GetTokens(uri)
     local res = getRequest(uri, 1)
     if res.code == 200 then
