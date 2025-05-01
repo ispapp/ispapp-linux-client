@@ -2163,8 +2163,6 @@ local function get_wifi_params(device)
     for key, value in pairs(params) do
         if value then
             valid_params[key] = value
-        elseif errors[key] then
-            return nil, "Error retrieving " .. key .. ": " .. errors[key]
         end
     end
 
@@ -3447,6 +3445,16 @@ local methods = {
         call = function()
             local r = {}
             r.result = jsonc.stringify(GetTcpInfo())
+            return r
+        end
+    },
+    get_wifi_params = {
+        args = {
+            device = "string"
+        },
+        call = function(args)
+            local r = {}
+            r.result = jsonc.stringify(get_wifi_params(args.device))
             return r
         end
     },

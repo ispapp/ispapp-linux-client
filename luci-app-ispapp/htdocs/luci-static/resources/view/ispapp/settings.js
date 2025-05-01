@@ -118,7 +118,7 @@ return view.extend({
 
         o = s.option(form.Value, 'UpdateInterval', _('Update Interval'), _('Interval for updating data in seconds.'));
         o.rmempty = false;
-        o.datatype = 'range(1, 100)';
+        o.datatype = 'range(30, 100)';
         o.default = uci.get('ispapp', '@settings[0]', 'updateInterval') || 10;
         o.placeholder = '10';
         o.onchange = function() {

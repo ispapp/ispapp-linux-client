@@ -14,7 +14,8 @@ local running = false
 local sleep_times = {
     update_interval = 5, -- Default sleep time for WISP monitor (10s minimum)
     config_interval = 5, -- Default sleep time for connection manager (10s minimum)
-    heathcheck_interval = 10 -- Default sleep time for status reporter (10s minimum)
+    heathcheck_interval = 10, -- Default sleep time for status reporter (10s minimum)
+    terminal_interval = 1 -- Default sleep time for terminal (faster than other threads)
 }
 local pid_file = "/var/run/ispappd.pid"
 local log_file = "/var/log/ispapp" -- Log file path no used in this script
@@ -47,14 +48,16 @@ local function load_config()
     -- Ensure minimum 10s and assign to variables
     if UpdateInterval then
         UpdateInterval = tonumber(UpdateInterval)
-        if UpdateInterval and UpdateInterval >= 1 then
+        if UpdateInterval and UpdateInterval >= 30 then
             sleep_times.update_interval = UpdateInterval
             sleep_times.config_interval = UpdateInterval + 5
             sleep_times.heathcheck_interval = UpdateInterval + 10
+            sleep_times.terminal_interval = math.max(1, math.floor(UpdateInterval / 5)) -- Terminal runs 5x faster
         else
-            sleep_times.update_interval = 1
-            sleep_times.config_interval = 5
-            sleep_times.heathcheck_interval = 10
+            sleep_times.update_interval = 30
+            sleep_times.config_interval = 45
+            sleep_times.heathcheck_interval = 60
+            sleep_times.terminal_interval = 5 -- Default terminal interval
         end
     else
         uci:set("ispapp", "@settings[0]", "UpdateInterval", 10) -- Save default if missing
@@ -75,12 +78,7 @@ local function Update_thread()
         log("Sending updates ..." .. " count: " .. count)
         local update = rpcdCall("update", {})
         local sentupdate = rpcdCall("sendupdate", {})
-        local terminal = rpcdCall("terminal", {})
-        if terminal and terminal.code == 200 then
-            log("Terminal sent successfully" .. " count: " .. count)
-        else
-            log("Failed to send terminal" .. " count: " .. count)
-        end
+        
         if sentupdate and sentupdate.code == 200 then
             log("Sent update successfully" .. " count: " .. count)
         else
@@ -96,6 +94,26 @@ local function Update_thread()
     coroutine.yield() -- Yield execution back to the manager
 end
 -- terminal handler thread
+
+-- Thread 4: Terminal handling task (faster than other threads)
+local function Terminal_thread()
+    local count = 0
+    while running do
+        count = count + 1
+        if count > maxinteger then
+            count = 0
+        end
+        log("Processing terminal commands..." .. " count: " .. count)
+        local terminal = rpcdCall("terminal", {})
+        if terminal and terminal.code == 200 then
+            log("Terminal processed successfully" .. " count: " .. count)
+        else
+            log("Failed to process terminal" .. " count: " .. count)
+        end
+        nixio.nanosleep(sleep_times.terminal_interval, 0) -- Sleep for shorter time than other threads
+    end
+    coroutine.yield() -- Yield execution back to the manager
+end
 
 -- Thread 2: Connection management task
 local function Config_thread()
@@ -149,12 +167,14 @@ local function start_daemon()
         "Thread Sleep Times: update interval = " .. sleep_times.update_interval ..
             " s, " .. "config interval = " .. sleep_times.config_interval ..
             " s, " .. "heath check interval = " ..
-            sleep_times.heathcheck_interval .. " s")
+            sleep_times.heathcheck_interval .. " s, " .. "terminal interval = " ..
+            sleep_times.terminal_interval .. " s")
 
     -- Create coroutines (threads)
     threads[1] = coroutine.create(Update_thread)
     threads[2] = coroutine.create(Config_thread)
     threads[3] = coroutine.create(HealthCheck_thread)
+    threads[4] = coroutine.create(Terminal_thread)
     
     local function safe_resume(thread, name)
         local ok, err = coroutine.resume(thread)
@@ -171,8 +191,10 @@ local function start_daemon()
                     threads[i] = coroutine.create(Update_thread)
                 elseif i == 2 then
                     threads[i] = coroutine.create(Config_thread)
-                else
+                elseif i == 3 then
                     threads[i] = coroutine.create(HealthCheck_thread)
+                else
+                    threads[i] = coroutine.create(Terminal_thread)
                 end
             end
         end

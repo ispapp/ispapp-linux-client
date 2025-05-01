@@ -8,7 +8,7 @@ config settings
         option Key ''
         option refreshToken ''
         option accessToken ''
-        option updateInterval '1'
+        option updateInterval '40'
         option IperfServer ''
 
 config overview
