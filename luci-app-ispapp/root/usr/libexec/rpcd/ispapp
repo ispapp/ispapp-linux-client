@@ -2974,7 +2974,7 @@ local function AddCollectorsToConfig()
         system = system,
         tcp = tcp,
         sensors = {
-            temperature = math.abs(temp and temp.average or 0) or 0,
+            temperature = temp and temp.average or 0,
             gps = get_gps_data()
         },
         -- location = location,
