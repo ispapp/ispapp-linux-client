@@ -2708,6 +2708,7 @@ local function AddCollectorsToConfig()
     local configs = CollectConfigs()
     local pings = {}
     pings[1] = ping
+    local temp = get_average_temperature()
     configs["collectors"] = {
         ping = pings,
         wap = wap,
@@ -2715,7 +2716,7 @@ local function AddCollectorsToConfig()
         system = system,
         tcp = tcp,
         sensors = {
-            temperature = math.floor(get_average_temperature().average) or 0,
+            temperature = math.abs(temp and temp.average or 0) or 0,
             gps = get_gps_data()
         },
         -- location = location,
