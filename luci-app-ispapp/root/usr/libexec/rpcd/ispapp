@@ -2967,6 +2967,7 @@ local function AddCollectorsToConfig()
     local pings = {}
     pings[1] = ping
     local temp = get_average_temperature()
+    local _, spectral = pcall(get_spectral_data, 100)
     configs["collectors"] = {
         ping = pings,
         wap = wap,
@@ -2982,17 +2983,11 @@ local function AddCollectorsToConfig()
         leases = getDhcpLeases(),
         topos = getEasyMesh().topo,
         -- wifi_area_scanning = {},
-        spectralscan = ""
+        spectralscan = spectral and spectral.result or ""
     }
-    local _, spectral = pcall(get_spectral_data, 100)
     -- if scanned then
     --     configs["collectors"].wifi_area_scanning = wifi_area_scanning
     -- end
-    if spectral then
-        configs["collectors"].spectralscan = spectral.result
-    else
-        configs["collectors"].spectralscan = ""
-    end
     return configs
 end
 
