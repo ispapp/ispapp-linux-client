@@ -1484,7 +1484,7 @@ local function getIpNeigh(mac)
         mask = "N/A",
         device = "N/A"
     }
-   --- find the mac address or mac minus last hex in the arp table and return output
+    --- find the mac address or mac minus last hex in the arp table and return output
     for line in file:lines() do
         local ip, flags, hwtype, macaddr, mask, device = line:match("(%S+)%s+(%S+)%s+(%S+)%s+(%S+)%s+(%S+)%s+(%S+)")
         if mac and macaddr then
@@ -1503,30 +1503,6 @@ local function getIpNeigh(mac)
 end
 -- parse arp table into a table
 local function getArpTable()
-    -- Execute ARP command and capture output or use getIpNeigh function
-    local ip_neigh = getIpNeigh()
-    if next(ip_neigh) ~= nil then
-        local devices = {}
-        for ip, info in pairs(ip_neigh) do
-            if not devices[info.device] then
-                devices[info.device] = {
-                    name = info.device,
-                    clients = {}
-                }
-            end
-            table.insert(devices[info.device].clients, {
-                ip = ip,
-                mac = info.mac,
-                flags = "0x2", -- Default flag
-                hwtype = "0x1", -- Default hardware type
-                mask = "*"
-            })
-        end
-        return {
-            devices = devices
-        }
-    end
-    
     -- Fallback to direct parsing if getIpNeigh returns empty
     local handle = io.popen("cat /proc/net/arp")
     if handle == nil then
@@ -1542,7 +1518,6 @@ local function getArpTable()
     local arpTable = {
         devices = {}
     }
-
     -- Skip header line and process entries
     local firstLine = true
     for line in result:gmatch("[^\r\n]+") do
@@ -2186,46 +2161,46 @@ local function get_ethtool_stats(interface_name)
     if not interface_name or type(interface_name) ~= "string" then
         return nil, "Interface name must be a non-empty string"
     end
-    
+
     -- Execute the ethtool command
     local cmd = "ethtool -S " .. interface_name
     local file = io.popen(cmd)
-    
+
     if not file then
         return nil, "Failed to execute ethtool command"
     end
-    
+
     local output = file:read("*all")
     file:close()
-    
+
     -- Check if the command was successful
     if not output or output == "" then
         return nil, "No output from ethtool command"
     end
-    
+
     -- Parse the output
     local stats = {
         interface = interface_name,
         metrics = {}
     }
-    
+
     -- Skip the first line which contains "NIC statistics:"
     local lines = {}
     for line in output:gmatch("[^\r\n]+") do
         table.insert(lines, line)
     end
-    
+
     -- Process each metric line
     for i = 2, #lines do
         local line = lines[i]
         -- Extract metric name and value
         local name, value = line:match("%s*([%w_]+):%s*(%d+)")
-        
+
         if name and value then
             stats.metrics[name] = tonumber(value)
         end
     end
-    
+
     return stats
 end
 local function GetTokens(uri)
@@ -2701,8 +2676,10 @@ end
 local function safe_popen(command)
     -- Validate command
     local handle = io.popen(command)
-    if not handle then return nil, "Command failed" end
-    
+    if not handle then
+        return nil, "Command failed"
+    end
+
     local output = handle:read("*a")
     handle:close()
     return output
