@@ -1435,7 +1435,7 @@ local function getNetworkInterfaces()
                 link_partner_advertising = ethtooldata.LinkPartnerAdvertising or data['link-partner-advertising'] or {},
                 type = ethtooldata.Type or "unknown",
                 bridgeMembers = ethtooldata.BridgeMembers or {},
-                negotiation_type = ethtooldata.NegotiationType or "N/A",
+                negotiation_type = ethtooldata.NegotiationType or (data["autoneg"] and "auto" or "manual"),
                 foundDescriptor = catFile("/sys/class/net/" .. iface .. "/uevent"):match("DEVTYPE=(%w+)") or "N/A"
             })
         end
