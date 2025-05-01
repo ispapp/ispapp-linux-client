@@ -425,8 +425,7 @@ end
 -- parse_spectral_data and return the result
 local function get_spectral_data()
     -- Get wireless interfaces with type 801 (wireless)
-    local devices = {devices = {}}
-    
+    local devices = {}
     -- Get all network interfaces
     -- local all_interfaces = {}
     local iface_list = io.popen("ls /sys/class/net")
@@ -438,52 +437,14 @@ local function get_spectral_data()
                 local iface_type = type_file:read("*n")
                 type_file:close()
                 if iface_type == 801 then
-                    table.insert(devices.devices, iface)
+                    table.insert(devices, iface)
                 end
             end
         end
         iface_list:close()
     end
-    
-    -- If no wireless interfaces found, try alternative methods
-    if #devices.devices == 0 then
-        -- Try using iwinfo
-        local wireless_ifaces = conn:call("iwinfo", "devices", {})
-        if wireless_ifaces and wireless_ifaces.devices then
-            for _, iface in ipairs(wireless_ifaces.devices) do
-                local type_file = io.open("/sys/class/net/" .. iface .. "/type", "r")
-                if type_file then
-                    local iface_type = type_file:read("*n")
-                    type_file:close()
-                    if iface_type == 801 then
-                        table.insert(devices.devices, iface)
-                    end
-                end
-            end
-        end
-        
-        -- Last resort: UCI configuration
-        if #devices.devices == 0 then
-            uci:foreach("wireless", "wifi-iface", function(s)
-                if s.ifname then
-                    local type_file = io.open("/sys/class/net/" .. s.ifname .. "/type", "r")
-                    if type_file then
-                        local iface_type = type_file:read("*n")
-                        type_file:close()
-                        if iface_type == 801 then
-                            table.insert(devices.devices, s.ifname)
-                        end
-                    end
-                end
-            end)
-        end
-    end
-    
-    if #devices.devices == 0 then
-        return {}
-    end
     local spectralanalysis = {}
-    for _, value in ipairs(devices.devices) do
+    for _, value in ipairs(devices) do
         local ok, _, _ = pcall(util.exec, string.format("spectraltool -i %s get_samples 100 -x 1", value))
         if ok then
             local parsed, csv, _ = pcall(extract_spectral_samples, "./outFile") 
@@ -3490,6 +3451,18 @@ local methods = {
         call = function()
             local r = {}
             local ok, res, err = pcall(GetwifiScan)
+            r.result = jsonc.stringify({
+                error = err,
+                ok = ok,
+                responce = res
+            })
+            return r
+        end
+    },
+    get_spectrals = {
+        call = function()
+            local r = {}
+            local ok, res, err = pcall(get_spectral_data)
             r.result = jsonc.stringify({
                 error = err,
                 ok = ok,
