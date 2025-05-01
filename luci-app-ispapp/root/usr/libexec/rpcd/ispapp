@@ -1416,7 +1416,7 @@ local function getNetworkInterfaces()
                 recPackets = stats.rx_packets or 0,
                 sentPackets = stats.tx_packets or 0,
                 recErrors = stats.rx_errors or 0,
-                link_speed = ethtooldata.LinkSpeed or link_speed or 0,
+                link_speed = link_speed or ethtooldata.LinkSpeed or 0,
                 sentErrors = stats.tx_errors or 0,
                 recDrops = stats.rx_dropped or 0,
                 sentDrops = stats.tx_dropped or 0,
@@ -2054,7 +2054,7 @@ local function get_interface_stats()
             interf["carrier_up_count"] = ifacedata.CarrierUpCount or 0
             interf["carrier_down_count"] = ifacedata.CarrierDownCount or 0
             interf["present"] = ifacedata.Present or false
-            interf["link_speed"] = ifacedata.LinkSpeed or link_speed or 0
+            interf["link_speed"] = link_speed or ifacedata.LinkSpeed or 0
             interf["external"] = ifacedata.External or false
             interf["ipv6"] = ifacedata.Ipv6 or false
             interf["mtu"] = ifacedata.Mtu or 0
