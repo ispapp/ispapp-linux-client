@@ -424,8 +424,62 @@ local function extract_spectral_samples(input_file_path)
 end
 -- parse_spectral_data and return the result
 local function get_spectral_data()
-    local devices = conn:call("iwinfo", "devices", {})
-    if not devices or not devices.devices then
+    -- Get wireless interfaces with type 801 (wireless)
+    local devices = {devices = {}}
+    
+    -- Get all network interfaces
+    -- local all_interfaces = {}
+    local iface_list = io.popen("ls /sys/class/net")
+    if iface_list then
+        for iface in iface_list:lines() do
+            -- Check if the interface has type 801 (wireless)
+            local type_file = io.open("/sys/class/net/" .. iface .. "/type", "r")
+            if type_file then
+                local iface_type = type_file:read("*n")
+                type_file:close()
+                if iface_type == 801 then
+                    table.insert(devices.devices, iface)
+                end
+            end
+        end
+        iface_list:close()
+    end
+    
+    -- If no wireless interfaces found, try alternative methods
+    if #devices.devices == 0 then
+        -- Try using iwinfo
+        local wireless_ifaces = conn:call("iwinfo", "devices", {})
+        if wireless_ifaces and wireless_ifaces.devices then
+            for _, iface in ipairs(wireless_ifaces.devices) do
+                local type_file = io.open("/sys/class/net/" .. iface .. "/type", "r")
+                if type_file then
+                    local iface_type = type_file:read("*n")
+                    type_file:close()
+                    if iface_type == 801 then
+                        table.insert(devices.devices, iface)
+                    end
+                end
+            end
+        end
+        
+        -- Last resort: UCI configuration
+        if #devices.devices == 0 then
+            uci:foreach("wireless", "wifi-iface", function(s)
+                if s.ifname then
+                    local type_file = io.open("/sys/class/net/" .. s.ifname .. "/type", "r")
+                    if type_file then
+                        local iface_type = type_file:read("*n")
+                        type_file:close()
+                        if iface_type == 801 then
+                            table.insert(devices.devices, s.ifname)
+                        end
+                    end
+                end
+            end)
+        end
+    end
+    
+    if #devices.devices == 0 then
         return {}
     end
     local spectralanalysis = {}
