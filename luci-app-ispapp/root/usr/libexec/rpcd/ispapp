@@ -1430,9 +1430,9 @@ local function getNetworkInterfaces()
                 mtu = ethtooldata.Mtu or 0,
                 multicast = ethtooldata.Multicast or false,
                 macs = ethtooldata.Macs or 0,
-                linkSupported = ethtooldata.LinkSupported or {},
-                linkAdvertising = ethtooldata.LinkAdvertising or {},
-                linkPartnerAdvertising = ethtooldata.LinkPartnerAdvertising or {},
+                link_supported = ethtooldata.LinkSupported or data['link-supported'] or {},
+                link_advertising = ethtooldata.LinkAdvertising or data['link-advertising'] or {},
+                link_partner_advertising = ethtooldata.LinkPartnerAdvertising or data['link-partner-advertising'] or {},
                 type = ethtooldata.Type or "unknown",
                 bridgeMembers = ethtooldata.BridgeMembers or {},
                 negotiation_type = ethtooldata.NegotiationType or "N/A",
@@ -2046,11 +2046,9 @@ local function get_interface_stats()
             interf["bridge-members"] = ifacedata.BridgeMembers or {}
             interf["macs"] = ifacedata.Macs or 0
             interf["foundDescriptor"] = "ubus parsed"
-            local link_speed = ifacedata.link_speed or 0
-            link_speed = link_speed > 0 and link_speed or 0
-            interf["link_speed"] = link_speed
+            interf["link_speed"] = ifacedata.link_speed or 0
             -- new added interfaces data 
-            interf["negotiation_type"] = iface_status["autoneg"] and "auto" or "manual"
+            interf["negotiation_type"] = ifacedata.NegotiationType or (iface_status["autoneg"] and "auto" or "manual")
             interf["carrier"] = ifacedata.Carrier or 0
             interf["carrier_up_count"] = ifacedata.CarrierUpCount or 0
             interf["carrier_down_count"] = ifacedata.CarrierDownCount or 0
@@ -2058,9 +2056,9 @@ local function get_interface_stats()
             interf["external"] = ifacedata.External or false
             interf["ipv6"] = ifacedata.Ipv6 or false
             interf["mtu"] = ifacedata.Mtu or 0
-            interf["link-supported"] = ifacedata.LinkSupported or {}
-            interf["link-advertising"] = ifacedata.LinkAdvertising or {}
-            interf["link-partner-advertising"] = ifacedata.LinkPartnerAdvertising or {}
+            interf["link_supported"] = ifacedata.LinkSupported or {}
+            interf["link_advertising"] = ifacedata.LinkAdvertising or {}
+            interf["link_partner_advertising"] = ifacedata.LinkPartnerAdvertising or {}
             interf["stats"] = ethtoolstats and ethtoolstats.metrics or {}
             interf["multicast"] = ifacedata.Multicast or false
 
