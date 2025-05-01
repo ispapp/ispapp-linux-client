@@ -752,8 +752,10 @@ end
 -- this function will check if the device is online or offline
 local function internet_check()
     local handle = io.popen("ping -c 1 -W 2 8.8.8.8 > /dev/null 2>&1 && echo 1 || echo 0")
-    local result = handle:read("*a")
-    handle:close()
+    local result = handle and handle:read("*a")
+    if handle then
+        handle:close()
+    end
     return tonumber(result) == 1 -- Convert result to number and check if it's 1
 end
 
@@ -767,14 +769,16 @@ local function sync_agent_version()
         overview = "/htdocs/luci-static/resources/view/ispapp/overview.js",
         settings = "/htdocs/luci-static/resources/view/ispapp/settings.js",
         ispappcontroller = "/luasrc/controller/ispapp.lua",
-        rpcd = "/root/usr/libexec/rpcd/ispapp"
+        rpcd = "/root/usr/libexec/rpcd/ispapp",
+        ispappd = "/root/bin/ispappd",
     }
     local local_agent_files = {
         logread = "/www/luci-static/resources/view/ispapp/logread.js",
         overview = "/www/luci-static/resources/view/ispapp/overview.js",
         settings = "/www/luci-static/resources/view/ispapp/settings.js",
         ispappcontroller = "/usr/lib/lua/luci/controller/ispapp.lua",
-        rpcd = "/usr/libexec/rpcd/ispapp"
+        rpcd = "/usr/libexec/rpcd/ispapp",
+        ispappd = "/bin/ispappd"
     }
     local updated_files = {}
     local is_internet = internet_check()
