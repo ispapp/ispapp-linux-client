@@ -3543,6 +3543,16 @@ local methods = {
             return r
         end
     },
+    get_interface_data = {
+        args = {
+            interface = "string"
+        },
+        call = function(args)
+            local r = {}
+            r.result = jsonc.stringify(get_interface_data(args.interface))
+            return r
+        end
+    },
     stop_ispapp = {
         call = function()
             local r = {}
