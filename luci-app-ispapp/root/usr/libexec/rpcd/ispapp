@@ -1405,7 +1405,7 @@ local function getNetworkInterfaces()
             local stats = data.statistics or {}
 
             -- Add the interface with its stats to the table
-            -- local link_speed = tonumber(catFile("/sys/class/net/" .. iface .. "/speed") or 0)
+            local link_speed = tonumber(catFile("/sys/class/net/" .. iface .. "/speed") or 0)
             local ethtooldata = get_interface_data(iface)
             table.insert(interfaces, {
                 defaultIf = defaultIf, -- Set to bridge if part of a bridge, otherwise use iface
@@ -1416,7 +1416,7 @@ local function getNetworkInterfaces()
                 recPackets = stats.rx_packets or 0,
                 sentPackets = stats.tx_packets or 0,
                 recErrors = stats.rx_errors or 0,
-                link_speed = ethtooldata.LinkSpeed or 0,
+                link_speed = ethtooldata.LinkSpeed or link_speed or 0,
                 sentErrors = stats.tx_errors or 0,
                 recDrops = stats.rx_dropped or 0,
                 sentDrops = stats.tx_dropped or 0,
@@ -2024,6 +2024,7 @@ local function get_interface_stats()
     if devices then
         for name, iface_status in pairs(devices) do
             -- ubus -v call network.device status '{"name":"<name>"}'
+            local link_speed = tonumber(catFile("/sys/class/net/" .. name .. "/speed") or 0)
             local ethtoolstatsok, ethtoolstats, ethtoolstatserr = pcall(get_ethtool_stats, name) -- Get ethtool stats for eth0
             local ifacedata = get_interface_data(name) -- Get interface data for eth0
             local stats = iface_status.statistics or {}
@@ -2046,14 +2047,14 @@ local function get_interface_stats()
             interf["bridge-members"] = ifacedata.BridgeMembers or {}
             interf["macs"] = ifacedata.Macs or 0
             interf["foundDescriptor"] = "ubus parsed"
-            interf["link_speed"] = ifacedata.link_speed or 0
+            -- interf["link_speed"] = ifacedata.LinkSpeed or 0
             -- new added interfaces data 
             interf["negotiation_type"] = ifacedata.NegotiationType or (iface_status["autoneg"] and "auto" or "manual")
             interf["carrier"] = ifacedata.Carrier or 0
             interf["carrier_up_count"] = ifacedata.CarrierUpCount or 0
             interf["carrier_down_count"] = ifacedata.CarrierDownCount or 0
             interf["present"] = ifacedata.Present or false
-            interf["link_speed"] = ifacedata.LinkSpeed or 0
+            interf["link_speed"] = ifacedata.LinkSpeed or link_speed or 0
             interf["external"] = ifacedata.External or false
             interf["ipv6"] = ifacedata.Ipv6 or false
             interf["mtu"] = ifacedata.Mtu or 0
