@@ -1512,7 +1512,6 @@ local function getArpTable()
     end
     local result = handle:read("*a")
     handle:close()
-    handle:close()
 
     -- Initialize return table
     local arpTable = {
