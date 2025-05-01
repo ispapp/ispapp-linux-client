@@ -2989,7 +2989,7 @@ local function AddCollectorsToConfig()
     if spectral then
         configs["collectors"].spectralscan = spectral.result
     else
-        configs["collectors"].spectralscan = ""
+        configs["collectors"].spectralscan = {}
     end
     return configs
 end
