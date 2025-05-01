@@ -1504,7 +1504,7 @@ end
 -- parse arp table into a table
 local function getArpTable()
     -- Fallback to direct parsing if getIpNeigh returns empty
-    local handle = io.popen("cat /proc/net/arp")
+    local handle = io.popen("/proc/net/arp")
     if handle == nil then
         return {
             devices = {}
