@@ -2053,6 +2053,7 @@ local function get_interface_stats()
             interf["carrier_up_count"] = ifacedata.CarrierUpCount or 0
             interf["carrier_down_count"] = ifacedata.CarrierDownCount or 0
             interf["present"] = ifacedata.Present or false
+            interf["link_speed"] = ifacedata.LinkSpeed or 0
             interf["external"] = ifacedata.External or false
             interf["ipv6"] = ifacedata.Ipv6 or false
             interf["mtu"] = ifacedata.Mtu or 0
