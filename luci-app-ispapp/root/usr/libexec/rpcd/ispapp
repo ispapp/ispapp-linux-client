@@ -3431,6 +3431,13 @@ local methods = {
             return r
         end
     },
+    get_thermal = {
+        call = function()
+            local r = {}
+            r.result = jsonc.stringify(get_average_temperature())
+            return r
+        end
+    },
     get_ethtool_stats = {
         args = {
             interface = "string"
