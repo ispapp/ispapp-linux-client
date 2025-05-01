@@ -586,33 +586,76 @@ local getKey = function(device)
     end
     return key
 end
-local getEncryption = function(device)
-    local keytypes = ""
-    if string.find(device, "mld") then
-        uci:foreach("wireless", "wifi-iface", function(section)
-            if section.mld == device then
-                if keytypes == "" then
-                    keytypes = section.encryption or "none"
-                    if type(section.encryption) == "table" then
-                        keytypes = section.encryption[0] or section.encryption[1] or "none"
+local function getEncryption(device)
+    -- Initialize variables
+    local encryption = "none"
+    local found = false
+    local config_file = io.open("/etc/config/wireless", "r")
+    
+    -- Check if config file exists
+    if not config_file then
+        return encryption
+    end
+    
+    local content = config_file:read("*all")
+    config_file:close()
+    
+    -- Track the current section and its properties
+    local current_section = nil
+    local section_type = nil
+    local properties = {}
+    
+    -- Process each line in the config file
+    for line in content:gmatch("[^\r\n]+") do
+        -- Check for section start
+        local section_match = line:match("^%s*config%s+([%w%-]+)%s*'?([%w%-]*)'?")
+        if section_match then
+            -- Save the previous section if it matches our criteria
+            if current_section and section_type == "wifi-iface" then
+                -- Check if this section refers to our device
+                if (properties["device"] == device) or (properties["mld"] == device) then
+                    if properties["encryption"] then
+                        encryption = properties["encryption"]
+                        found = true
+                        break  -- Found what we need, exit loop
                     end
                 end
             end
-        end)
-    end
-    if keytypes == {} then
-        uci:foreach("wireless", "wifi-iface", function(section)
-            if section.device == device then
-                if keytypes == "" then
-                    keytypes = section.encryption or "none"
-                    if type(section.encryption) == "table" then
-                        keytypes = section.encryption[0] or section.encryption[1] or "none"
-                    end
-                end
+            
+            -- Start a new section
+            section_type = section_match
+            current_section = section_match
+            properties = {}
+        else
+            -- Check for property assignment
+            local option, value = line:match("^%s*option%s+([%w%-_]+)%s+'?([^']+)'?")
+            if option and value then
+                -- Remove trailing quotes if present
+                value = value:gsub("'$", "")
+                properties[option] = value
             end
-        end)
+        end
     end
-    return keytypes
+    
+    -- Check the last section if we haven't found a match yet
+    if not found and current_section and section_type == "wifi-iface" then
+        if (properties["device"] == device) or (properties["mld"] == device) then
+            if properties["encryption"] then
+                encryption = properties["encryption"]
+            end
+        end
+    end
+    
+    -- Handle encryption value
+    if encryption == "none" or encryption == "" then
+        return "none"
+    elseif type(encryption) == "table" then
+        return encryption[0] or encryption[1] or "none"
+    else
+        -- Clean up potential quotation marks
+        encryption = encryption:gsub("^'", ""):gsub("'$", "")
+        return encryption
+    end
 end
 
 local function read_file(path)
