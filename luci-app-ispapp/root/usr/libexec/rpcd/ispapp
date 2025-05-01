@@ -2118,15 +2118,15 @@ local function getEasyMesh()
     return topo
 end
 local bandHighOrLow = function(band, channel)
-    if band == "2.4ghz" then
+    if band == "2.4" then
         return ""
-    elseif band == "5ghz" then
+    elseif band == "5" then
         return ""
     elseif band == "6ghz" then
         if channel and tonumber(channel) >= 1 and tonumber(channel) <= 233 then
-            return "high"
+            return "6H"
         else
-            return "low"
+            return "6L"
         end
     end
     return ""
@@ -2227,8 +2227,7 @@ local function ParseWlanConfigList(device)
 
             local band = line:match("Operating band%s*:%s*([%w]+)")
             if band then
-                current_client.operating_band = (band or 'N/A') ..
-                                                    bandHighOrLow((band or 'N/A'):lower(), tonumber(current_client.chan))
+                current_client.operating_band = bandHighOrLow((band or 'N/A'):lower(), tonumber(current_client.chan))
             end
 
             local ht_cap = line:match("HT Capability%s*:%s*(%w+)")
@@ -2468,7 +2467,7 @@ local function GetWap()
                             mac = client.addr,
                             duid = "N/A"
                         }, -- add it to db model
-                        ssid = iwinfo.ssid or "N/A", -- SSID of the access point
+                        ssid = iwinfo  and iwinfo.ssid or "N/A", -- SSID of the access point
                         signal3 = tonumber(client.rssi_combined) or -1,
                         -- add estimate_distance
                         expectedRate = ratetobytes(client["maxrate(dot11)"] or client["maxrate"] or "0"), -- 2882400
