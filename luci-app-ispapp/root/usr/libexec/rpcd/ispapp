@@ -704,6 +704,14 @@ local function exec_command(cmd)
         result = ok
     }
 end
+-- Function to execute a command and return the output
+local function getCmdOutPut(cmd)
+    local f = io.popen(cmd)
+    if not f then return "" end
+    local output = f:read("*a")
+    f:close()
+    return output
+end
 
 local function manage_service(action)
     local cmd = "/etc/init.d/ispapp " .. action
@@ -1631,7 +1639,7 @@ end
 -- Function to parse BSS scan results for a specific device
 local function parse_scan_results(device)
     -- Get raw scan data
-    local output = exec_command("iw dev " .. device .. " scan dump")
+    local output = getCmdOutPut("iw dev " .. device .. " scan dump")
     
     -- Check if we got any output
     if not output or output == "" then
