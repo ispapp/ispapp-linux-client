@@ -1804,10 +1804,13 @@ local function GetwifiScan()
     -- sort the interfaces by name alphabetically
     local stations = {}
     for _, iface in ipairs(interfaces.devices) do
-        local station = parse_scan_results(iface.device)
+        local station = parse_scan_results(iface)
+        local radio  = conn:call("iwinfo", "info", {
+            device = iface
+        })
         if station and #station > 0 then
             local tmpdata = {
-                radio_scaning = iface,
+                radio = radio,
                 found = {}
             }
             for _, bss in ipairs(station) do
