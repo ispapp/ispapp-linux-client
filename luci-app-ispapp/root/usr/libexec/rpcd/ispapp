@@ -1628,49 +1628,196 @@ local function estimate_distance(signal_dbm, channel)
     return math.floor(distance)
 end
 
-local function GetwifiScan()
-    local interfaces = conn:call("iwinfo", "devices", {})
-    -- sort the interfaces by name alphabetically
-    local capable_of_scanning = {}
-    local seen_frequencies = {}
-    for _, iface in ipairs(interfaces.devices) do
-        local info = conn:call("iwinfo", "info", {
-            device = iface
-        })
-        if info and info['frequency'] then
-            local freq_key = math.floor(info.frequency / 1000)
-            if not seen_frequencies[freq_key] then
-                table.insert(capable_of_scanning, {
-                    frequency = tonumber(info.frequency),
-                    device = iface
-                })
-                seen_frequencies[freq_key] = true
+-- Function to parse BSS scan results for a specific device
+local function parse_scan_results(device)
+    -- Get raw scan data
+    local output = exec_command("iw dev " .. device .. " scan dump")
+    
+    -- Check if we got any output
+    if not output or output == "" then
+        return {}
+    end
+    
+    local results = {}
+    local current_bss = nil
+    local lines = {}
+    
+    -- Split into lines for processing
+    for line in output:gmatch("[^\r\n]+") do
+        table.insert(lines, line)
+    end
+    
+    for i, line in ipairs(lines) do
+        -- Check if this is a new BSS entry
+        local bssid = line:match("^BSS ([0-9a-fA-F:]+)")
+        
+        if bssid then
+            -- Store previous BSS if exists
+            if current_bss then
+                table.insert(results, current_bss)
+            end
+            
+            -- Create new BSS entry with default values
+            current_bss = {
+                bssid = bssid,
+                interface = device,
+                frequency = nil,
+                ssid = "",
+                channel = nil,
+                lastseen = nil,
+                signal = nil,
+                mcs_rates = "",
+                channel_width = "20 MHz" -- Default
+            }
+        elseif current_bss then
+            -- Extract frequency
+            local freq = line:match("^%s+freq:%s+(%d+)")
+            if freq then
+                current_bss.frequency = tonumber(freq)
+            end
+            
+            -- Extract SSID
+            local ssid = line:match("^%s+SSID:%s+(.*)")
+            if ssid then
+                -- Clean up non-printable characters
+                current_bss.ssid = ssid:gsub("\\x%x%x", ".")
+            end
+            
+            -- Extract last seen
+            local lastseen = line:match("^%s+last%s+seen:%s+(%d+%s+ms%s+ago)")
+            if lastseen then
+                current_bss.lastseen = lastseen
+            end
+            
+            -- Extract signal strength
+            local signal = line:match("^%s+signal:%s+([-%.%d]+)%s+dBm")
+            if signal then
+                current_bss.signal = tonumber(signal)
+            end
+            
+            -- Extract primary channel
+            local channel = line:match("^%s+%*%s+primary%s+channel:%s+(%d+)")
+            if channel then
+                current_bss.channel = tonumber(channel)
+            end
+            
+            -- Extract MCS rates
+            local mcs_rates = line:match("^%s+HT%s+[TR]X%s+MCS%s+rate%s+indexes%s+supported:%s+([0-9%-]+)")
+            if mcs_rates then
+                current_bss.mcs_rates = mcs_rates
+            end
+            
+            -- Extract channel width from HT capabilities
+            if line:match("^%s+Capabilities:") then
+                local caps_line = line:match("^%s+Capabilities:%s+(.*)")
+                if caps_line then
+                    if caps_line:match("HT20/HT40") then
+                        current_bss.channel_width = "20/40 MHz"
+                    elseif caps_line:match("HT20") and not caps_line:match("HT40") then
+                        current_bss.channel_width = "20 MHz"
+                    end
+                end
+            end
+            
+            -- Extract channel width from HT operation
+            if line:match("^%s+%*%s+STA%s+channel%s+width:%s+(.+)") then
+                local width = line:match("^%s+%*%s+STA%s+channel%s+width:%s+(.+)")
+                if width == "20 MHz" then
+                    current_bss.channel_width = "20 MHz"
+                elseif width == "40 MHz" then
+                    current_bss.channel_width = "40 MHz"
+                elseif width == "any" then
+                    -- Keep existing width if it includes 40 MHz
+                    if not current_bss.channel_width:match("40") then
+                        current_bss.channel_width = "40 MHz"
+                    end
+                end
+            end
+            
+            -- Extract VHT channel width
+            if line:match("^%s+%*%s+channel%s+width:%s+(%d+)") then
+                local vht_width = line:match("^%s+%*%s+channel%s+width:%s+(%d+)")
+                if vht_width == "1" then
+                    current_bss.channel_width = "80 MHz"
+                elseif vht_width == "2" then
+                    current_bss.channel_width = "160 MHz"
+                elseif vht_width == "3" then
+                    current_bss.channel_width = "80+80 MHz"
+                end
+            end
+            
+            -- Extract VHT MCS rates
+            if line:match("^%s+VHT%s+RX%s+MCS%s+set:") then
+                local vht_mcs = ""
+                for j = i + 1, i + 10 do
+                    if j <= #lines then
+                        local mcs_line = lines[j]
+                        if mcs_line:match("^%s+%d+%s+streams:") then
+                            local streams, mcs = mcs_line:match("%s+(%d+)%s+streams:%s+MCS%s+([0-9%-]+)")
+                            if streams and mcs then
+                                vht_mcs = vht_mcs .. streams .. " streams: " .. mcs .. ", "
+                            end
+                        elseif not mcs_line:match("^%s+") then
+                            break
+                        end
+                    end
+                end
+                
+                if vht_mcs ~= "" then
+                    current_bss.mcs_rates = current_bss.mcs_rates .. 
+                        (current_bss.mcs_rates ~= "" and ", " or "") .. 
+                        "VHT: " .. vht_mcs:sub(1, -3) -- Remove trailing comma and space
+                end
+            end
+            
+            -- Extract HE (Wi-Fi 6) capabilities
+            if line:match("^%s+HE%s+capabilities:") then
+                -- Check for HE PHY capabilities in next lines
+                for j = i + 1, i + 5 do
+                    if j <= #lines then
+                        local he_line = lines[j]
+                        if he_line:match("HE%s+PHY%s+Capabilities") then
+                            if he_line:match("HE40/HE80/HE160") then
+                                current_bss.channel_width = "40/80/160 MHz (HE)"
+                            elseif he_line:match("HE40/HE80") then
+                                current_bss.channel_width = "40/80 MHz (HE)"
+                            end
+                            break
+                        elseif not he_line:match("^%s+") then
+                            break
+                        end
+                    end
+                end
             end
         end
     end
-    table.sort(capable_of_scanning, function(a, b)
-        return a.device < b.device
-    end)
+    
+    -- Add the last BSS if it exists
+    if current_bss then
+        table.insert(results, current_bss)
+    end
+    
+    return results
+end
+local function GetwifiScan()
+    local interfaces = conn:call("iwinfo", "devices", {})
+    -- sort the interfaces by name alphabetically
     local stations = {}
-    for _, iface in pairs(capable_of_scanning) do
-        local tmpdata = {
-            radio_scaning = iface,
-            found_stations = {}
-        }
-        local scan = conn:call("iwinfo", "scan", {
-            device = iface.device
-        })
-        local avoidrepeat = {}
-        for _, station in pairs(scan.results) do
-            -- calculate istimated distance
-            -- using the formula called Free Space Path Loss
-            if not avoidrepeat[station.bssid] then
-                avoidrepeat[station.bssid] = true
-                station.estimated_distance = estimate_distance(station.signal, station.channel)
-                table.insert(tmpdata.found_stations, station)
+    for _, iface in ipairs(interfaces.devices) do
+        local station = parse_scan_results(iface.device)
+        if station and #station > 0 then
+            local tmpdata = {
+                radio_scaning = iface,
+                found = {}
+            }
+            for _, bss in ipairs(station) do
+                -- calculate istimated distance
+                -- using the formula called Free Space Path Loss
+                bss.estimated_distance = estimate_distance(bss.signal, bss.channel)
+                table.insert(tmpdata.found, bss)
             end
+            table.insert(stations, tmpdata)
         end
-        table.insert(stations, tmpdata)
     end
     return stations
 end
@@ -2992,29 +3139,7 @@ local function AddCollectorsToConfig()
     local interface = get_interface_stats()
     local system = getSystemInfo()
     local tcp = GetTcpInfo()
-    -- local scanned = false
-    -- local wifi_area_scanning = {}
-    -- local scanningerr = nil
-    -- local lastTimeScanned = uci:get("ispapp", "@settings[0]", "lastTimeScanned")
-    -- if not lastTimeScanned then
-    --     uci:set("ispapp", "@settings[0]", "lastTimeScanned", os.time())
-    --     uci:commit("ispapp")
-    --     scanned, wifi_area_scanning, scanningerr = pcall(GetwifiScan)
-    -- else
-    --     -- compare in secconds and make sure it almost 10 minutes ago or more
-    --     local diff = os.time() - lastTimeScanned
-    --     if diff > 300 then
-    --         scanned, wifi_area_scanning, scanningerr = pcall(GetwifiScan)
-    --         if scanned then
-    --             uci:set("ispapp", "@settings[0]", "lastTimeScanned", os.time())
-    --             uci:commit("ispapp")
-    --         end
-    --     end
-    -- end
-    -- location = {
-    --     lat = location.latitude,
-    --     lng = location.longitude
-    -- }
+    local wifi_area_scanning = GetwifiScan()
     local configs = CollectConfigs()
     local pings = {}
     pings[1] = ping
@@ -3034,12 +3159,9 @@ local function AddCollectorsToConfig()
         arptable = getArpTable().devices,
         leases = getDhcpLeases(),
         topos = getEasyMesh().topo,
-        -- wifi_area_scanning = {},
+        wifi_area_scanning = wifi_area_scanning or {},
         spectralscan = spectral and spectral or {}
     }
-    -- if scanned then
-    --     configs["collectors"].wifi_area_scanning = wifi_area_scanning
-    -- end
     return configs
 end
 
