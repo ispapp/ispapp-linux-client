@@ -436,11 +436,11 @@ local function get_spectral_data()
             print(type_file)
             if type_file then
                 local iface_type = type_file:read("*n")
-                type_file:close()
                 print(type_file)
                 if iface_type == 801 then
                     table.insert(devices, iface)
                 end
+                type_file:close()
             end
         end
         iface_list:close()
