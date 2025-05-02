@@ -430,14 +430,14 @@ local function get_spectral_data()
     local devices = {}
     for value in io.popen("ls /sys/class/net"):lines() do
         table.insert(devices, value)
-        print(value)
     end
     local spectralanalysis = {}
     for _, value in ipairs(devices) do
         local ok, _, _ = pcall(util.exec, string.format("spectraltool -i %s get_samples 100 -x 1", value))
         if ok then
-            local parsed, csv, _ = pcall(extract_spectral_samples, "./outFile") 
-            if parsed then
+            local _, csv, _ = pcall(extract_spectral_samples, "./outFile") 
+            print(csv)
+            if csv then
                 local spectral_data = jsonc.parse(csv)
                 if spectral_data and count_keys(spectral_data) > 0 then
                     table.insert(spectralanalysis, {
