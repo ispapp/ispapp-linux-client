@@ -163,18 +163,18 @@ local function spectral_to_csv_string(input_text)
     local lines = {}
     local samples = {}
     local max_bins = 64 -- Fixed at 64 bins as per test file
-
+    
     -- Split the input text into lines
     for line in input_text:gmatch("[^\r\n]+") do
         table.insert(lines, line)
     end
-
+    
     -- Skip metadata and spectral_caps
     local i = 1
     while i <= #lines and not lines[i]:match("^%d+%s+%d+%s+%d+%s+%d+") do
         i = i + 1
     end
-
+    
     -- Process the samples
     while i <= #lines do
         local line = lines[i]
@@ -186,7 +186,7 @@ local function spectral_to_csv_string(input_text)
             for token in line:gmatch("%S+") do
                 table.insert(tokens, token)
             end
-
+            
             if #tokens >= 4 then -- At minimum we expect sample number and some data
                 -- Match exactly the field order from test file
                 samples[sample_num] = {
@@ -199,7 +199,7 @@ local function spectral_to_csv_string(input_text)
                     detector_id = "0",
                     bins = {}
                 }
-
+                
                 -- Skip to the detector line (skip span line)
                 i = i + 2
                 if i <= #lines then
@@ -208,7 +208,7 @@ local function spectral_to_csv_string(input_text)
                     for token in detector_line:gmatch("%S+") do
                         table.insert(detector_tokens, token)
                     end
-
+                    
                     -- Extract fields in exact order from test file
                     if #detector_tokens >= 10 then
                         -- Start with the header fields
@@ -218,11 +218,11 @@ local function spectral_to_csv_string(input_text)
                         samples[sample_num].leb_num = detector_tokens[4]
                         samples[sample_num].start_bin_idx = detector_tokens[6]
                         samples[sample_num].end_bin_idx = detector_tokens[7]
-
+                        
                         -- Find where bin values start
                         local leb_num = tonumber(detector_tokens[4]) or 0
                         local bin_start_idx = 10 + leb_num
-
+                        
                         -- Extract exactly 64 bin values, matching the test file order
                         for j = 1, max_bins do
                             local bin_idx = bin_start_idx + j - 1
@@ -232,50 +232,50 @@ local function spectral_to_csv_string(input_text)
                                 samples[sample_num].bins[j] = "0"
                             end
                         end
-
+                        
                         -- Extract metrics - these come after the 64 bin values
                         local metrics_start_idx = bin_start_idx + max_bins
-
+                        
                         -- Set all metrics to match the test file exactly
                         if metrics_start_idx <= #detector_tokens then
                             -- Get timestamp
                             samples[sample_num].timestamp = detector_tokens[metrics_start_idx]
-
+                            
                             -- Get RSSI - next token after timestamp
                             if metrics_start_idx + 1 <= #detector_tokens then
                                 samples[sample_num].rssi = detector_tokens[metrics_start_idx + 1]
                             else
                                 samples[sample_num].rssi = "0" -- Default from test
                             end
-
+                            
                             -- Get noise floor (-114 in test)
                             if metrics_start_idx + 2 <= #detector_tokens then
                                 samples[sample_num].noise_floor = detector_tokens[metrics_start_idx + 2]
                             else
                                 samples[sample_num].noise_floor = "-114" -- Default from test
                             end
-
+                            
                             -- Get AGCGain (64 in test)
                             if metrics_start_idx + 3 <= #detector_tokens then
                                 samples[sample_num].agc_gain = detector_tokens[metrics_start_idx + 3]
                             else
                                 samples[sample_num].agc_gain = "64" -- Default from test
                             end
-
+                            
                             -- Get gain change (0 in test)
                             if metrics_start_idx + 4 <= #detector_tokens then
                                 samples[sample_num].gain_change = detector_tokens[metrics_start_idx + 4]
                             else
                                 samples[sample_num].gain_change = "0" -- Default from test
                             end
-
+                            
                             -- Get pri80 indication (1 in test)
                             if metrics_start_idx + 5 <= #detector_tokens then
                                 samples[sample_num].pri80_indication = detector_tokens[metrics_start_idx + 5]
                             else
                                 samples[sample_num].pri80_indication = "1" -- Default from test
                             end
-
+                            
                             -- Get raw timestamp (same as timestamp in test)
                             if metrics_start_idx + 6 <= #detector_tokens then
                                 samples[sample_num].raw_timestamp = detector_tokens[metrics_start_idx + 6]
@@ -283,14 +283,14 @@ local function spectral_to_csv_string(input_text)
                                 -- Use timestamp as raw timestamp default
                                 samples[sample_num].raw_timestamp = samples[sample_num].timestamp
                             end
-
+                            
                             -- Get timestamp war offset (0 in test)
                             if metrics_start_idx + 7 <= #detector_tokens then
                                 samples[sample_num].timestamp_war_offset = detector_tokens[metrics_start_idx + 7]
                             else
                                 samples[sample_num].timestamp_war_offset = "0" -- Default from test
                             end
-
+                            
                             -- Get last raw timestamp (0 in test for first sample)
                             if metrics_start_idx + 8 <= #detector_tokens then
                                 samples[sample_num].last_raw_timestamp = detector_tokens[metrics_start_idx + 8]
@@ -300,21 +300,21 @@ local function spectral_to_csv_string(input_text)
                                     samples[sample_num].last_raw_timestamp = "0" -- Default from test
                                 else
                                     -- Try to get timestamp from previous sample
-                                    if samples[sample_num - 1] and samples[sample_num - 1].timestamp then
-                                        samples[sample_num].last_raw_timestamp = samples[sample_num - 1].timestamp
+                                    if samples[sample_num-1] and samples[sample_num-1].timestamp then
+                                        samples[sample_num].last_raw_timestamp = samples[sample_num-1].timestamp
                                     else
                                         samples[sample_num].last_raw_timestamp = "0"
                                     end
                                 end
                             end
-
+                            
                             -- Get reset delay (0 in test)
                             if metrics_start_idx + 9 <= #detector_tokens then
                                 samples[sample_num].reset_delay = detector_tokens[metrics_start_idx + 9]
                             else
                                 samples[sample_num].reset_delay = "0" -- Default from test
                             end
-
+                            
                             -- Get blanking status (0 in test)
                             if metrics_start_idx + 10 <= #detector_tokens then
                                 samples[sample_num].blanking_status = detector_tokens[metrics_start_idx + 10]
@@ -342,35 +342,33 @@ local function spectral_to_csv_string(input_text)
         end
         i = i + 1
     end
-
+    
     -- Build CSV string
     local csv_lines = {}
-
+    
     -- Create header row exactly as in the test file
-    local header =
-        "S_No,Num_FFT_Bins,target_reset_count,num_freq_spans,Span_id0,Span_id0_num_det,DetectorID,StartFreq,EndFreq,LEB_num,start_bin_idx,end_bin_idx"
-
+    local header = "S_No,Num_FFT_Bins,target_reset_count,num_freq_spans,Span_id0,Span_id0_num_det,DetectorID,StartFreq,EndFreq,LEB_num,start_bin_idx,end_bin_idx"
+    
     -- Add bin headers (0-63)
     for i = 0, 63 do
         header = header .. ",Bin" .. i
     end
-
+    
     -- Add additional metric headers exactly as in the test file
-    header = header ..
-                 ",Timestamp,RSSI,NoiseFloor,AGCGain,GainChange,Pri80Indication,RawTimestamp,TimestampWarOffset,LastRawTimestamp,ResetDelay,BlankingStatus"
+    header = header .. ",Timestamp,RSSI,NoiseFloor,AGCGain,GainChange,Pri80Indication,RawTimestamp,TimestampWarOffset,LastRawTimestamp,ResetDelay,BlankingStatus"
     table.insert(csv_lines, header)
-
+    
     -- Sort sample numbers
     local sample_nums = {}
     for num in pairs(samples) do
         table.insert(sample_nums, num)
     end
     table.sort(sample_nums)
-
+    
     -- Build data rows exactly matching the test file format
     for _, sample_num in ipairs(sample_nums) do
         local sample = samples[sample_num]
-
+        
         -- Build the CSV row with values in the EXACT order as the header
         local row = sample.s_no .. "," -- S_No
         row = row .. sample.num_fft_bins .. "," -- Num_FFT_Bins
@@ -384,12 +382,12 @@ local function spectral_to_csv_string(input_text)
         row = row .. sample.leb_num .. "," -- LEB_num
         row = row .. sample.start_bin_idx .. "," -- start_bin_idx
         row = row .. sample.end_bin_idx -- end_bin_idx
-
+        
         -- Add all 64 bin values in order
         for i = 1, 64 do
             row = row .. "," .. (sample.bins[i] or "0") -- Bin0-Bin63
         end
-
+        
         -- Add metrics in the exact order as the header
         row = row .. "," .. (sample.timestamp or "0") -- Timestamp
         row = row .. "," .. (sample.rssi or "0") -- RSSI
@@ -402,10 +400,10 @@ local function spectral_to_csv_string(input_text)
         row = row .. "," .. (sample.last_raw_timestamp or "0") -- LastRawTimestamp
         row = row .. "," .. (sample.reset_delay or "0") -- ResetDelay
         row = row .. "," .. (sample.blanking_status or "0") -- BlankingStatus
-
+        
         table.insert(csv_lines, row)
     end
-
+    
     -- Join all CSV lines
     return table.concat(csv_lines, "\n")
 end
