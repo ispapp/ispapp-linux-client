@@ -4,3 +4,4 @@ ispappd/src/test.c
 arch_device_map.json
 toh.json
 vrnetlab
+wfiscan.json

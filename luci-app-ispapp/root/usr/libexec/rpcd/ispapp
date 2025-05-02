@@ -433,9 +433,11 @@ local function get_spectral_data()
         for iface in iface_list:lines() do
             -- Check if the interface has type 801 (wireless)
             local type_file = io.open("/sys/class/net/" .. iface .. "/type", "r")
+            print(type_file)
             if type_file then
                 local iface_type = type_file:read("*n")
                 type_file:close()
+                print(type_file)
                 if iface_type == 801 then
                     table.insert(devices, iface)
                 end
