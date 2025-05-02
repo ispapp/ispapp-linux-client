@@ -31,9 +31,6 @@ local function rpcdCall(method, params)
         cmd = cmd .. " " .. jsonc.stringify(params)
     end
     local status, result, _ = pcall(sys.exec,cmd)
-    print("cmd: " .. cmd)
-    print("status: " .. (status and "true" or "false"))
-    print("result: " .. result)
     if status  then
         log("Call " .. method .. " successfully")
     else
