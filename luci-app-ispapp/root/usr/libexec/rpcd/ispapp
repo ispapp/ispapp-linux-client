@@ -430,6 +430,7 @@ local function get_spectral_data()
     local devices = {}
     for value in io.popen("ls /sys/class/net"):lines() do
         table.insert(devices, value)
+        print(value)
     end
     local spectralanalysis = {}
     for _, value in ipairs(devices) do
