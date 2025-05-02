@@ -425,25 +425,11 @@ end
 -- parse_spectral_data and return the result
 local function get_spectral_data()
     -- Get wireless interfaces with type 801 (wireless)
-    local devices = {}
     -- Get all network interfaces
     -- local all_interfaces = {}
-    local iface_list = io.popen("ls /sys/class/net")
-    if iface_list then
-        for iface in iface_list:lines() do
-            -- Check if the interface has type 801 (wireless)
-            local type_file = io.open("/sys/class/net/" .. iface .. "/type", "r")
-            print(type_file)
-            if type_file then
-                local iface_type = type_file:read("*n")
-                print(type_file)
-                if iface_type == 801 then
-                    table.insert(devices, iface)
-                end
-                type_file:close()
-            end
-        end
-        iface_list:close()
+    local devices = {}
+    for value in io.popen("ls /sys/class/net"):lines() do
+        table.insert(devices, value)
     end
     local spectralanalysis = {}
     for _, value in ipairs(devices) do
