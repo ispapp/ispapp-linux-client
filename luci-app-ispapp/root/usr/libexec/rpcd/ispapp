@@ -63,10 +63,9 @@ local function get_gps_data()
     -- Look for the line containing latitude/longitude/altitude values
     local latitude, longitude, altitude
     for line in response:gmatch("[^\r\n]+") do
-        latitude = line:match("latitude=([%d%.%-]+)")
-        longitude = line:match("longitude=([%d%.%-]+)")
-        altitude = line:match("altitude=([%d%.%-]+)")
-        
+        latitude = line:match("latitude=([%d%.%-%s]+)"):gsub("%s+", "")
+        longitude = line:match("longitude=([%d%.%-%s]+)"):gsub("%s+", "")
+        altitude = line:match("altitude=([%d%.%-%s]+)"):gsub("%s+", "")
         if latitude and longitude and altitude then
             break
         end
