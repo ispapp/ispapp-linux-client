@@ -2533,28 +2533,51 @@ local function get_wifi_params(device)
     -- Parse iwconfig output with pattern matching
     params.ssid = normalized:match('essid:"([^"]+)"')
     params.mode = normalized:match('mode:(%w+)')
-    params.frequency = tonumber(normalized:match('frequency:([%d%.]+)'))
+    
+    -- Safely convert numeric values with error handling
+    local function safe_tonumber(value)
+        if value then
+            return tonumber(value)
+        end
+        return nil
+    end
+    
+    local freq_val = normalized:match('frequency:([%d%.]+)')
+    params.frequency = safe_tonumber(freq_val)
+    
     params.mac = normalized:match('access point:%s*([%w:]+)')
-    params.rate = tonumber(normalized:match('bit rate:([%d%.]+)'))
-    params.txPower = tonumber(normalized:match('tx%-power:(%d+)'))
-    params.quality = tonumber(normalized:match('link quality=(%d+)/(%d+)'))
-    params.signal = tonumber(normalized:match('signal level=(%-?%d+)'))
-    params.noise = tonumber(normalized:match('noise level=(%-?%d+)'))
+    
+    local rate_val = normalized:match('bit rate:([%d%.]+)')
+    params.rate = safe_tonumber(rate_val)
+    
+    local power_val = normalized:match('tx%-power:(%d+)')
+    params.txPower = safe_tonumber(power_val)
+    
+    local quality_val = normalized:match('link quality=(%d+)')
+    params.quality = safe_tonumber(quality_val)
+    
+    local signal_val = normalized:match('signal level=(%-?%d+)')
+    params.signal = safe_tonumber(signal_val)
+    
+    local noise_val = normalized:match('noise level=(%-?%d+)')
+    params.noise = safe_tonumber(noise_val)
     
     -- Get channel from frequency if not directly available
     if params.frequency then
         -- Approximate channel calculation
-        if params.frequency < 3 then
-            -- 2.4 GHz band
-            params.channel = math.floor((params.frequency - 2.407) / 0.005) + 1
-        elseif params.frequency > 5 then
-            -- 5 GHz and 6 GHz bands
-            if params.frequency < 6 then
-                -- 5 GHz band
-                params.channel = math.floor((params.frequency - 5) / 0.005) + 36
-            else
-                -- 6 GHz band
-                params.channel = math.floor((params.frequency - 5.925) / 0.005) + 1
+        if type(params.frequency) == "number" then
+            if params.frequency < 3 then
+                -- 2.4 GHz band
+                params.channel = math.floor((params.frequency - 2.407) / 0.005) + 1
+            elseif params.frequency > 5 then
+                -- 5 GHz and 6 GHz bands
+                if params.frequency < 6 then
+                    -- 5 GHz band
+                    params.channel = math.floor((params.frequency - 5) / 0.005) + 36
+                else
+                    -- 6 GHz band
+                    params.channel = math.floor((params.frequency - 5.925) / 0.005) + 1
+                end
             end
         end
     end
