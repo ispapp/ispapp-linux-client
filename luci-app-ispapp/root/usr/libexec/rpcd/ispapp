@@ -2505,152 +2505,77 @@ local function ParseWlanConfigList(device)
     return clients
 end
 
--- Function to get the frequency from the channel
+-- Function to get WiFi parameters using iwconfig
 local function get_wifi_params(device)
     if not device or device == "" then
         return nil, "Device name is required"
     end
-
-    local function run_command(cmd, is_mac)
-        local handle = io.popen(cmd)
-        if not handle then
-            return nil, "Failed to execute command"
-        end
-        local result = handle:read("*a")
-        handle:close()
-        result = result and result:gsub("\n", ""):match(is_mac and "%S+" or "%-?%d+%.?%d*") or ""
-        return result ~= "" and result or nil, result == "" and "No data found" or nil
+    
+    -- Run iwconfig on the specified device
+    local cmd = "iwconfig " .. device .. " 2>/dev/null"
+    local handle = io.popen(cmd)
+    if not handle then
+        return nil, "Failed to execute iwconfig"
     end
-
+    
+    local output = handle:read("*a")
+    handle:close()
+    
+    if output == "" then
+        return nil, "No data found for device " .. device
+    end
+    
+    -- Normalize output: remove extra spaces and convert to lowercase
+    local normalized = output:lower():gsub("%s+", " ")
+    
     local params = {}
-    local errors = {}
-    -- Get wireless information from single 'iw dev' call to improve performance
-    local iw_info_cmd = "iw dev " .. device .. " info 2>/dev/null"
-    local iw_info, _ = io.popen(iw_info_cmd)
-    local iw_info_output = ""
     
-    if iw_info then
-        iw_info_output = iw_info:read("*a")
-        iw_info:close()
-    end
+    -- Parse iwconfig output with pattern matching
+    params.ssid = normalized:match('essid:"([^"]+)"')
+    params.mode = normalized:match('mode:(%w+)')
+    params.frequency = tonumber(normalized:match('frequency:([%d%.]+)'))
+    params.mac = normalized:match('access point:%s*([%w:]+)')
+    params.rate = tonumber(normalized:match('bit rate:([%d%.]+)'))
+    params.txPower = tonumber(normalized:match('tx%-power:(%d+)'))
+    params.quality = tonumber(normalized:match('link quality=(%d+)/(%d+)'))
+    params.signal = tonumber(normalized:match('signal level=(%-?%d+)'))
+    params.noise = tonumber(normalized:match('noise level=(%-?%d+)'))
     
-    -- Parse the iw dev info output once instead of multiple commands
-    params.ssid = iw_info_output:match("ssid%s+([^\n]+)")
-    params.channel = tonumber(iw_info_output:match("channel%s+(%d+)"))
-    params.frequency = tonumber(iw_info_output:match("freq:%s+(%d+)"))
-    params.txPower = tonumber(iw_info_output:match("txpower%s+(%d+)"))
-    params.bandWidth = tonumber(iw_info_output:match("width:%s+(%d+)"))
-    params.mode = iw_info_output:match("type%s+([^\n]+)")
-    local survey_cmd = "iw dev " .. device .. " survey dump 2>/dev/null | grep -A1 'frequency' | grep 'channel' | awk '{print $2}'"
-    local survey_output, _ = io.popen(survey_cmd)
-    
-    if survey_output then
-        params.chutil = tonumber(survey_output:read("*l"))
-        survey_output:close()
-    end
-    -- Get wireless stats from /proc/net/wireless for noise and signal
-    local wireless_cmd = "awk '$1 ~ /" .. device .. "/ {print $3, $5}' /proc/net/wireless"
-    local wireless_output, _ = io.popen(wireless_cmd)
-    
-    if wireless_output then
-        local signal, noise = wireless_output:read("*l"):match("([^%s]+)%s+([^%s]+)")
-        params.signal = tonumber(signal)
-        params.noise = tonumber(noise)
-        wireless_output:close()
-    end
-    
-    -- Get MAC address directly from sys filesystem
-    params.mac = catFile("/sys/class/net/" .. device .. "/address")
-    -- Get PHY name from sys filesystem
-    params.phy = catFile("/sys/class/net/" .. device .. "/phy80211/name")
-    -- Try to retrieve TXRATE and RSSI from wlanconfig
-    local wlanconfig_cmd = "wlanconfig " .. device .. " list 2>/dev/null"
-    local wlanconfig_output, _ = io.popen(wlanconfig_cmd)
-
-    if wlanconfig_output then
-        -- Split the wlanconfig output into lines
-        local lines = {}
-        for line in wlanconfig_output:lines() do
-            table.insert(lines, line)
-        end
-        -- Check if there is at least two lines (the second line contains the relevant data)
-        if #lines >= 2 then
-            -- Match the first line to find the position of TXRATE and RSSI
-            local txRate_pos = lines[1]:find("TXRATE")
-            local rssi_pos = lines[1]:find("RSSI")
-            local quality_pos = lines[1]:find("RXSEQ")
-
-            -- Extract TXRATE and RSSI from the second line based on the found positions
-            if txRate_pos and rssi_pos then
-                -- Find the values of TXRATE and RSSI in the second line
-                local txRate = lines[2]:sub(txRate_pos + 7, txRate_pos + 11):match("%S+")
-                local rssi = lines[2]:sub(rssi_pos + 7):match("(-?%d+)")
-                local quality = lines[2]:sub(quality_pos + 7):match("(-?%d+)")
-
-                if txRate then
-                    params.rate = txRate
-                end
-                if rssi then
-                    params.signal = tonumber(rssi)
-                end
-                if quality then
-                    params.quality = tonumber(quality)
-                end
+    -- Get channel from frequency if not directly available
+    if params.frequency then
+        -- Approximate channel calculation
+        if params.frequency < 3 then
+            -- 2.4 GHz band
+            params.channel = math.floor((params.frequency - 2.407) / 0.005) + 1
+        elseif params.frequency > 5 then
+            -- 5 GHz and 6 GHz bands
+            if params.frequency < 6 then
+                -- 5 GHz band
+                params.channel = math.floor((params.frequency - 5) / 0.005) + 36
+            else
+                -- 6 GHz band
+                params.channel = math.floor((params.frequency - 5.925) / 0.005) + 1
             end
         end
     end
-
-    -- Fallback to iw dev if quality or rate is not available
-    if not params.signal then
-        params.signal, errors.signal = run_command("iw dev " .. device ..
-                                                       " station dump 2>/dev/null | grep 'signal' | awk '{print $2}'")
+    
+    -- Get MAC address directly from sys filesystem if not found in iwconfig
+    if not params.mac then
+        local mac_file = io.open("/sys/class/net/" .. device .. "/address", "r")
+        if mac_file then
+            params.mac = mac_file:read("*l")
+            mac_file:close()
+        end
     end
-    if not params.rate then
-        params.rate, errors.rate = run_command("iw dev " .. device ..
-                                                   " station dump 2>/dev/null | grep 'tx bitrate' | awk '{print $3}'")
-    end
-    if not params.quality then
-        params.quality, errors.quality = run_command("iw dev " .. device ..
-                                                         " station dump 2>/dev/null | grep 'signal avg' | awk '{print $3}'")
-    end
-
-    -- Ensure values are correctly formatted
-    if params.noise then
-        params.noise = tonumber(params.noise)
-    end
-    if params.signal then
-        params.signal = tonumber(params.signal)
-    end
-    if params.channel then
-        params.channel = tonumber(params.channel)
-    end
-    if params.frequency then
-        params.frequency = tonumber(params.frequency)
-    end
-    if params.txPower then
-        params.txPower = tonumber(params.txPower)
-    end
-    if params.quality then
-        params.quality = tonumber(params.quality)
-    end
-    if params.rate then
-        params.rate = tonumber(params.rate)
-    end
-    if params.chutil then
-        params.chutil = tonumber(params.chutil)
-    end
-    if params.bandWidth then
-        params.bandWidth = tonumber(params.bandWidth)
-    end
-
-    -- Error handling
+    
+    -- Filter out nil values
     local valid_params = {}
     for key, value in pairs(params) do
         if value then
             valid_params[key] = value
         end
     end
-
+    
     return valid_params, nil
 end
 
