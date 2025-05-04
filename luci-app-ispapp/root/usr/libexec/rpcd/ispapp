@@ -420,6 +420,25 @@ local function extract_spectral_samples(input_file_path)
 
     return spectral_to_csv_string(content)
 end
+-- function to get wifi interface info
+local function get_wifi_info(iface)
+    local cmd = string.format([[iw dev %s info 2>/dev/null | awk '
+/channel/ {
+  gsub(/[()]/, "", $3);
+  print "{\"channel\": " $2 ", \"frequency\": " $3 ", \"width\": \"" $5 " " $6 "\"}";
+  found=1;
+}
+END {
+  if (!found) print "{\"channel\": 0, \"frequency\": 0, \"width\": \"NA\"}";
+}']], iface)
+    local handle = io.popen(cmd)
+    local result = handle and handle:read("*a")
+    local ok, wifi_info,_ = pcall(jsonc.parse, result)
+    if handle then
+        handle:close()
+    end
+    return ok and wifi_info or {}
+end
 -- parse_spectral_data and return the result
 local function get_spectral_data()
     -- Get wireless interfaces with type 801 (wireless)
@@ -435,9 +454,10 @@ local function get_spectral_data()
         if ok then
             local _ok, csv, _ = pcall(extract_spectral_samples, "./outFile") 
             if _ok and csv and csv ~= "" then
+                local device_info = get_wifi_info(value)
                 table.insert(spectralanalysis, {
-                    device = value,
-                    csv = csv
+                    device = device_info,
+                    csv = csv,
                 })
             end
         end
@@ -1265,7 +1285,11 @@ local function get_interface_data(interface_name)
         if link_detected == "yes" then
             result.Carrier = 1
         end
-        
+        -- parse link speed
+        local speed = ethtool_output:match("Speed:%s+(%d+)")
+        if speed then
+            result.LinkSpeed = tonumber(speed)
+        end
         -- Parse supported link modes
         for mode in ethtool_output:gmatch("Supported link modes:%s+(.-)Supported pause") do
             for speed in mode:gmatch("(%d+baseT[/%w]+)") do
