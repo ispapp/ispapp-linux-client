@@ -1057,7 +1057,7 @@ local function get_ethtool_stats(interface_name)
     end
 
     -- Execute the ethtool command
-    local cmd = "ethtool -S " .. interface_name
+    local cmd = "ethtool -S " .. interface_name .. " 2>/dev/null"
     local file = io.popen(cmd)
 
     if not file then
@@ -1476,7 +1476,7 @@ local function parse_bss_scan(device)
     local scan_data = {}
     local current_bss = nil
 
-    local handle = io.popen("iw dev " .. device .. " scan dump")
+    local handle = io.popen("iw dev " .. device .. " scan dump 2>/dev/null")
     if not handle then
         return {}
     end
@@ -1590,7 +1590,7 @@ end
 -- Function to parse BSS scan results for a specific device
 local function parse_scan_results(device)
     -- Get raw scan data
-    local output = getCmdOutPut("iw dev " .. device .. " scan dump")
+    local output = getCmdOutPut("iw dev " .. device .. " scan dump 2>/dev/null")
     
     -- Check if we got any output
     if not output or output == "" then
@@ -1928,7 +1928,7 @@ end
 
 local function wirelessSupport()
     -- Try to find wireless interfaces using 'iw dev'
-    local iw_output = sys.exec("iw dev")
+    local iw_output = sys.exec("iw dev 2>/dev/null")
 
     -- If 'iw dev' has output, then wireless interfaces exist
     if iw_output and iw_output ~= "" then
@@ -1936,7 +1936,7 @@ local function wirelessSupport()
     end
 
     -- If 'iw dev' didn't return anything, try using 'ifconfig'
-    local ifconfig_output = sys.exec("ifconfig -a")
+    local ifconfig_output = sys.exec("ifconfig -a 2>/dev/null")
 
     -- Look for typical wireless interface prefixes (e.g., wlan, wifi)
     local wireless_interfaces = {"wlan", "wifi", "ath", "ra"} -- Common wireless prefixes
@@ -2019,7 +2019,7 @@ local function wirelessConfigured()
 end
 -- get uptime in seconds
 local function get_uptime()
-    local uptime_str = sys.exec("cat /proc/uptime")
+    local uptime_str = sys.exec("cat /proc/uptime 2>/dev/null")
     local uptime_seconds, idle_time_seconds = uptime_str:match("^(%S+) (%S+)")
     return math.floor(tonumber(uptime_seconds) or 0), math.floor(tonumber(idle_time_seconds) or 0)
 end
@@ -2533,15 +2533,15 @@ local function get_wifi_params(device)
     -- Fallback to iw dev if quality or rate is not available
     if not params.signal then
         params.signal, errors.signal = run_command("iw dev " .. device ..
-                                                       " station dump | grep 'signal' | awk '{print $2}'")
+                                                       " station dump 2>/dev/null | grep 'signal' | awk '{print $2}'")
     end
     if not params.rate then
         params.rate, errors.rate = run_command("iw dev " .. device ..
-                                                   " station dump | grep 'tx bitrate' | awk '{print $3}'")
+                                                   " station dump 2>/dev/null | grep 'tx bitrate' | awk '{print $3}'")
     end
     if not params.quality then
         params.quality, errors.quality = run_command("iw dev " .. device ..
-                                                         " station dump | grep 'signal avg' | awk '{print $3}'")
+                                                         " station dump 2>/dev/null | grep 'signal avg' | awk '{print $3}'")
     end
 
     -- Ensure values are correctly formatted
@@ -3803,7 +3803,7 @@ local methods = {
         call = function(args)
             local r = {}
             local inter = args.interface or "wifi0"
-            local ok, _, _err = pcall(util.exec, string.format("spectraltool -i %s get_samples 500 -x 1 -l ','", inter))
+            local ok, _, _err = pcall(util.exec, string.format("spectraltool -i %s get_samples 500 -x 1 -l ',' 2>/dev/null", inter))
             local parsed, json, err = pcall(extract_spectral_samples, "./outFile")
             r.result = jsonc.stringify({
                 status = ok,
