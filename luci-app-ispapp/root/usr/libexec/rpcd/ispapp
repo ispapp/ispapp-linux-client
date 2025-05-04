@@ -433,18 +433,12 @@ local function get_spectral_data()
     for _, value in ipairs(devices) do
         local ok, _, _ = pcall(util.exec, string.format("spectraltool -i %s get_samples 100 -x 1", value))
         if ok then
-            local _, csv, _ = pcall(extract_spectral_samples, "./outFile") 
-            print(csv)
-            if csv then
-                local spectral_data = jsonc.parse(csv)
-                if spectral_data and count_keys(spectral_data) > 0 then
-                    table.insert(spectralanalysis, {
-                        device = value,
-                        csv = spectral_data
-                    })
-                end
-            else
-                log_error("Failed to parse spectral data: " .. csv)
+            local _ok, csv, _ = pcall(extract_spectral_samples, "./outFile") 
+            if _ok and csv and csv ~= "" then
+                table.insert(spectralanalysis, {
+                    device = value,
+                    csv = csv
+                })
             end
         end
     end
