@@ -2049,7 +2049,7 @@ local function wirelessConfigured()
             name = section['.name'] or "N/A",
             ["if"] = section['.name'] or "N/A",
             ["interface-type"] = interface_type,
-            encryption = getEncryption(section['.name']),
+            encryption = getEncryption(device),
             key = _key or "N/A",
             ["mac-address"] = macaddr,
             ["master-interface"] = device,
