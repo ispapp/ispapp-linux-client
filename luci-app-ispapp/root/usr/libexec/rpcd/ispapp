@@ -814,8 +814,8 @@ local function sync_agent_version()
             local remote_hash = sys.exec("sha256sum " .. remote_tmp_file .. " | awk '{print $1}'")
             local local_hash = sys.exec("sha256sum " .. local_file .. " | awk '{print $1}'")
 
-            print(remote_hash)
-            print(local_hash)
+            -- print(remote_hash)
+            -- print(local_hash)
             if remote_hash ~= local_hash then
                 local updated = fs.writefile(local_file, remote_content)
                 if updated then
@@ -2360,7 +2360,7 @@ local bandHighOrLow = function(band, channel)
 end
 local function ParseWlanConfigList(device)
     -- local output = {}
-    local handle = io.popen("wlanconfig " .. device .. " list")
+    local handle = io.popen("wlanconfig " .. device .. " list 2>/dev/null")
     if not handle then
         return {}
     end
@@ -3157,7 +3157,7 @@ end
 
 local function syncConfigs()
     local configs = AddCollectorsToConfig()
-    print("configs collected")
+    -- print("configs collected")
     local host = uci:get("ispapp", "@settings[0]", "Domain")
     if not host then
         log_error("Failed to get server domain")
