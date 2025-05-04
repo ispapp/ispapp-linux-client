@@ -639,9 +639,27 @@ local function getKey(ifname)
     return keyDetails or "none"
 end
 
-local function getEncryption(ifname)
+local function getEncryption(masterdevice)
     local encryption = nil
+    local devices = sys.exec([[iw dev 2>/dev/null | awk '
+/Interface/ {
+    iface = $2;
+    count++;
+    names[count] = iface;
+}
+END {
+    printf("{");
+    for (i = 1; i <= count; i += 2) {
+        if (names[i+1]) {
+            printf("\"%s\": \"%s\"", names[i], names[i+1]);
+            if (i + 2 <= count) printf(", ");
+        }
+    }
+    print "}";
+}']])
+    local devices_json = (devices and jsonc.parse(devices)) or {}
     uci:foreach("wireless", "wifi-iface", function(s)
+        local ifname = (#devices_json > 0 and devices_json[s.device]) or masterdevice 
         if s.device == ifname or s.ifname == ifname then
             encryption = s.encryption or "none"
             return false -- stop iteration
