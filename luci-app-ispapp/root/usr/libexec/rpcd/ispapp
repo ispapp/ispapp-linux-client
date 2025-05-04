@@ -1114,6 +1114,7 @@ local function get_interface_data(interface_name)
         SentBytes = 0,
         SentPackets = 0,
         LinkSpeed = 0,
+        Duplex = "",
         SentErrors = 0,
         SentDrops = 0,
         CarrierChanges = 0,
@@ -1235,6 +1236,11 @@ local function get_interface_data(interface_name)
         local speed = ethtool_output:match("Speed:%s+(%d+)")
         if speed then
             result.LinkSpeed = tonumber(speed)
+        end
+        -- parse duplex mode
+        local duplex = ethtool_output:match("Duplex:%s+(%w+)")
+        if duplex then
+            result.Duplex = duplex
         end
         -- Parse supported link modes
         for mode in ethtool_output:gmatch("Supported link modes:%s+(.-)Supported pause") do
@@ -1376,6 +1382,7 @@ local function getNetworkInterfaces()
                 sentPackets = stats.tx_packets or 0,
                 recErrors = stats.rx_errors or 0,
                 link_speed = link_speed or ethtooldata.LinkSpeed or 0,
+                duplex = ethtooldata.Duplex or "unknown",
                 sentErrors = stats.tx_errors or 0,
                 recDrops = stats.rx_dropped or 0,
                 sentDrops = stats.tx_dropped or 0,
@@ -3122,7 +3129,7 @@ local function AddCollectorsToConfig()
         leases = getDhcpLeases(),
         topos = getEasyMesh().topo,
         wifi_area_scanning = wifi_area_scanning or {},
-        spectralscan = spectral and spectral or {}
+        spectralscan = spectral or {}
     }
     return configs
 end
