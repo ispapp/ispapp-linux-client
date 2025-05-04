@@ -2049,6 +2049,7 @@ local function CollectConfigs()
     local seq_lasttmp = get_sequence_time()
     local cpucores, cpumodel = getCPUInfo()
     local ipinfo = getExternalIpInfo()
+    local gpsdata = get_gps_data()
     local osrelease = parseOsRelease()
     local uptime, idle_time = get_uptime()
     local board_info = getBoardInfo()
@@ -2072,8 +2073,9 @@ local function CollectConfigs()
         outsideIp = ipinfo.ip,
         asn = ipinfo.asn,
         wanIp = getWanIp(), -- this should be local ip
-        Lng = tonumber(ipinfo.longitude),
-        lat = tonumber(ipinfo.latitude),
+        Lng = tonumber(gpsdata.longitude) or tonumber(ipinfo.longitude),
+        lat = tonumber(gpsdata.latitude) or tonumber(ipinfo.latitude),
+        altitude = tonumber(gpsdata.altitude) or 0,
         ["security-profiles"] = collectSecurityProfiles(),
         sequenceNumber = seq_lasttmp.sequenceNumber,
         uptime = uptime,
@@ -3112,7 +3114,6 @@ local function AddCollectorsToConfig()
     local configs = CollectConfigs()
     local pings = {}
     pings[1] = ping
-    local temp = get_average_temperature()
     local spectral = get_spectral_data()
     configs["collectors"] = {
         ping = pings,
@@ -3121,7 +3122,7 @@ local function AddCollectorsToConfig()
         system = system,
         tcp = tcp,
         sensors = {
-            temperature = temp and temp.average or 0,
+            temperature = get_average_temperature().average or 0,
             gps = get_gps_data()
         },
         -- location = location,
