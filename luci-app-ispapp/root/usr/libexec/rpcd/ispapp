@@ -52,22 +52,30 @@ local function catFile(file)
 end
 -- Function to get GPS data from a file
 local function get_gps_data()
-    local ok, responce, _ = pcall(util.exec, [[
-    cat /tmp/gps_info.txt | tail -n 1 | awk -F', ' '{printf "{"; for (i = 1; i <= NF; i++) {split($i, a, "="); printf "\"%s\":\"%s\"", a[1], a[2]; if (i < NF) printf ", "} printf "}"}'
-]]);
-    if not ok then
+    local ok, response = pcall(util.exec, "cat /tmp/gps_info.txt 2>/dev/null")
+    if not ok or not response or response == "" then
         return {
             latitude = "N/A",
             longitude = "N/A",
             height = "N/A"
         }
     end
-    local gps_data = jsonc.parse(responce)
-    if gps_data and gps_data.latitude and gps_data.longitude and gps_data.height then
+    -- Look for the line containing latitude/longitude/altitude values
+    local latitude, longitude, altitude
+    for line in response:gmatch("[^\r\n]+") do
+        latitude = line:match("latitude=([%d%.%-]+)")
+        longitude = line:match("longitude=([%d%.%-]+)")
+        altitude = line:match("altitude=([%d%.%-]+)")
+        
+        if latitude and longitude and altitude then
+            break
+        end
+    end
+    if latitude and longitude and altitude then
         return {
-            latitude = gps_data.latitude,
-            longitude = gps_data.longitude,
-            height = gps_data.altitude
+            latitude = latitude,
+            longitude = longitude,
+            height = altitude
         }
     else
         return {
