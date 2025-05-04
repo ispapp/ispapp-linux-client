@@ -425,11 +425,11 @@ local function get_wifi_info(iface)
     local cmd = string.format([[iw dev %s info 2>/dev/null | awk '
 /channel/ {
   gsub(/[()]/, "", $3);
-  print "{\"channel\": " $2 ", \"frequency\": " $3 ", \"width\": \"" $5 " " $6 "\"}";
+  print "{\"channel\": " $2 ", \"frequency\": " $3 ", \"width\": "$6"}";
   found=1;
 }
 END {
-  if (!found) print "{\"channel\": 0, \"frequency\": 0, \"width\": \"NA\"}";
+  if (!found) print "{\"channel\": 0, \"frequency\": 0, \"width\": 0}";
 }']], iface)
     local handle = io.popen(cmd)
     local result = handle and handle:read("*a")
