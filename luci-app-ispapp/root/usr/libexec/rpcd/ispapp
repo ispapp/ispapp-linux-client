@@ -2543,12 +2543,12 @@ local function get_wifi_params(device)
     end
     
     local freq_val = normalized:match('frequency:([%d%.]+)')
-    params.frequency = math.abs(safe_tonumber(freq_val) or 0) -- Convert to MHz
+    params.frequency = math.floor(safe_tonumber(freq_val) or 0) -- Convert to MHz
     
     params.mac = normalized:match('access point:%s*([%w:]+)')
     
     local rate_val = normalized:match('bit rate:([%d%.]+)')
-    params.rate = math.abs((safe_tonumber(rate_val) or 0) * 1000) -- Convert to Mps
+    params.rate = math.floor((safe_tonumber(rate_val) or 0) * 1000) -- Convert to Mps
     
     local power_val = normalized:match('tx%-power:(%d+)')
     params.txPower = safe_tonumber(power_val)
