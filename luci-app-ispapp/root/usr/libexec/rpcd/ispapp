@@ -470,7 +470,7 @@ local function get_spectral_data()
     end
     local spectralanalysis = {}
     for _, value in ipairs(devices) do
-        local ok, _, _ = pcall(util.exec, string.format("spectraltool -i %s get_samples 100 -x 1", value))
+        local ok, _, _ = pcall(util.exec, string.format("spectraltool -i %s get_samples 100 -x 1 2>/dev/null", value))
         if ok then
             local _ok, csv, _ = pcall(extract_spectral_samples, "./outFile") 
             if _ok and csv and csv ~= "" then
