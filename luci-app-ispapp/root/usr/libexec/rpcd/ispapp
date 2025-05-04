@@ -91,9 +91,9 @@ local function get_gps_data()
         }
     else
         return {
-            latitude = "N/A",
-            longitude = "N/A",
-            height = "N/A"
+            latitude = nil,
+            longitude = nil,
+            height = nil
         }
     end
 end
