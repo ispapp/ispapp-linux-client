@@ -52,29 +52,42 @@ local function catFile(file)
 end
 -- Function to get GPS data from a file
 local function get_gps_data()
-    local ok, response = pcall(util.exec, "cat /tmp/gps_info.txt 2>/dev/null")
-    if not ok or not response or response == "" then
-        return {
-            latitude = "N/A",
-            longitude = "N/A",
-            height = "N/A"
-        }
+    local lat, lon, alt = nil, nil, nil
+    -- Open the file in read mode
+    local path = "/tmp/gps_info.txt"
+    local file = io.open(path, "r")
+    if not file then
+        return "File not found"
     end
-    -- Look for the line containing latitude/longitude/altitude values
-    local latitude, longitude, altitude
-    for line in response:gmatch("[^\r\n]+") do
-        latitude = line:match("latitude=([%d%.%-%s]+)"):gsub("%s+", "")
-        longitude = line:match("longitude=([%d%.%-%s]+)"):gsub("%s+", "")
-        altitude = line:match("altitude=([%d%.%-%s]+)"):gsub("%s+", "")
-        if latitude and longitude and altitude then
-            break
+
+    for line in file:lines() do
+        -- Match formatted line like: latitude=26.083150, longitude=- 98.371586, altitude=60.8
+        local lat_match = line:match("latitude%s*=%s*([%d%.%-NA/]+)")
+        local lon_match = line:match("longitude%s*=%s*([%-%s%d%.NA/]+)")
+        local alt_match = line:match("altitude%s*=%s*([%d%.%-NA/]+)")
+
+        -- Clean and normalize
+        if lat_match and lat_match ~= "N/A" then
+            lat = tonumber(lat_match)
+        end
+
+        if lon_match and lon_match ~= "N/A" then
+            -- Remove spaces like "- 98.371586"
+            lon_match = lon_match:gsub("%s+", "")
+            lon = tonumber(lon_match)
+        end
+
+        if alt_match and alt_match ~= "N/A" then
+            alt = tonumber(alt_match)
         end
     end
-    if latitude and longitude and altitude then
+
+    file:close()
+    if lat and lon then
         return {
-            latitude = latitude,
-            longitude = longitude,
-            height = altitude
+            latitude = lat,
+            longitude = lon,
+            height = alt
         }
     else
         return {
