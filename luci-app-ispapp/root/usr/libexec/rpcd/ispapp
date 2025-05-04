@@ -582,37 +582,43 @@ local function postRequest(url, data, timeout)
         status = s
     }
 end
-local getKey = function(device)
-    local key = "N/A"
-    if string.find(device, "mld") then
-        uci:foreach("wireless", "wifi-iface", function(section)
-            if section.mld == device then
-                if key == "N/A" then
-                    key = section.key or section.sae_password or "N/A"
-                end
+local function getKey(ifname)
+    local keyDetails = nil
+
+    uci:foreach("wireless", "wifi-iface", function(s)
+        if s.device == ifname or s.ifname == ifname then
+            local encryption = s.encryption or "unknown"
+            
+            -- Return key depending on encryption type
+            if encryption:match("^psk") or encryption:match("^wpa%d*") or encryption == "mixed-psk" then
+                keyDetails = s.key or "none"
+            elseif encryption:match("^sae") or encryption:match("sae%-mixed") then
+                keyDetails = s.sae_password or s.key or "none"
+            elseif encryption == "wep" or encryption == "wep-open" or encryption == "wep-shared" then
+                keyDetails = s.key or "none"
+            elseif encryption:match("^eap") or encryption:match("wpa%d*%+aes") or encryption:match("^8021x") then
+                local privateKey = (s.privatekey and catFile(s.privatekey)) or "N/A"
+                local publicKey = (s.publickey and catFile(s.publickey)) or "N/A"
+                keyDetails = privateKey .. ":" .. publicKey
+            elseif encryption:match("^owe") then
+                keyDetails = "OWE requires no password"
+            elseif encryption == "wapi-psk" then
+                keyDetails = s.key or "none"
+            elseif encryption == "wapi-cert" then
+                keyDetails = (s.cert and catFile(s.cert)) or "N/A"
+            elseif encryption == "none" or encryption == "open" then
+                keyDetails = "none"
+            else
+                keyDetails = (encryption or "none")
             end
-        end)
-    end
-    if key == "N/A" then
-        uci:foreach("wireless", "wifi-iface", function(section)
-            if section.device == device then
-                if key == "N/A" then
-                    key = section.key or section.sae_password or "N/A"
-                    if key == "N/A" then
-                        local keyfile = section.priv_key and catFile(section.priv_key)
-                        if keyfile then
-                            key = keyfile .. section.priv_key_password
-                        end
-                    end
-                end
-            end
-        end)
-    end
-    if type(key) == "table" then
-        key = key[0] or key[1]
-    end
-    return key
+
+            return false -- Stop iteration after finding the first match
+        end
+    end)
+
+    return keyDetails or "none"
 end
+
 local function getEncryption(ifname)
     local encryption = nil
     uci:foreach("wireless", "wifi-iface", function(s)
