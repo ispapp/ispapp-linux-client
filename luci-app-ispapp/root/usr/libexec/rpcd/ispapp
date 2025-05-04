@@ -2524,24 +2524,47 @@ local function get_wifi_params(device)
 
     local params = {}
     local errors = {}
-
-    params.noise, errors.noise = run_command("awk '$1 ~ /" .. device .. "/ {print $5}' /proc/net/wireless")
-    params.signal, errors.signal = run_command("awk '$1 ~ /" .. device .. "/ {print $3}' /proc/net/wireless")
-    params.channel, errors.channel = run_command("iw dev " .. device .. " info | grep channel | awk '{print $2}'")
-    params.frequency, errors.frequency = run_command("iw dev " .. device .. " info | grep channel | awk '{print $3}'")
-    params.ssid, errors.txPower = run_command("iw dev " .. device .. " info | grep ssid | awk '{print $2}'", true)
-    params.txPower, errors.txPower = run_command("iw dev " .. device .. " info | grep txpower | awk '{print $2}'")
-    -- params.quality, errors.quality = run_command("iw dev " .. device .. " info | grep Quality | awk '{print $2}'")
-    -- params.rate, errors.rate = run_command("iw dev " .. device .. " link | grep 'tx bitrate' | awk '{print $3}'")
-    params.chutil, errors.chutil = run_command("iw dev " .. device .. " survey dump | grep " .. device ..
-                                                   " | grep channel | awk '{print $2}'")
-    params.bandWidth, errors.bandWidth = run_command("iw dev " .. device .. " info | grep width | awk '{print $2}'")
-    params.mac, errors.mac = run_command("cat /sys/class/net/" .. device .. "/address", true)
-    params.mode, errors.mode = run_command("iw dev " .. device .. " info | grep type | awk '{print $2}'", true)
-    params.phy, errors.phy = run_command("cat /sys/class/net/" .. device .. "/phy80211/name")
-
+    -- Get wireless information from single 'iw dev' call to improve performance
+    local iw_info_cmd = "iw dev " .. device .. " info 2>/dev/null"
+    local iw_info, _ = io.popen(iw_info_cmd)
+    local iw_info_output = ""
+    
+    if iw_info then
+        iw_info_output = iw_info:read("*a")
+        iw_info:close()
+    end
+    
+    -- Parse the iw dev info output once instead of multiple commands
+    params.ssid = iw_info_output:match("ssid%s+([^\n]+)")
+    params.channel = tonumber(iw_info_output:match("channel%s+(%d+)"))
+    params.frequency = tonumber(iw_info_output:match("freq:%s+(%d+)"))
+    params.txPower = tonumber(iw_info_output:match("txpower%s+(%d+)"))
+    params.bandWidth = tonumber(iw_info_output:match("width:%s+(%d+)"))
+    params.mode = iw_info_output:match("type%s+([^\n]+)")
+    local survey_cmd = "iw dev " .. device .. " survey dump 2>/dev/null | grep -A1 'frequency' | grep 'channel' | awk '{print $2}'"
+    local survey_output, _ = io.popen(survey_cmd)
+    
+    if survey_output then
+        params.chutil = tonumber(survey_output:read("*l"))
+        survey_output:close()
+    end
+    -- Get wireless stats from /proc/net/wireless for noise and signal
+    local wireless_cmd = "awk '$1 ~ /" .. device .. "/ {print $3, $5}' /proc/net/wireless"
+    local wireless_output, _ = io.popen(wireless_cmd)
+    
+    if wireless_output then
+        local signal, noise = wireless_output:read("*l"):match("([^%s]+)%s+([^%s]+)")
+        params.signal = tonumber(signal)
+        params.noise = tonumber(noise)
+        wireless_output:close()
+    end
+    
+    -- Get MAC address directly from sys filesystem
+    params.mac = catFile("/sys/class/net/" .. device .. "/address")
+    -- Get PHY name from sys filesystem
+    params.phy = catFile("/sys/class/net/" .. device .. "/phy80211/name")
     -- Try to retrieve TXRATE and RSSI from wlanconfig
-    local wlanconfig_cmd = "wlanconfig " .. device .. " list"
+    local wlanconfig_cmd = "wlanconfig " .. device .. " list 2>/dev/null"
     local wlanconfig_output, _ = io.popen(wlanconfig_cmd)
 
     if wlanconfig_output then
