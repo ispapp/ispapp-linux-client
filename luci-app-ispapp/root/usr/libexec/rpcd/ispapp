@@ -183,18 +183,18 @@ local function spectral_to_csv_string(input_text)
     local lines = {}
     local samples = {}
     local max_bins = 64 -- Fixed at 64 bins as per test file
-    
+
     -- Split the input text into lines
     for line in input_text:gmatch("[^\r\n]+") do
         table.insert(lines, line)
     end
-    
+
     -- Skip metadata and spectral_caps
     local i = 1
     while i <= #lines and not lines[i]:match("^%d+%s+%d+%s+%d+%s+%d+") do
         i = i + 1
     end
-    
+
     -- Process the samples
     while i <= #lines do
         local line = lines[i]
@@ -206,7 +206,7 @@ local function spectral_to_csv_string(input_text)
             for token in line:gmatch("%S+") do
                 table.insert(tokens, token)
             end
-            
+
             if #tokens >= 4 then -- At minimum we expect sample number and some data
                 -- Match exactly the field order from test file
                 samples[sample_num] = {
@@ -219,7 +219,7 @@ local function spectral_to_csv_string(input_text)
                     detector_id = "0",
                     bins = {}
                 }
-                
+
                 -- Skip to the detector line (skip span line)
                 i = i + 2
                 if i <= #lines then
@@ -228,7 +228,7 @@ local function spectral_to_csv_string(input_text)
                     for token in detector_line:gmatch("%S+") do
                         table.insert(detector_tokens, token)
                     end
-                    
+
                     -- Extract fields in exact order from test file
                     if #detector_tokens >= 10 then
                         -- Start with the header fields
@@ -238,11 +238,11 @@ local function spectral_to_csv_string(input_text)
                         samples[sample_num].leb_num = detector_tokens[4]
                         samples[sample_num].start_bin_idx = detector_tokens[6]
                         samples[sample_num].end_bin_idx = detector_tokens[7]
-                        
+
                         -- Find where bin values start
                         local leb_num = tonumber(detector_tokens[4]) or 0
                         local bin_start_idx = 10 + leb_num
-                        
+
                         -- Extract exactly 64 bin values, matching the test file order
                         for j = 1, max_bins do
                             local bin_idx = bin_start_idx + j - 1
@@ -252,50 +252,50 @@ local function spectral_to_csv_string(input_text)
                                 samples[sample_num].bins[j] = "0"
                             end
                         end
-                        
+
                         -- Extract metrics - these come after the 64 bin values
                         local metrics_start_idx = bin_start_idx + max_bins
-                        
+
                         -- Set all metrics to match the test file exactly
                         if metrics_start_idx <= #detector_tokens then
                             -- Get timestamp
                             samples[sample_num].timestamp = detector_tokens[metrics_start_idx]
-                            
+
                             -- Get RSSI - next token after timestamp
                             if metrics_start_idx + 1 <= #detector_tokens then
                                 samples[sample_num].rssi = detector_tokens[metrics_start_idx + 1]
                             else
                                 samples[sample_num].rssi = "0" -- Default from test
                             end
-                            
+
                             -- Get noise floor (-114 in test)
                             if metrics_start_idx + 2 <= #detector_tokens then
                                 samples[sample_num].noise_floor = detector_tokens[metrics_start_idx + 2]
                             else
                                 samples[sample_num].noise_floor = "-114" -- Default from test
                             end
-                            
+
                             -- Get AGCGain (64 in test)
                             if metrics_start_idx + 3 <= #detector_tokens then
                                 samples[sample_num].agc_gain = detector_tokens[metrics_start_idx + 3]
                             else
                                 samples[sample_num].agc_gain = "64" -- Default from test
                             end
-                            
+
                             -- Get gain change (0 in test)
                             if metrics_start_idx + 4 <= #detector_tokens then
                                 samples[sample_num].gain_change = detector_tokens[metrics_start_idx + 4]
                             else
                                 samples[sample_num].gain_change = "0" -- Default from test
                             end
-                            
+
                             -- Get pri80 indication (1 in test)
                             if metrics_start_idx + 5 <= #detector_tokens then
                                 samples[sample_num].pri80_indication = detector_tokens[metrics_start_idx + 5]
                             else
                                 samples[sample_num].pri80_indication = "1" -- Default from test
                             end
-                            
+
                             -- Get raw timestamp (same as timestamp in test)
                             if metrics_start_idx + 6 <= #detector_tokens then
                                 samples[sample_num].raw_timestamp = detector_tokens[metrics_start_idx + 6]
@@ -303,14 +303,14 @@ local function spectral_to_csv_string(input_text)
                                 -- Use timestamp as raw timestamp default
                                 samples[sample_num].raw_timestamp = samples[sample_num].timestamp
                             end
-                            
+
                             -- Get timestamp war offset (0 in test)
                             if metrics_start_idx + 7 <= #detector_tokens then
                                 samples[sample_num].timestamp_war_offset = detector_tokens[metrics_start_idx + 7]
                             else
                                 samples[sample_num].timestamp_war_offset = "0" -- Default from test
                             end
-                            
+
                             -- Get last raw timestamp (0 in test for first sample)
                             if metrics_start_idx + 8 <= #detector_tokens then
                                 samples[sample_num].last_raw_timestamp = detector_tokens[metrics_start_idx + 8]
@@ -320,21 +320,21 @@ local function spectral_to_csv_string(input_text)
                                     samples[sample_num].last_raw_timestamp = "0" -- Default from test
                                 else
                                     -- Try to get timestamp from previous sample
-                                    if samples[sample_num-1] and samples[sample_num-1].timestamp then
-                                        samples[sample_num].last_raw_timestamp = samples[sample_num-1].timestamp
+                                    if samples[sample_num - 1] and samples[sample_num - 1].timestamp then
+                                        samples[sample_num].last_raw_timestamp = samples[sample_num - 1].timestamp
                                     else
                                         samples[sample_num].last_raw_timestamp = "0"
                                     end
                                 end
                             end
-                            
+
                             -- Get reset delay (0 in test)
                             if metrics_start_idx + 9 <= #detector_tokens then
                                 samples[sample_num].reset_delay = detector_tokens[metrics_start_idx + 9]
                             else
                                 samples[sample_num].reset_delay = "0" -- Default from test
                             end
-                            
+
                             -- Get blanking status (0 in test)
                             if metrics_start_idx + 10 <= #detector_tokens then
                                 samples[sample_num].blanking_status = detector_tokens[metrics_start_idx + 10]
@@ -362,33 +362,35 @@ local function spectral_to_csv_string(input_text)
         end
         i = i + 1
     end
-    
+
     -- Build CSV string
     local csv_lines = {}
-    
+
     -- Create header row exactly as in the test file
-    local header = "S_No,Num_FFT_Bins,target_reset_count,num_freq_spans,Span_id0,Span_id0_num_det,DetectorID,StartFreq,EndFreq,LEB_num,start_bin_idx,end_bin_idx"
-    
+    local header =
+        "S_No,Num_FFT_Bins,target_reset_count,num_freq_spans,Span_id0,Span_id0_num_det,DetectorID,StartFreq,EndFreq,LEB_num,start_bin_idx,end_bin_idx"
+
     -- Add bin headers (0-63)
     for i = 0, 63 do
         header = header .. ",Bin" .. i
     end
-    
+
     -- Add additional metric headers exactly as in the test file
-    header = header .. ",Timestamp,RSSI,NoiseFloor,AGCGain,GainChange,Pri80Indication,RawTimestamp,TimestampWarOffset,LastRawTimestamp,ResetDelay,BlankingStatus"
+    header = header ..
+                 ",Timestamp,RSSI,NoiseFloor,AGCGain,GainChange,Pri80Indication,RawTimestamp,TimestampWarOffset,LastRawTimestamp,ResetDelay,BlankingStatus"
     table.insert(csv_lines, header)
-    
+
     -- Sort sample numbers
     local sample_nums = {}
     for num in pairs(samples) do
         table.insert(sample_nums, num)
     end
     table.sort(sample_nums)
-    
+
     -- Build data rows exactly matching the test file format
     for _, sample_num in ipairs(sample_nums) do
         local sample = samples[sample_num]
-        
+
         -- Build the CSV row with values in the EXACT order as the header
         local row = sample.s_no .. "," -- S_No
         row = row .. sample.num_fft_bins .. "," -- Num_FFT_Bins
@@ -402,12 +404,12 @@ local function spectral_to_csv_string(input_text)
         row = row .. sample.leb_num .. "," -- LEB_num
         row = row .. sample.start_bin_idx .. "," -- start_bin_idx
         row = row .. sample.end_bin_idx -- end_bin_idx
-        
+
         -- Add all 64 bin values in order
         for i = 1, 64 do
             row = row .. "," .. (sample.bins[i] or "0") -- Bin0-Bin63
         end
-        
+
         -- Add metrics in the exact order as the header
         row = row .. "," .. (sample.timestamp or "0") -- Timestamp
         row = row .. "," .. (sample.rssi or "0") -- RSSI
@@ -420,10 +422,10 @@ local function spectral_to_csv_string(input_text)
         row = row .. "," .. (sample.last_raw_timestamp or "0") -- LastRawTimestamp
         row = row .. "," .. (sample.reset_delay or "0") -- ResetDelay
         row = row .. "," .. (sample.blanking_status or "0") -- BlankingStatus
-        
+
         table.insert(csv_lines, row)
     end
-    
+
     -- Join all CSV lines
     return table.concat(csv_lines, "\n")
 end
@@ -453,7 +455,7 @@ END {
 }']], iface)
     local handle = io.popen(cmd)
     local result = handle and handle:read("*a")
-    local ok, wifi_info,_ = pcall(jsonc.parse, result)
+    local ok, wifi_info, _ = pcall(jsonc.parse, result)
     if handle then
         handle:close()
     end
@@ -472,13 +474,15 @@ local function get_spectral_data()
     for _, value in ipairs(devices) do
         local ok, _, _ = pcall(util.exec, string.format("spectraltool -i %s get_samples 100 -x 1 2>/dev/null", value))
         if ok then
-            local _ok, csv, _ = pcall(extract_spectral_samples, "./outFile") 
+            local _ok, csv, _ = pcall(extract_spectral_samples, "./outFile")
             if _ok and csv and csv ~= "" then
                 local device_info = get_wifi_info(value)
-                table.insert(spectralanalysis, {
-                    device = device_info,
-                    csv = csv,
-                })
+                if device_info.frequency > 0 then
+                    table.insert(spectralanalysis, {
+                        device = device_info,
+                        csv = csv
+                    })
+                end
             end
         end
     end
@@ -608,7 +612,7 @@ local function getKey(ifname)
     uci:foreach("wireless", "wifi-iface", function(s)
         if s.device == ifname or s.ifname == ifname then
             local encryption = s.encryption or "unknown"
-            
+
             -- Return key depending on encryption type
             if encryption:match("^psk") or encryption:match("^wpa%d*") or encryption == "mixed-psk" then
                 keyDetails = s.key or "none"
@@ -659,7 +663,7 @@ END {
 }']])
     local devices_json = (devices and jsonc.parse(devices)) or {}
     uci:foreach("wireless", "wifi-iface", function(s)
-        local ifname = (#devices_json > 0 and devices_json[s.device]) or masterdevice 
+        local ifname = (#devices_json > 0 and devices_json[s.device]) or masterdevice
         if s.device == ifname or s.ifname == ifname then
             encryption = s.encryption or "none"
             return false -- stop iteration
@@ -692,7 +696,9 @@ end
 -- Function to execute a command and return the output
 local function getCmdOutPut(cmd)
     local f = io.popen(cmd)
-    if not f then return "" end
+    if not f then
+        return ""
+    end
     local output = f:read("*a")
     f:close()
     return output
@@ -795,7 +801,7 @@ local function sync_agent_version()
         settings = "/htdocs/luci-static/resources/view/ispapp/settings.js",
         ispappcontroller = "/luasrc/controller/ispapp.lua",
         rpcd = "/root/usr/libexec/rpcd/ispapp",
-        ispappd = "/root/bin/ispappd",
+        ispappd = "/root/bin/ispappd"
     }
     local local_agent_files = {
         logread = "/www/luci-static/resources/view/ispapp/logread.js",
@@ -1169,7 +1175,7 @@ local function get_interface_data(interface_name)
         LinkPartnerAdvertising = {},
         Multicast = false
     }
-    
+
     -- Check if interface exists
     local handle = io.open("/sys/class/net/" .. interface_name, "r")
     if not handle then
@@ -1177,24 +1183,26 @@ local function get_interface_data(interface_name)
     end
     handle:close()
     result.Present = true
-    
+
     -- Get basic interface data using "ip" command
     handle = io.popen("ip -statistics link show " .. interface_name .. " 2>/dev/null")
     local ip_output = handle and handle:read("*a")
     if handle then
         handle:close()
     end
-    
+
     -- Parse MAC address
     result.Mac = ip_output:match("link/[%w]+ ([%x:]+)")
-    
+
     -- Parse MTU
     local mtu = ip_output:match("mtu (%d+)")
-    if mtu then result.Mtu = tonumber(mtu) end
-    
+    if mtu then
+        result.Mtu = tonumber(mtu)
+    end
+
     -- Check if interface is UP
     result.Up = ip_output:match("state UP") ~= nil
-    
+
     -- Parse statistics
     local rx_bytes = ip_output:match("RX:[%s%w]+%s+bytes%s+(%d+)")
     local rx_packets = ip_output:match("RX:[%s%w]+%s+packets%s+(%d+)")
@@ -1204,27 +1212,43 @@ local function get_interface_data(interface_name)
     local tx_packets = ip_output:match("TX:[%s%w]+%s+packets%s+(%d+)")
     local tx_errors = ip_output:match("TX:[%s%w]+%s+errors%s+(%d+)")
     local tx_dropped = ip_output:match("TX:[%s%w]+%s+dropped%s+(%d+)")
-    
+
     -- Convert to numbers with proper type
-    if rx_bytes then result.RecBytes = tonumber(rx_bytes) end
-    if rx_packets then result.RecPackets = tonumber(rx_packets) end
-    if rx_errors then result.RecErrors = tonumber(rx_errors) end
-    if rx_dropped then result.RecDrops = tonumber(rx_dropped) end
-    if tx_bytes then result.SentBytes = tonumber(tx_bytes) end
-    if tx_packets then result.SentPackets = tonumber(tx_packets) end
-    if tx_errors then result.SentErrors = tonumber(tx_errors) end
-    if tx_dropped then result.SentDrops = tonumber(tx_dropped) end
-    
+    if rx_bytes then
+        result.RecBytes = tonumber(rx_bytes)
+    end
+    if rx_packets then
+        result.RecPackets = tonumber(rx_packets)
+    end
+    if rx_errors then
+        result.RecErrors = tonumber(rx_errors)
+    end
+    if rx_dropped then
+        result.RecDrops = tonumber(rx_dropped)
+    end
+    if tx_bytes then
+        result.SentBytes = tonumber(tx_bytes)
+    end
+    if tx_packets then
+        result.SentPackets = tonumber(tx_packets)
+    end
+    if tx_errors then
+        result.SentErrors = tonumber(tx_errors)
+    end
+    if tx_dropped then
+        result.SentDrops = tonumber(tx_dropped)
+    end
+
     -- Check multicast flag
     result.Multicast = ip_output:match("MULTICAST") ~= nil
-    
+
     -- Get interface type and check if it's a bridge
     handle = io.popen("ip -d link show " .. interface_name .. " 2>/dev/null")
     local ip_detail_output = handle and handle:read("*a")
     if handle then
         handle:close()
     end
-    
+
     -- Determine interface type
     if ip_detail_output:match("vlan") then
         result.Type = "vlan"
@@ -1243,7 +1267,7 @@ local function get_interface_data(interface_name)
     else
         result.Type = "unknown"
     end
-    
+
     -- Get bridge members if it's a bridge
     if result.Type == "bridge" then
         handle = io.popen("ls -la /sys/class/net/" .. interface_name .. "/brif/ 2>/dev/null")
@@ -1251,12 +1275,12 @@ local function get_interface_data(interface_name)
         if handle then
             handle:close()
         end
-        
+
         for member in bridge_output:gmatch("%->[%s/]+%w+/([%w%-]+)") do
             table.insert(result.BridgeMembers, member)
         end
     end
-    
+
     -- Get ethtool information for physical interfaces
     if result.Type == "ethernet" then
         handle = io.popen("ethtool " .. interface_name .. " 2>/dev/null")
@@ -1264,7 +1288,7 @@ local function get_interface_data(interface_name)
         if handle then
             handle:close()
         end
-        
+
         -- Check for carrier
         local link_detected = ethtool_output:match("Link detected:%s+(%w+)")
         if link_detected == "yes" then
@@ -1286,21 +1310,21 @@ local function get_interface_data(interface_name)
                 table.insert(result.LinkSupported, speed)
             end
         end
-        
+
         -- Parse advertised link modes
         for mode in ethtool_output:gmatch("Advertised link modes:%s+(.-)Advertised pause") do
             for speed in mode:gmatch("(%d+baseT[/%w]+)") do
                 table.insert(result.LinkAdvertising, speed)
             end
         end
-        
+
         -- Parse link partner advertised modes
         for mode in ethtool_output:gmatch("Link partner advertised link modes:%s+(.-)Link partner advertised pause") do
             for speed in mode:gmatch("(%d+baseT[/%w]+)") do
                 table.insert(result.LinkPartnerAdvertising, speed)
             end
         end
-        
+
         -- Get carrier changes
         local handle = io.open("/sys/class/net/" .. interface_name .. "/carrier_changes", "r")
         if handle then
@@ -1318,35 +1342,35 @@ local function get_interface_data(interface_name)
             end
         end
     end
-    
+
     -- Check if it's the default interface by checking routing
     handle = io.popen("ip route get 8.8.8.8 2>/dev/null")
     local default_output = handle and handle:read("*a")
     if handle then
         handle:close()
     end
-    
+
     local default_dev = default_output:match("dev%s+([%w%.%-]+)")
     if default_dev == interface_name then
         result.DefaultIf = interface_name
     end
-    
+
     -- Check IPv6 capability
     handle = io.popen("ip -6 addr show dev " .. interface_name .. " 2>/dev/null")
     local ipv6_output = handle and handle:read("*a")
     if handle then
         handle:close()
     end
-    
+
     if ipv6_output:match("inet6") then
         result.Ipv6 = true
     end
-    
+
     -- Check external status (heuristic: assume non-loopback physical interfaces are external)
     if result.Type == "ethernet" and interface_name:match("^(eth%d+|wan%d*|wwan%d*)$") then
         result.External = true
     end
-    
+
     -- Get MAC address table count if it's a bridge
     if result.Type == "bridge" then
         handle = io.popen("bridge fdb show br " .. interface_name .. " 2>/dev/null | wc -l")
@@ -1354,12 +1378,12 @@ local function get_interface_data(interface_name)
         if handle then
             handle:close()
         end
-        
+
         if mac_count then
             result.Macs = tonumber(mac_count)
         end
     end
-    
+
     return result
 end
 -- Single function to fetch interfaces, check for bridge memberships, and gather network stats
@@ -1636,31 +1660,31 @@ end
 local function parse_scan_results(device)
     -- Get raw scan data
     local output = getCmdOutPut("iw dev " .. device .. " scan dump 2>/dev/null")
-    
+
     -- Check if we got any output
     if not output or output == "" then
         return {}
     end
-    
+
     local results = {}
     local current_bss = nil
     local lines = {}
-    
+
     -- Split into lines for processing
     for line in output:gmatch("[^\r\n]+") do
         table.insert(lines, line)
     end
-    
+
     for i, line in ipairs(lines) do
         -- Check if this is a new BSS entry
         local bssid = line:match("^BSS ([0-9a-fA-F:]+)")
-        
+
         if bssid then
             -- Store previous BSS if exists
             if current_bss then
                 table.insert(results, current_bss)
             end
-            
+
             -- Create new BSS entry with default values
             current_bss = {
                 bssid = bssid,
@@ -1679,38 +1703,38 @@ local function parse_scan_results(device)
             if freq then
                 current_bss.frequency = tonumber(freq)
             end
-            
+
             -- Extract SSID
             local ssid = line:match("^%s+SSID:%s+(.*)")
             if ssid then
                 -- Clean up non-printable characters
                 current_bss.ssid = ssid:gsub("\\x%x%x", ".")
             end
-            
+
             -- Extract last seen
             local lastseen = line:match("^%s+last%s+seen:%s+(%d+%s+ms%s+ago)")
             if lastseen then
                 current_bss.lastseen = lastseen
             end
-            
+
             -- Extract signal strength
             local signal = line:match("^%s+signal:%s+([-%.%d]+)%s+dBm")
             if signal then
                 current_bss.signal = tonumber(signal)
             end
-            
+
             -- Extract primary channel
             local channel = line:match("^%s+%*%s+primary%s+channel:%s+(%d+)")
             if channel then
                 current_bss.channel = tonumber(channel)
             end
-            
+
             -- Extract MCS rates
             local mcs_rates = line:match("^%s+HT%s+[TR]X%s+MCS%s+rate%s+indexes%s+supported:%s+([0-9%-]+)")
             if mcs_rates then
                 current_bss.mcs_rates = mcs_rates
             end
-            
+
             -- Extract channel width from HT capabilities
             if line:match("^%s+Capabilities:") then
                 local caps_line = line:match("^%s+Capabilities:%s+(.*)")
@@ -1722,7 +1746,7 @@ local function parse_scan_results(device)
                     end
                 end
             end
-            
+
             -- Extract channel width from HT operation
             if line:match("^%s+%*%s+STA%s+channel%s+width:%s+(.+)") then
                 local width = line:match("^%s+%*%s+STA%s+channel%s+width:%s+(.+)")
@@ -1737,7 +1761,7 @@ local function parse_scan_results(device)
                     end
                 end
             end
-            
+
             -- Extract VHT channel width
             if line:match("^%s+%*%s+channel%s+width:%s+(%d+)") then
                 local vht_width = line:match("^%s+%*%s+channel%s+width:%s+(%d+)")
@@ -1749,7 +1773,7 @@ local function parse_scan_results(device)
                     current_bss.channel_width = "80+80 MHz"
                 end
             end
-            
+
             -- Extract VHT MCS rates
             if line:match("^%s+VHT%s+RX%s+MCS%s+set:") then
                 local vht_mcs = ""
@@ -1766,14 +1790,13 @@ local function parse_scan_results(device)
                         end
                     end
                 end
-                
+
                 if vht_mcs ~= "" then
-                    current_bss.mcs_rates = current_bss.mcs_rates .. 
-                        (current_bss.mcs_rates ~= "" and ", " or "") .. 
-                        "VHT: " .. vht_mcs:sub(1, -3) -- Remove trailing comma and space
+                    current_bss.mcs_rates = current_bss.mcs_rates .. (current_bss.mcs_rates ~= "" and ", " or "") ..
+                                                "VHT: " .. vht_mcs:sub(1, -3) -- Remove trailing comma and space
                 end
             end
-            
+
             -- Extract HE (Wi-Fi 6) capabilities
             if line:match("^%s+HE%s+capabilities:") then
                 -- Check for HE PHY capabilities in next lines
@@ -1795,12 +1818,12 @@ local function parse_scan_results(device)
             end
         end
     end
-    
+
     -- Add the last BSS if it exists
     if current_bss then
         table.insert(results, current_bss)
     end
-    
+
     return results
 end
 local function GetwifiScan()
@@ -1809,7 +1832,7 @@ local function GetwifiScan()
     local stations = {}
     for _, iface in ipairs(interfaces.devices) do
         local station = parse_scan_results(iface)
-        local radio  = conn:call("iwinfo", "info", {
+        local radio = conn:call("iwinfo", "info", {
             device = iface
         })
         if station and #station > 0 then
@@ -2171,7 +2194,6 @@ local function getPing(target)
     return ping_data
 end
 
-
 -- Function to get interface statistics
 local function get_interface_stats()
     local interfaces = {}
@@ -2510,30 +2532,30 @@ local function get_wifi_params(device)
     if not device or device == "" then
         return nil, "Device name is required"
     end
-    
+
     -- Run iwconfig on the specified device
     local cmd = "iwconfig " .. device .. " 2>/dev/null"
     local handle = io.popen(cmd)
     if not handle then
         return nil, "Failed to execute iwconfig"
     end
-    
+
     local output = handle:read("*a")
     handle:close()
-    
+
     if output == "" then
         return nil, "No data found for device " .. device
     end
-    
+
     -- Normalize output: remove extra spaces and convert to lowercase
     local normalized = output:lower():gsub("%s+", " ")
-    
+
     local params = {}
-    
+
     -- Parse iwconfig output with pattern matching
     params.ssid = normalized:match('essid:"([^"]+)"')
     params.mode = normalized:match('mode:(%w+)')
-    
+
     -- Safely convert numeric values with error handling
     local function safe_tonumber(value)
         if value then
@@ -2541,27 +2563,27 @@ local function get_wifi_params(device)
         end
         return nil
     end
-    
+
     local freq_val = normalized:match('frequency:([%d%.]+)')
     params.frequency = math.floor(safe_tonumber(freq_val) or 0) -- Convert to MHz
-    
+
     params.mac = normalized:match('access point:%s*([%w:]+)')
-    
+
     local rate_val = normalized:match('bit rate:([%d%.]+)')
     params.rate = math.floor((safe_tonumber(rate_val) or 0) * 1000) -- Convert to Mps
-    
+
     local power_val = normalized:match('tx%-power:(%d+)')
     params.txPower = safe_tonumber(power_val)
-    
+
     local quality_val = normalized:match('link quality=(%d+)')
     params.quality = safe_tonumber(quality_val)
-    
+
     local signal_val = normalized:match('signal level=(%-?%d+)')
     params.signal = safe_tonumber(signal_val)
-    
+
     local noise_val = normalized:match('noise level=(%-?%d+)')
     params.noise = safe_tonumber(noise_val)
-    
+
     -- Get channel from frequency if not directly available
     if params.frequency then
         -- Approximate channel calculation
@@ -2581,7 +2603,7 @@ local function get_wifi_params(device)
             end
         end
     end
-    
+
     -- Get MAC address directly from sys filesystem if not found in iwconfig
     if not params.mac then
         local mac_file = io.open("/sys/class/net/" .. device .. "/address", "r")
@@ -2590,7 +2612,7 @@ local function get_wifi_params(device)
             mac_file:close()
         end
     end
-    
+
     -- Filter out nil values
     local valid_params = {}
     for key, value in pairs(params) do
@@ -2598,7 +2620,7 @@ local function get_wifi_params(device)
             valid_params[key] = value
         end
     end
-    
+
     return valid_params, nil
 end
 
@@ -2809,7 +2831,7 @@ local function getSystemInfo()
             used = tonumber(sys.exec("df / | grep / | awk '{print $3}'")),
             avail = tonumber(sys.exec("df / | grep / | awk '{print $4}'"))
         }},
-        temperature = get_average_temperature(),
+        temperature = get_average_temperature()
     }
 end
 local function GetTcpInfo()
@@ -3820,7 +3842,8 @@ local methods = {
         call = function(args)
             local r = {}
             local inter = args.interface or "wifi0"
-            local ok, _, _err = pcall(util.exec, string.format("spectraltool -i %s get_samples 500 -x 1 -l ',' 2>/dev/null", inter))
+            local ok, _, _err = pcall(util.exec, string.format(
+                "spectraltool -i %s get_samples 500 -x 1 -l ',' 2>/dev/null", inter))
             local parsed, json, err = pcall(extract_spectral_samples, "./outFile")
             r.result = jsonc.stringify({
                 status = ok,
