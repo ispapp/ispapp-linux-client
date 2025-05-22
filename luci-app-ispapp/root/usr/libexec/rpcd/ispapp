@@ -1530,6 +1530,9 @@ local function getExternalIpInfo()
 end
 -- Channel to frequency conversion table
 local function get_frequency_from_channel(channel)
+    if not channel then
+        return nil
+    end 
     if channel <= 14 then
         -- 2.4 GHz channels
         return 2407 + (channel * 5)
@@ -1645,7 +1648,9 @@ end
 local function estimate_distance(signal_dbm, channel)
     -- Convert channel to frequency
     local frequency_mhz = get_frequency_from_channel(channel)
-
+    if not frequency_mhz then
+        return 0    
+    end
     -- Free Space Path Loss formula
     local freq_log = math.log10(frequency_mhz)
     local abs_signal = math.abs(signal_dbm)
@@ -1831,16 +1836,16 @@ local function GetwifiScan()
     -- sort the interfaces by name alphabetically
     local stations = {}
     for _, iface in ipairs(interfaces.devices) do
-        local station = parse_scan_results(iface)
+        local _stations = parse_scan_results(iface)
         local radio = conn:call("iwinfo", "info", {
             device = iface
         })
-        if station and #station > 0 then
+        if _stations then
             local tmpdata = {
                 radio = radio,
                 found = {}
             }
-            for _, bss in ipairs(station) do
+            for _, bss in ipairs(_stations) do
                 -- calculate istimated distance
                 -- using the formula called Free Space Path Loss
                 bss.estimated_distance = estimate_distance(bss.signal, bss.channel)
