@@ -676,6 +676,9 @@ local function getExternalIpInfo()
 end
 -- Channel to frequency conversion table
 local function get_frequency_from_channel(channel)
+    if not channel or type(channel) ~= "number" then
+        return nil
+    end
     if channel <= 14 then
         -- 2.4 GHz channels
         return 2407 + (channel * 5)
@@ -788,7 +791,9 @@ end
 local function estimate_distance(signal_dbm, channel)
     -- Convert channel to frequency
     local frequency_mhz = get_frequency_from_channel(channel)
-
+    if not frequency_mhz then
+        return 0 -- Invalid channel
+    end
     -- Free Space Path Loss formula
     local freq_log = math.log10(frequency_mhz)
     local abs_signal = math.abs(signal_dbm)
