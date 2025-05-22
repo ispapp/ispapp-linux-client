@@ -1521,21 +1521,21 @@ end
 local function getSystemInfo()
     return {
         load = {
-            one = tonumber(sys.exec("cat /proc/loadavg | awk '{print $1}'")), -- Load average for the last minute
-            five = tonumber(sys.exec("cat /proc/loadavg | awk '{print $2}'")), -- Load average for the last 5 minutes
-            fifteen = tonumber(sys.exec("cat /proc/loadavg | awk '{print $3}'")), -- Load average for the last 15 minutes
-            processCount = tonumber(sys.exec("ps | wc -l"))
+            one = tonumber(sys.exec("cat /proc/loadavg | awk '{print $1}'") or '0'), -- Load average for the last minute
+            five = tonumber(sys.exec("cat /proc/loadavg | awk '{print $2}'") or '0'), -- Load average for the last 5 minutes
+            fifteen = tonumber(sys.exec("cat /proc/loadavg | awk '{print $3}'") or '0'), -- Load average for the last 15 minutes
+            processCount = tonumber(sys.exec("ps | wc -l") or '0'), -- Number of processes
         },
         memory = {
-            total = tonumber(sys.exec("cat /proc/meminfo | grep MemTotal | awk '{print $2}'")),
-            free = tonumber(sys.exec("cat /proc/meminfo | grep MemFree | awk '{print $2}'")),
-            buffers = tonumber(sys.exec("cat /proc/meminfo | grep Buffers | awk '{print $2}'")),
-            cache = tonumber(sys.exec("cat /proc/meminfo | grep Cached | awk '{print $2}'"))
+            total = tonumber(sys.exec("cat /proc/meminfo | grep MemTotal | awk '{print $2}'") or '0'),
+            free = tonumber(sys.exec("cat /proc/meminfo | grep MemFree | awk '{print $2}'") or '0'),
+            buffers = tonumber(sys.exec("cat /proc/meminfo | grep Buffers | awk '{print $2}'") or '0'),
+            cache = tonumber(sys.exec("cat /proc/meminfo | grep Cached | awk '{print $2}'") or '0'),
         },
         disks = {{
             mount = "/",
-            used = tonumber(sys.exec("df / | grep / | awk '{print $3}'")),
-            avail = tonumber(sys.exec("df / | grep / | awk '{print $4}'"))
+            used = tonumber(sys.exec("df / | grep / | awk '{print $3}'") or '0'),
+            avail = tonumber(sys.exec("df / | grep / | awk '{print $4}'") or '0'),
         }}
     }
 end
