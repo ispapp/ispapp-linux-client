@@ -5,7 +5,8 @@ go 1.23.0
 toolchain go1.23.3
 
 require (
-	github.com/digineo/go-uci v0.0.0-20210918132103-37c7b10c14fa
+	github.com/google/uuid v1.6.0
+	github.com/gorilla/websocket v1.5.3
 	github.com/lxzan/gws v1.8.8
 	github.com/sirupsen/logrus v1.9.3
 )

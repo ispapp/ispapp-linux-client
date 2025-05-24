@@ -3,10 +3,8 @@ package handlers
 import (
 	"context"
 	"fmt"
-	"os"
+	"math"
 	"os/exec"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -20,27 +18,27 @@ import (
 // WebSocketHandler handles WebSocket connectivity
 type WebSocketHandler struct {
 	BaseHandler
-	log       *logrus.Logger
-	client    *websocket.Client
-	config    *config.Config
-	ctx       context.Context
-	cancel    context.CancelFunc
-	wg        sync.WaitGroup
-	connected bool
+	log               *logrus.Logger
+	client            *websocket.Client
+	config            *config.Config
+	ctx               context.Context
+	cancel            context.CancelFunc
+	wg                sync.WaitGroup
+	connected         bool
 	reconnectAttempts int
 }
 
 // NewWebSocketHandler creates a new WebSocket handler
 func NewWebSocketHandler(config *config.Config, log *logrus.Logger) *WebSocketHandler {
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	return &WebSocketHandler{
-		BaseHandler: NewBaseHandler("websocket"),
-		log:         log,
-		config:      config,
-		ctx:         ctx,
-		cancel:      cancel,
-		connected:   false,
+		BaseHandler:       NewBaseHandler("websocket"),
+		log:               log,
+		config:            config,
+		ctx:               ctx,
+		cancel:            cancel,
+		connected:         false,
 		reconnectAttempts: 0,
 	}
 }
@@ -50,9 +48,9 @@ func (h *WebSocketHandler) RegisterDevice() error {
 	if h.client == nil {
 		return fmt.Errorf("websocket client not initialized")
 	}
-	
+
 	h.log.Info("Registering device with server...")
-	
+
 	// Prepare registration data
 	regData := map[string]interface{}{
 		"device_id": h.config.DeviceID,
@@ -60,13 +58,13 @@ func (h *WebSocketHandler) RegisterDevice() error {
 		"platform":  "openwrt",
 		// Add more registration data as needed
 	}
-	
+
 	// Send registration message
 	err := h.client.SendJSON("register", regData)
 	if err != nil {
 		return fmt.Errorf("failed to register device: %w", err)
 	}
-	
+
 	h.log.Info("Device registered successfully")
 	return nil
 }
@@ -74,21 +72,21 @@ func (h *WebSocketHandler) RegisterDevice() error {
 // Start initializes the handler with registration and self-healing
 func (h *WebSocketHandler) Start() error {
 	h.log.Info("Starting WebSocket handler...")
-	
+
 	// Create websocket client
-	wsURL := fmt.Sprintf("wss://%s:%s/api/v1/ws", 
-		h.config.ServerURL, 
+	wsURL := fmt.Sprintf("wss://%s:%s/api/v1/ws",
+		h.config.ServerURL,
 		h.config.ListenerPort)
-		
+
 	h.client = websocket.NewClient(wsURL, h.config.DeviceID, h.log)
-	
+
 	// Setup message handlers
 	h.setupMessageHandlers()
-	
+
 	// Start connection manager
 	h.wg.Add(1)
 	go h.connectionManager()
-	
+
 	return nil
 }
 
@@ -99,15 +97,21 @@ func (h *WebSocketHandler) setupMessageHandlers() {
 	// Add more message handlers as needed
 }
 
-func (h *WebSocketHandler) handleCommandMessage(data map[string]interface{}) {
-	h.log.Debugf("Received command: %v", data)
-	
+func (h *WebSocketHandler) handleCommandMessage(msg websocket.Message) error {
+	h.log.Debugf("Received command: %v", msg.Content)
+
+	data, ok := msg.Content.(map[string]interface{})
+	if !ok {
+		h.log.Error("Invalid command message format")
+		return fmt.Errorf("invalid command message format")
+	}
+
 	cmd, ok := data["command"].(string)
 	if !ok {
 		h.log.Error("Invalid command format")
-		return
+		return fmt.Errorf("invalid command format")
 	}
-	
+
 	switch cmd {
 	case "reboot":
 		h.executeReboot()
@@ -117,11 +121,14 @@ func (h *WebSocketHandler) handleCommandMessage(data map[string]interface{}) {
 	default:
 		h.log.Warnf("Unknown command: %s", cmd)
 	}
+
+	return nil
 }
 
-func (h *WebSocketHandler) handleConfigMessage(data map[string]interface{}) {
-	h.log.Debugf("Received config update: %v", data)
+func (h *WebSocketHandler) handleConfigMessage(msg websocket.Message) error {
+	h.log.Debugf("Received config update: %v", msg.Content)
 	// Implement config update logic
+	return nil
 }
 
 func (h *WebSocketHandler) executeReboot() {
@@ -138,19 +145,19 @@ func (h *WebSocketHandler) sendStatusResponse() {
 
 func (h *WebSocketHandler) connectionManager() {
 	defer h.wg.Done()
-	
+
 	// Initial connection
 	h.connect()
-	
+
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-h.ctx.Done():
 			h.log.Debug("Connection manager shutting down")
 			return
-			
+
 		case <-ticker.C:
 			if !h.connected {
 				h.reconnectWithBackoff()
@@ -167,14 +174,14 @@ func (h *WebSocketHandler) connectionManager() {
 
 func (h *WebSocketHandler) connect() {
 	h.log.Info("Connecting to WebSocket server...")
-	
+
 	err := h.client.Connect()
 	if err != nil {
 		h.log.Errorf("Failed to connect: %v", err)
 		h.connected = false
 		return
 	}
-	
+
 	// Register the device
 	if err := h.RegisterDevice(); err != nil {
 		h.log.Errorf("Registration failed: %v", err)
@@ -182,7 +189,7 @@ func (h *WebSocketHandler) connect() {
 		h.connected = false
 		return
 	}
-	
+
 	h.connected = true
 	h.reconnectAttempts = 0
 	h.log.Info("Successfully connected to server")
@@ -191,11 +198,11 @@ func (h *WebSocketHandler) connect() {
 func (h *WebSocketHandler) reconnectWithBackoff() {
 	// Exponential backoff with max delay of 5 minutes
 	maxDelay := 300.0
-	delay := math.Min(30.0 * math.Pow(1.5, float64(h.reconnectAttempts)), maxDelay)
-	
+	delay := math.Min(30.0*math.Pow(1.5, float64(h.reconnectAttempts)), maxDelay)
+
 	h.log.Infof("Reconnecting in %d seconds (attempt %d)...", int(delay), h.reconnectAttempts+1)
 	time.Sleep(time.Duration(delay) * time.Second)
-	
+
 	h.reconnectAttempts++
 	h.connect()
 }
@@ -203,41 +210,18 @@ func (h *WebSocketHandler) reconnectWithBackoff() {
 // Stop shutdowns the handler
 func (h *WebSocketHandler) Stop() error {
 	h.log.Info("Stopping WebSocket handler...")
-	
+
 	// Signal connection manager to stop
 	h.cancel()
-	
+
 	// Disconnect WebSocket if connected
 	if h.client != nil {
 		h.client.Disconnect()
 	}
-	
+
 	// Wait for all goroutines to finish
 	h.wg.Wait()
-	
+
 	h.log.Info("WebSocket handler stopped")
 	return nil
-}
-
-// getSystemUptime returns the system uptime in seconds
-func getSystemUptime() int64 {
-	cmd := exec.Command("cat", "/proc/uptime")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return 0
-	}
-
-	// Output is like "12345.67 12345.68" - we only want the first number
-	parts := strings.Split(string(output), " ")
-	if len(parts) < 1 {
-		return 0
-	}
-
-	// Convert to seconds (integer)
-	uptimeFloat, err := strconv.ParseFloat(parts[0], 64)
-	if err != nil {
-		return 0
-	}
-
-	return int64(uptimeFloat)
 }

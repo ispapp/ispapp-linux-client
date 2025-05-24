@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,26 +14,32 @@ import (
 // Config holds all configuration parameters
 type Config struct {
 	// Basic settings
-	DeviceID      string
-	ServerURL     string
-	ListenerPort  string
-	LogLevel      string
-	
+	DeviceID     string
+	ServerURL    string
+	ListenerPort string
+	LogLevel     string
+
+	// WebSocket endpoint
+	WSEndpoint string
+
 	// Authentication
-	APIKey        string
-	AccessToken   string
-	RefreshToken  string
-	
+	APIKey       string
+	AccessToken  string
+	RefreshToken string
+	AuthToken    string
+
 	// Operational settings
 	UpdateInterval int
+	CheckInterval  int
 	Enabled        bool
-	
+	Debug          bool
+
 	// Network testing
-	IperfServer   string
-	PingTargets   []string
-	
+	IperfServer string
+	PingTargets []string
+
 	// UI settings
-	HighRefresh    bool
+	HighRefresh     bool
 	RefreshInterval int
 }
 
@@ -53,7 +60,7 @@ func DefaultConfig() *Config {
 func Load(log *logrus.Logger) (*Config, error) {
 	// Start with defaults
 	cfg := DefaultConfig()
-	
+
 	// Try to load from UCI first (OpenWrt)
 	if uciCfg, err := loadFromUCI(); err == nil {
 		log.Info("Loaded configuration from UCI")
@@ -61,7 +68,7 @@ func Load(log *logrus.Logger) (*Config, error) {
 	} else {
 		log.Debug("Could not load from UCI, trying file-based config")
 	}
-	
+
 	// Fall back to file-based config
 	if fileCfg, err := loadFromFile(); err == nil {
 		log.Info("Loaded configuration from file")
@@ -69,12 +76,12 @@ func Load(log *logrus.Logger) (*Config, error) {
 	} else {
 		log.Warn("Could not load from file, using defaults")
 	}
-	
+
 	// If we couldn't load config, save defaults
 	if err := saveConfig(cfg); err != nil {
 		log.Warnf("Failed to save default config: %v", err)
 	}
-	
+
 	return cfg, nil
 }
 
@@ -89,7 +96,7 @@ func loadFromFile() (*Config, error) {
 		"/etc/ispapp/config.json",
 		"./config.json",
 	}
-	
+
 	for _, path := range configPaths {
 		if _, err := os.Stat(path); err == nil {
 			// Found a config file, load it
@@ -97,16 +104,16 @@ func loadFromFile() (*Config, error) {
 			if err != nil {
 				continue
 			}
-			
+
 			var config Config
 			if err := json.Unmarshal(file, &config); err != nil {
 				continue
 			}
-			
+
 			return &config, nil
 		}
 	}
-	
+
 	return nil, fmt.Errorf("no config file found")
 }
 
@@ -116,26 +123,26 @@ func saveConfig(cfg *Config) error {
 		"/etc/ispapp",
 		".",
 	}
-	
+
 	for _, dir := range configDirs {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			continue
 		}
-		
+
 		configPath := filepath.Join(dir, "config.json")
-		
+
 		data, err := json.MarshalIndent(cfg, "", "  ")
 		if err != nil {
 			continue
 		}
-		
+
 		if err := os.WriteFile(configPath, data, 0644); err != nil {
 			continue
 		}
-		
+
 		return nil
 	}
-	
+
 	return fmt.Errorf("could not save config to any location")
 }
 

@@ -1,12 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
-	"context"
 
 	"ispapp-agent/internal/agent"
 	"ispapp-agent/internal/config"
@@ -18,16 +18,16 @@ import (
 func main() {
 	// Setup logger
 	log := setupLogger()
-	
+
 	// Load configuration
 	cfg, err := loadConfig(log)
 	if err != nil {
 		log.Fatalf("Fatal error: %v", err)
 	}
-	
+
 	// Store config in constants for legacy code that needs it
 	constants.Cfg = cfg
-	
+
 	// Initialize agent
 	a, err := agent.New(cfg, log)
 	if err != nil {
@@ -50,7 +50,7 @@ func main() {
 	// Stop the agent with a timeout
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	
+
 	shutdownCh := make(chan struct{})
 	go func() {
 		if err := a.Stop(); err != nil {
@@ -58,7 +58,7 @@ func main() {
 		}
 		close(shutdownCh)
 	}()
-	
+
 	select {
 	case <-shutdownCtx.Done():
 		log.Warn("Shutdown timed out")
@@ -76,13 +76,13 @@ func setupLogger() *logrus.Logger {
 
 	// Default to info level, will update from config later
 	log.SetLevel(logrus.InfoLevel)
-	
+
 	return log
 }
 
 func loadConfig(log *logrus.Logger) (*config.Config, error) {
 	log.Info("Loading configuration...")
-	
+
 	cfg, err := config.Load(log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
@@ -94,10 +94,10 @@ func loadConfig(log *logrus.Logger) (*config.Config, error) {
 			log.SetLevel(logLevel)
 			log.Infof("Log level set to: %s", logLevel)
 		}
-		
+
 		log.Infof("Using device ID: %s", cfg.DeviceID)
 		log.Infof("API endpoint: %s", cfg.ServerURL)
 	}
-	
+
 	return cfg, nil
 }

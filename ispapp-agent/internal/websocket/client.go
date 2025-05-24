@@ -14,13 +14,8 @@ import (
 )
 
 const (
-	// Time allowed to write a message to the peer
-	writeWait = 10 * time.Second
-
 	// Time allowed to read the next pong message from the peer
-
-	// Maximum message size allowed from peer
-	maxMessageSize = 512 * 1024
+	pongWait = 60 * time.Second
 )
 
 // Message represents a WebSocket message
@@ -30,7 +25,7 @@ type Message struct {
 }
 
 // MessageHandler is a function that processes incoming messages
-type MessageHandler func(data map[string]interface{})
+type MessageHandler func(msg Message) error
 
 // Client handles WebSocket communication
 type Client struct {
@@ -93,6 +88,9 @@ func (c *Client) Connect() error {
 	// Start reader in a goroutine
 	go c.readPump()
 
+	// Start outgoing message handler
+	go c.handleOutgoingMessages()
+
 	return nil
 }
 
@@ -130,6 +128,7 @@ func (c *Client) Ping() error {
 
 // Disconnect closes the WebSocket connection
 func (c *Client) Disconnect() {
+	c.mutex.Lock()
 	c.closeOnce.Do(func() {
 		c.log.Debug("Closing WebSocket connection")
 
@@ -144,15 +143,17 @@ func (c *Client) Disconnect() {
 
 		close(c.closeChan)
 	})
+	c.log.Info("WebSocket connection closed")
+	c.mutex.Unlock()
 }
 
 // readPump processes incoming messages
 func (c *Client) readPump() {
 	defer c.Disconnect()
 
-	c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	c.conn.SetReadDeadline(time.Now().Add(pongWait))
 	c.conn.SetPongHandler(func(string) error {
-		c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		c.conn.SetReadDeadline(time.Now().Add(pongWait))
 		return nil
 	})
 
@@ -193,7 +194,12 @@ func (c *Client) handleMessage(message []byte) {
 	c.handlersMu.RUnlock()
 
 	if exists {
-		go handler(msg.Data) // Process message in a goroutine
+		go func() {
+			message := Message{Type: msg.Type, Content: msg.Data}
+			if err := handler(message); err != nil {
+				c.log.Errorf("Error handling message type '%s': %v", msg.Type, err)
+			}
+		}() // Process message in a goroutine
 	} else {
 		c.log.Warnf("No handler for message type: %s", msg.Type)
 	}
@@ -303,9 +309,9 @@ func (c *Client) Start() error {
 }
 
 // Stop shuts down the WebSocket client
-func (c *Client) Stop() error {
+func (c *Client) Stop() {
 	c.cancel()
-	return c.Disconnect()
+	c.Disconnect()
 }
 
 // handleOutgoingMessages processes messages from the send channel
@@ -332,7 +338,7 @@ func (c *Client) handleOutgoingMessages() {
 				continue
 			}
 
-			err = c.conn.WriteClose(1000, data)
+			err = c.conn.WriteMessage(websocket.TextMessage, data)
 			if err != nil {
 				c.log.Errorf("Failed to write message: %v", err)
 				c.conn = nil // Mark connection as closed
