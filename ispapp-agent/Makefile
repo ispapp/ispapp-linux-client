@@ -43,13 +43,13 @@ endef
 
 define Package/ispapp-agent/install
 	$(INSTALL_DIR) $(1)/usr/bin
-	$(INSTALL_BIN) $(GO_PKG_BUILD_BIN_DIR)/agent $(1)/usr/bin/ispapp-agent
+	$(INSTALL_BIN) $(GO_PKG_BUILD_BIN_DIR)/agent $(1)/usr/bin/ispappd
 	
 	$(INSTALL_DIR) $(1)/etc/config
 	$(INSTALL_CONF) $(PKG_BUILD_DIR)/files/ispapp $(1)/etc/config/ispapp
 	
 	$(INSTALL_DIR) $(1)/etc/init.d
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/ispapp-agent.init $(1)/etc/init.d/ispapp-agent
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/ispapp-agent.init $(1)/etc/init.d/ispapp
 endef
 
 $(eval $(call BuildPackage,ispapp-agent))

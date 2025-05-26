@@ -1,3 +1,4 @@
+package ispapp
 config settings 'settings'
 	option enabled '1'
 	option login '00000000-0000-0000-0000-000000000000'
