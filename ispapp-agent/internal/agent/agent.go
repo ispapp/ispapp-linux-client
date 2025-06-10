@@ -33,7 +33,7 @@ func New(config *config.Config, log *logrus.Logger) (*Agent, error) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	a := &Agent{
 		config:   config,
 		log:      log,
@@ -50,14 +50,14 @@ func New(config *config.Config, log *logrus.Logger) (*Agent, error) {
 
 func (a *Agent) registerHandlers() {
 	a.log.Debug("Registering handlers...")
-	
+
 	// Register WebSocket handler first for comms
 	a.handlers = append(a.handlers, handlers.NewWebSocketHandler(a.config, a.log))
 
 	// Register other handlers
 	a.handlers = append(a.handlers, handlers.NewSystemHandler(a.log))
 	a.handlers = append(a.handlers, handlers.NewNetworkHandler(a.log))
-	
+
 	a.log.Infof("Registered %d handlers", len(a.handlers))
 }
 
@@ -73,18 +73,18 @@ func (a *Agent) Start() error {
 	for _, h := range a.handlers {
 		handlerName := h.Name()
 		a.log.Debugf("Starting handler: %s", handlerName)
-		
+
 		a.wg.Add(1)
 		go func(handler handlers.Handler) {
 			defer a.wg.Done()
-			
+
 			if err := handler.Start(); err != nil {
 				a.log.Errorf("Handler %s failed to start: %v", handler.Name(), err)
 			}
-			
+
 			// Keep handler running until agent stops
 			<-a.ctx.Done()
-			
+
 			if err := handler.Stop(); err != nil {
 				a.log.Errorf("Error stopping handler %s: %v", handler.Name(), err)
 			}
@@ -106,14 +106,14 @@ func (a *Agent) Stop() error {
 
 	// Signal all handlers to stop
 	a.cancel()
-	
+
 	// Wait for graceful shutdown with timeout
 	done := make(chan struct{})
 	go func() {
 		a.wg.Wait()
 		close(done)
 	}()
-	
+
 	select {
 	case <-done:
 		a.log.Info("All handlers stopped successfully")
@@ -128,10 +128,10 @@ func (a *Agent) Stop() error {
 // Status returns the current status of the agent
 func (a *Agent) Status() map[string]interface{} {
 	status := map[string]interface{}{
-		"running": a.running,
+		"running":  a.running,
 		"handlers": make([]map[string]string, 0, len(a.handlers)),
 	}
-	
+
 	for _, h := range a.handlers {
 		handlerStatus := map[string]string{
 			"name": h.Name(),
@@ -139,6 +139,6 @@ func (a *Agent) Status() map[string]interface{} {
 		}
 		status["handlers"] = append(status["handlers"].([]map[string]string), handlerStatus)
 	}
-	
+
 	return status
 }
