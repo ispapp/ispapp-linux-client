@@ -217,7 +217,7 @@ fi
 uci get ispapp.@settings[0].Key >/dev/null 2>&1 || {
     error "ISPApp configuration not found, installation may have failed"
     exit 1
-fi
+}
 uci get ispapp.@settings[0].Key && {
      log "ISPApp configuration found successfully"
     ISPAPP_KEY=$(uci get ispapp.@settings[0].Key)
