@@ -24,6 +24,16 @@ error() {
 warning() {
     echo -e "${YELLOW}[WARNING] $1${NC}"
 }
+checkinternet() {
+    # Check if the internet is reachable
+    if ! ping -c 1 -W 1 8.8.8.8 >/dev/null 2>&1; then
+        error "Internet connection is not available"
+        sleep 15
+        # retry checking internet connection
+        log "Retrying to check internet connection..."
+        checkinternet
+    fi
+}
 
 # Check if running as root
 if [ "$(id -u)" -ne 0 ]; then
@@ -31,6 +41,7 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
+checkinternet
 
 log "Starting ISPApp installation on OpenWrt..."
 
