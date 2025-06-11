@@ -118,9 +118,35 @@ ISPAPP_PORT="443"
 
 # UCI configuration
 uci set ispapp.@settings[0].enabled=1
-uci set ispapp.@settings[0].Key="$ISPAPP_KEY"
 uci set ispapp.@settings[0].Domain="$ISPAPP_DOMAIN"
 uci set ispapp.@settings[0].ListenerPort="$ISPAPP_PORT"
+uci set ispapp.@settings[0].updateInterval=1
+uci set ispapp.@settings[0].connected=0
+# check if fw_setenv is available
+if fw_printenv Key >/dev/null 2>&1; then
+    log "Setting firmware environment variable..."
+    uci set ispapp.@settings[0].Key="$(fw_printenv Key | cut -d'=' -f2)"
+else
+    warning "fw_setenv not available, skipping firmware environment variable"
+fi
+if fw_printenv Domain >/dev/null 2>&1; then
+    log "Setting firmware environment variable for Domain..."
+    uci set ispapp.@settings[0].Domain="$(fw_printenv Domain | cut -d'=' -f2)"
+else
+    warning "fw_setenv not available, skipping firmware environment variable for Domain"
+fi
+if fw_printenv AccessToken >/dev/null 2>&1; then
+    log "Setting firmware environment variable for AccessToken..."
+    uci set ispapp.@settings[0].accessToken="$(fw_printenv AccessToken | cut -d'=' -f2)"
+else
+    warning "fw_setenv not available, skipping firmware environment variable for AccessToken"
+fi
+if fw_printenv RefreshToken >/dev/null 2>&1; then
+    log "Setting firmware environment variable for RefreshToken..."
+    uci set ispapp.@settings[0].refreshToken="$(fw_printenv RefreshToken | cut -d'=' -f2)"
+else
+    warning "fw_setenv not available, skipping firmware environment variable for RefreshToken"
+fi
 uci commit ispapp
 
 # Set environment variable (if fw_setenv is available)
@@ -162,7 +188,29 @@ if pgrep -f ispapp >/dev/null; then
 else
     warning "ISPApp may not be running properly"
 fi
-
+uci get ispapp.@settings[0].Key >/dev/null 2>&1 || {
+    error "ISPApp configuration not found, installation may have failed"
+    exit 1
+} else
+    log "ISPApp configuration found successfully"
+    ISPAPP_KEY=$(uci get ispapp.@settings[0].Key)
+    ISPAPP_DOMAIN=$(uci get ispapp.@settings[0].Domain)
+    ISPAPP_AccessToken=$(uci get ispapp.@settings[0].accessToken)
+    ISPAPP_RefreshToken=$(uci get ispapp.@settings[0].refreshToken)
+    fw_setenv Key="$ISPAPP_KEY" || {
+        warning "Failed to set firmware environment variable"
+    }
+    fw_setenv Domain="$ISPAPP_DOMAIN" || {
+        warning "Failed to set firmware environment variable for Domain"
+    }
+    fw_setenv AccessToken="$ISPAPP_AccessToken" || {
+        warning "Failed to set firmware environment variable for AccessToken"
+    }
+    fw_setenv RefreshToken="$ISPAPP_RefreshToken" || {
+        warning "Failed to set firmware environment variable for RefreshToken"
+    }
+    log "ISPApp configuration set successfully"
+fi
 log "ISPApp installation completed!"
 log "Configuration:"
 log "  Key: $ISPAPP_KEY"
@@ -171,3 +219,5 @@ log "  Port: $ISPAPP_PORT"
 log ""
 log "You can check the service status with: /etc/init.d/ispapp status"
 log "View logs with: logread | grep ispapp"
+
+
