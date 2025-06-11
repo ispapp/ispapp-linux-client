@@ -180,6 +180,13 @@ fi
 /etc/init.d/rpcd reload || {
     error "Failed to reload rpcd service"ß
 }
+if [ -f /etc/rc.d/S99ispapp ]; then
+    log "disable unused service"
+    /etc/rc.d/S99ispapp disable
+else
+    error "Failed to disable ISPApp service"
+    exit 1
+fi
 # Enable and start ISPApp service
 log "Enabling and starting ISPApp service..."
 /etc/init.d/rpcd reload
