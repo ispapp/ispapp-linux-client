@@ -155,7 +155,9 @@ if command -v fw_setenv >/dev/null 2>&1; then
 else
     warning "fw_setenv not available, skipping firmware environment variable"
 fi
-
+/etc/init.d/rpcd reload || {
+    error "Failed to reload rpcd service"ß
+}
 # Enable and start ISPApp service
 log "Enabling and starting ISPApp service..."
 /etc/init.d/rpcd reload
