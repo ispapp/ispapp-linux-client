@@ -51,13 +51,8 @@ lists_dir ext /var/opkg-lists
 option overlay_root /overlay
 option check_signature 1
 option force_space
-arch aarch64_generic 10
-arch aarch64 10
-arch aarch64_cortex-a53 10
-arch aarch64_cortex-a72 10
-arch aarch64_cortex-a53_neon 10
-arch aarch64_cortex-a72_neon 10
-arch aarch64_generic_neon 10
+arch aarch64_cortex-a73_neon-vfpv4 10
+arch aarch64_generic 1
 arch all 10
 arch noarch 1
 EOF
