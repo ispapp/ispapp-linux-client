@@ -112,7 +112,6 @@ chmod +x /bin/ispappd
 log "Configuring ISPApp..."
 
 # Configuration variables (modify these as needed)
-ISPAPP_KEY="IOZlWIahLacr8hZr"
 ISPAPP_DOMAIN="prv.cloud.ispapp.co"
 ISPAPP_PORT="443"
 
