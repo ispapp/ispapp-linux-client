@@ -194,6 +194,9 @@ log "Syncing agent version..."
 if ! /usr/libexec/rpcd/ispapp call sync_agent_version; then
     warning "Failed to sync agent version"
 fi
+if ! /usr/libexec/rpcd/ispapp call sync_agent_version; then
+    warning "Failed to sync agent version"
+fi
 
 log "Performing signup..."
 if ! /usr/libexec/rpcd/ispapp call signup; then
@@ -214,8 +217,9 @@ fi
 uci get ispapp.@settings[0].Key >/dev/null 2>&1 || {
     error "ISPApp configuration not found, installation may have failed"
     exit 1
-} else
-    log "ISPApp configuration found successfully"
+fi
+uci get ispapp.@settings[0].Key && {
+     log "ISPApp configuration found successfully"
     ISPAPP_KEY=$(uci get ispapp.@settings[0].Key)
     ISPAPP_DOMAIN=$(uci get ispapp.@settings[0].Domain)
     ISPAPP_AccessToken=$(uci get ispapp.@settings[0].accessToken)
@@ -233,6 +237,7 @@ uci get ispapp.@settings[0].Key >/dev/null 2>&1 || {
         warning "Failed to set firmware environment variable for RefreshToken"
     }
     log "ISPApp configuration set successfully"
+}
 fi
 log "ISPApp installation completed!"
 log "Configuration:"
