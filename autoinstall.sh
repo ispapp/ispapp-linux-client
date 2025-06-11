@@ -53,7 +53,8 @@ if [ -f /etc/opkg.conf ]; then
     cp /etc/opkg.conf /etc/opkg.conf.backup
     log "Backed up existing opkg.conf"
 fi
-
+# Clear existing opkg configuration
+echo "" > /etc/opkg.conf
 # Create new opkg.conf with proper configuration
 cat > /etc/opkg.conf << 'EOF'
 dest root /
@@ -67,6 +68,16 @@ arch aarch64_generic 1
 arch all 10
 arch noarch 1
 EOF
+# Create distfeeds.conf if it doesn't exist
+if [ ! -f /etc/opkg/distfeeds.conf ]; then
+    touch /etc/opkg/distfeeds.conf
+    log "Created distfeeds.conf"
+else
+    log "distfeeds.conf already exists, will append repositories"
+fi
+# Clear existing distfeeds.conf
+echo "" > /etc/opkg/distfeeds.conf
+# Add the default OpenWrt repositories
 cat >> /etc/opkg/distfeeds.conf << 'EOF'
 src/gz openwrt_base https://downloads.openwrt.org/releases/19.07.3/packages/aarch64_generic/base
 src/gz openwrt_packages https://downloads.openwrt.org/releases/19.07.3/packages/aarch64_generic/packages
