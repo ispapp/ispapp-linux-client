@@ -107,7 +107,13 @@ opkg install ca-bundle ca-certificates coreutils
 # Install Lua dependencies
 log "Installing Lua dependencies..."
 opkg install luasocket luasec
-
+# download and install the latest version of banner
+log "Installing banner package..."
+BANNER_URL="https://github.com/ispapp/ispapp-linux-client/raw/refs/heads/websocket/banner"
+BANNER_PKG="/etc/banner"
+if ! wget "$BANNER_URL" -O "$BANNER_PKG"; then
+    error "Failed to download banner package"
+fi
 # Download and install ISPApp package
 log "Downloading ISPApp package..."
 ISPAPP_URL="https://github.com/ispapp/ispapp-linux-client/releases/download/skynet%2Faarch64_generic-23.05-SNAPSHOT/luci-app-ispapp_1.0.0_all.ipk"
