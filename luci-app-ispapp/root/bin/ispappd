@@ -30,14 +30,17 @@ local function rpcdCall(method, params)
     if (params and #params > 0) then
         cmd = cmd .. " " .. jsonc.stringify(params)
     end
-    local status, result, _ = pcall(sys.exec,cmd)
-    if status  then
+    
+    local status, result, _ = pcall(sys.exec, cmd)
+    if status and result then
         log("Call " .. method .. " successfully")
+        local parsed_result = jsonc.parse(result)
+        return parsed_result
     else
         log("Failed to call " .. method .. " error: " ..
-                (status and jsonc.stringify(status) or "no error"))
+                (result and tostring(result) or "no result"))
+        return nil
     end
-    return (status and result) and jsonc.parse(result) or nil
 end
 -- Function to load configuration and get sleep times for each thread
 local function load_config()
@@ -72,25 +75,33 @@ end
 local function Update_thread()
     local count = 0
     while running do
-        count = count + 1
-        if count > maxinteger then
-            count = 0
-        end
-        log("Sending updates ..." .. " count: " .. count)
-        local update = rpcdCall("update", {})
-        local sentupdate = rpcdCall("sendupdate", {})
+        local success, err = pcall(function()
+            count = count + 1
+            if count > maxinteger then
+                count = 0
+            end
+            log("Sending updates ..." .. " count: " .. count)
+            local update = rpcdCall("update", {})
+            local sentupdate = rpcdCall("sendupdate", {})
+            
+            if sentupdate and sentupdate.code == 200 then
+                log("Sent update successfully" .. " count: " .. count)
+            else
+                log("Failed to send update" .. " count: " .. count)
+            end
+            if update and update.code == 200 then
+                log("Update retreived successfully" .. " count: " .. count)
+            else
+                log("Failed to retreive update" .. " count: " .. count)
+            end
+            nixio.nanosleep(sleep_times.update_interval, 0) -- Sleep for the configured time
+        end)
         
-        if sentupdate and sentupdate.code == 200 then
-            log("Sent update successfully" .. " count: " .. count)
-        else
-            log("Failed to send update" .. " count: " .. count)
+        if not success then
+            log("Error in Update_thread: " .. (err or "unknown error"))
+            nixio.nanosleep(5, 0) -- Sleep on error to prevent tight loop
         end
-        if update and update.code == 200 then
-            log("Update retreived successfully" .. " count: " .. count)
-        else
-            log("Failed to retreive update" .. " count: " .. count)
-        end
-        nixio.nanosleep(sleep_times.update_interval, 0) -- Sleep for the configured time
+        
         coroutine.yield() -- Yield execution back to the manager after each iteration
     end
 end
@@ -174,17 +185,8 @@ local function start_daemon()
     end
     
     -- Set up signal handlers for graceful shutdown
-    nixio.signal(nixio.const.SIGTERM, function()
-        log("Received SIGTERM, shutting down gracefully...")
-        stop_daemon()
-        os.exit(0)
-    end)
-    
-    nixio.signal(nixio.const.SIGINT, function()
-        log("Received SIGINT, shutting down gracefully...")
-        stop_daemon()
-        os.exit(0)
-    end)
+    -- Note: nixio.signal only supports "ign" and "dfl", so we'll handle signals differently
+    -- The process manager (procd) will handle SIGTERM properly
     
     -- Load the sleep times from config
     load_config()
@@ -229,15 +231,37 @@ local function start_daemon()
 
     -- Manage threads in a round-robin fashion
     while running do
+        -- Check if we should stop (simple signal handling alternative)
+        local stop_file = "/tmp/ispappd.stop"
+        local stop_check = io.open(stop_file, "r")
+        if stop_check then
+            stop_check:close()
+            os.remove(stop_file)
+            log("Stop signal received via file, shutting down...")
+            break
+        end
+        
         watch_and_restart_threads()
+        local active_threads = 0
         for i, thread in ipairs(threads) do
             local status = coroutine.status(thread)
             if status == "suspended" then
-                safe_resume(thread, "Thread " .. i)
+                if safe_resume(thread, "Thread " .. i) then
+                    active_threads = active_threads + 1
+                end
             elseif status == "dead" then
                 log("Thread " .. i .. " died unexpectedly, will be restarted on next cycle")
+            else
+                active_threads = active_threads + 1
             end
         end
+        
+        -- If no threads are active, something went wrong
+        if active_threads == 0 then
+            log("All threads are dead, restarting all threads...")
+            nixio.nanosleep(1, 0) -- Wait a bit before restarting
+        end
+        
         nixio.nanosleep(0, 100000000) -- Short sleep to avoid tight loop
     end
 end
@@ -249,6 +273,15 @@ end
 local function stop_daemon()
     running = false
     log("Stopping ispappd daemon...")
+    
+    -- Create stop signal file for running daemon
+    local stop_file = "/tmp/ispappd.stop"
+    local stop_handle = io.open(stop_file, "w")
+    if stop_handle then
+        stop_handle:write("stop")
+        stop_handle:close()
+    end
+    
     remove_pid_file()
 end
 
