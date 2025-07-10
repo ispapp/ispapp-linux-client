@@ -29,6 +29,46 @@ local function log(message)
     log_to_syslog("debug", "[ispappd]: " .. message) 
 end
 
+-- Function to kill any existing ispappd processes
+local function kill_existing_processes()
+    log("Checking for existing ispappd processes...")
+    
+    -- Get current process PID to avoid killing ourselves
+    local current_pid = nixio.getpid()
+    
+    -- Find all ispappd processes using pidof command (more reliable)
+    local cmd = "pidof ispappd"
+    local result = sys.exec(cmd)
+    
+    if result and result ~= "" then
+        -- Split the result by spaces to get individual PIDs
+        for pid_str in result:gmatch("%S+") do
+            local pid = tonumber(pid_str)
+            if pid and pid ~= current_pid then
+                log("Found existing ispappd process with PID: " .. pid .. ", killing it...")
+                
+                -- First try graceful shutdown
+                local kill_result = sys.exec("kill -TERM " .. pid)
+                
+                -- Wait a moment for graceful shutdown
+                nixio.nanosleep(2, 0)
+                
+                -- Check if process is still running and force kill if needed
+                local check_result = sys.exec("kill -0 " .. pid .. " 2>/dev/null")
+                if check_result == "" then -- Process still exists
+                    log("Process " .. pid .. " still running, force killing...")
+                    sys.exec("kill -KILL " .. pid)
+                    nixio.nanosleep(1, 0)
+                end
+                
+                log("Killed existing ispappd process with PID: " .. pid)
+            end
+        end
+    else
+        log("No existing ispappd processes found")
+    end
+end
+
 -- RPC call function
 local function rpcdCall(method, params)
     local cmd = "lua /usr/libexec/rpcd/ispapp call ".. method
@@ -213,9 +253,9 @@ local function run_daemon()
 
     -- Create coroutines (threads)
     threads[1] = coroutine.create(Update_thread)
-    threads[2] = coroutine.create(Config_thread)
-    threads[3] = coroutine.create(HealthCheck_thread)
-    threads[4] = coroutine.create(Terminal_thread)
+    threads[2] = coroutine.create(Terminal_thread)
+    threads[3] = coroutine.create(Config_thread)
+    threads[4] = coroutine.create(HealthCheck_thread)
     
     local function safe_resume(thread, name)
         local ok, err = coroutine.resume(thread)
@@ -284,5 +324,6 @@ nixio.signal(nixio.const.SIGINT, "dfl")
 
 -- Main execution - just run the daemon
 log("ispappd starting...")
+kill_existing_processes()
 run_daemon()
 log("ispappd stopped.")
