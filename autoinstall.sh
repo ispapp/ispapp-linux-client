@@ -251,7 +251,7 @@ uci get ispapp.@settings[0].Key && {
     }
     log "ISPApp configuration set successfully"
 }
-fi
+
 log "ISPApp installation completed!"
 log "Configuration:"
 log "  Key: $ISPAPP_KEY"
