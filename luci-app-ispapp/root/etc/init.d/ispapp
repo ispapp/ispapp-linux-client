@@ -20,12 +20,15 @@ start_service() {
 }
 
 stop_service() {
+    # First try to stop gracefully via the daemon
+    /bin/ispappd stop
+    # Then close the procd instance
     procd_close_instance
 }
 
 restart_service() {
-    procd_close_instance
-    start_service
+    # Use the daemon's restart function
+    /bin/ispappd restart
 }
 
 reload_service() {

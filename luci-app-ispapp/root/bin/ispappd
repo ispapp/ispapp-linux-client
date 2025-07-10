@@ -271,16 +271,23 @@ local function remove_pid_file()
 end
 -- Function to stop the daemon
 local function stop_daemon()
-    running = false
     log("Stopping ispappd daemon...")
+    running = false
     
-    -- Create stop signal file for running daemon
+    -- Create stop signal file for running daemon instances
     local stop_file = "/tmp/ispappd.stop"
     local stop_handle = io.open(stop_file, "w")
     if stop_handle then
         stop_handle:write("stop")
         stop_handle:close()
+        log("Created stop signal file")
     end
+    
+    -- Give the daemon a moment to see the stop signal
+    nixio.nanosleep(1, 0)
+    
+    -- Clean up stop file
+    os.remove(stop_file)
     
     remove_pid_file()
 end
@@ -316,21 +323,101 @@ local function daemonize()
 end
 
 
+-- Helper function to check if a PID exists
+local function pid_exists(pid)
+    if not pid or pid == "" then
+        return false
+    end
+    local check_result = sys.exec("kill -0 " .. pid .. " 2>/dev/null")
+    return check_result ~= nil
+end
+
 -- cleanup child process with ps:
 local CleanUp = function()
-    local status = sys.exec("ps | grep ispapp | grep -v grep | awk '{print $1}' | xargs kill -9")
-    if status and status.status then
-        log("CleanUp successfully")
-    else
-        log("Failed to CleanUp" .. "error: " ..
-                (status and jsonc.stringify(status) or "no error"))
+    log("Starting cleanup process...")
+    local current_pid = nixio.getpid()
+    
+    -- First, try to kill using the PID file if it exists
+    local pid_file_handle = io.open(pid_file, "r")
+    if pid_file_handle then
+        local pid = pid_file_handle:read("*n")
+        pid_file_handle:close()
+        if pid and pid ~= current_pid and pid_exists(pid) then
+            log("Attempting to kill PID from file: " .. pid)
+            local kill_result = sys.exec("kill -TERM " .. pid .. " 2>/dev/null")
+            if kill_result then
+                log("Successfully sent TERM signal to PID: " .. pid)
+                nixio.nanosleep(2, 0) -- Wait 2 seconds for graceful shutdown
+                -- If still running, force kill
+                if pid_exists(pid) then
+                    local force_kill = sys.exec("kill -9 " .. pid .. " 2>/dev/null")
+                    if force_kill then
+                        log("Force killed PID: " .. pid)
+                    end
+                end
+            end
+        end
     end
+    
+    -- Clean up any remaining ispapp processes more carefully
+    local ps_output = sys.exec("ps | grep ispapp | grep -v grep | awk '{print $1}'")
+    if ps_output and ps_output ~= "" then
+        local pids = {}
+        for pid in ps_output:gmatch("%d+") do
+            local pid_num = tonumber(pid)
+            if pid_num and pid_num ~= current_pid and pid_exists(pid) then
+                table.insert(pids, pid)
+            end
+        end
+        
+        if #pids > 0 then
+            log("Found " .. #pids .. " ispapp processes to clean up")
+            for _, pid in ipairs(pids) do
+                if pid_exists(pid) then
+                    local kill_result = sys.exec("kill -TERM " .. pid .. " 2>/dev/null")
+                    if kill_result then
+                        log("Sent TERM signal to PID: " .. pid)
+                    end
+                end
+            end
+            
+            -- Wait a bit then force kill any remaining
+            nixio.nanosleep(2, 0)
+            for _, pid in ipairs(pids) do
+                if pid_exists(pid) then
+                    local force_kill = sys.exec("kill -9 " .. pid .. " 2>/dev/null")
+                    if force_kill then
+                        log("Force killed PID: " .. pid)
+                    end
+                end
+            end
+        end
+    else
+        log("No ispapp processes found to clean up")
+    end
+    
+    log("Cleanup process completed")
 end
 
 -- Function to restart the daemon
 local function restart_daemon()
+    log("Restarting ispappd daemon...")
+    
+    -- First try graceful stop
     stop_daemon()
-    nixio.nanosleep(1, 0) -- Sleep for 1 second before restarting
+    
+    -- Wait a bit for graceful shutdown
+    nixio.nanosleep(2, 0)
+    
+    -- Check if any processes are still running and clean them up if needed
+    local ps_output = sys.exec("ps | grep ispapp | grep -v grep")
+    if ps_output and ps_output ~= "" then
+        log("Found lingering processes, cleaning up...")
+        CleanUp()
+        nixio.nanosleep(2, 0) -- Wait for cleanup to complete
+    end
+    
+    -- Start the daemon
     start_daemon()
 end
 
@@ -343,11 +430,13 @@ if action == "start" then
     log("ispappd started.")
 elseif action == "stop" then
     stop_daemon()
-    CleanUp()
     log("ispappd stopped.")
 elseif action == "restart" then
     restart_daemon()
     log("ispappd restarted.")
+elseif action == "cleanup" then
+    CleanUp()
+    log("ispappd cleanup completed.")
 else
-    log("Usage: ispappd {start|stop|restart}")
+    log("Usage: ispappd {start|stop|restart|cleanup}")
 end
