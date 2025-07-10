@@ -42,7 +42,7 @@ end
 -- Function to load configuration and get sleep times for each thread
 local function load_config()
     local UpdateInterval = uci:get("ispapp", "@settings[0]", "updateInterval")
-    -- Ensure minimum 10s and assign to variables
+    -- Ensure minimum 30s and assign to variables
     if UpdateInterval then
         UpdateInterval = tonumber(UpdateInterval)
         if UpdateInterval and UpdateInterval >= 30 then
@@ -52,12 +52,16 @@ local function load_config()
             sleep_times.terminal_interval = math.max(1, math.floor(UpdateInterval / 5)) -- Terminal runs 5x faster
         else
             sleep_times.update_interval = 30
-            sleep_times.config_interval = 45
-            sleep_times.heathcheck_interval = 60
+            sleep_times.config_interval = 35
+            sleep_times.heathcheck_interval = 40
             sleep_times.terminal_interval = 5 -- Default terminal interval
         end
     else
-        uci:set("ispapp", "@settings[0]", "UpdateInterval", 10) -- Save default if missing
+        uci:set("ispapp", "@settings[0]", "updateInterval", "30") -- Save default if missing
+        sleep_times.update_interval = 30
+        sleep_times.config_interval = 35
+        sleep_times.heathcheck_interval = 40
+        sleep_times.terminal_interval = 5
     end
 
     -- Commit the changes if defaults were saved
@@ -87,8 +91,8 @@ local function Update_thread()
             log("Failed to retreive update" .. " count: " .. count)
         end
         nixio.nanosleep(sleep_times.update_interval, 0) -- Sleep for the configured time
+        coroutine.yield() -- Yield execution back to the manager after each iteration
     end
-    coroutine.yield() -- Yield execution back to the manager
 end
 -- terminal handler thread
 
@@ -108,8 +112,8 @@ local function Terminal_thread()
             log("Failed to process terminal" .. " count: " .. count)
         end
         nixio.nanosleep(sleep_times.terminal_interval, 0) -- Sleep for shorter time than other threads
+        coroutine.yield() -- Yield execution back to the manager after each iteration
     end
-    coroutine.yield() -- Yield execution back to the manager
 end
 
 -- Thread 2: Connection management task
@@ -128,8 +132,8 @@ local function Config_thread()
             log("Failed to send config" .. " count: " .. count)
         end
         nixio.nanosleep(sleep_times.config_interval, 0) -- Sleep for the configured time
+        coroutine.yield() -- Yield execution back to the manager after each iteration
     end
-    coroutine.yield() -- Yield execution back to the manager
 end
 
 -- Thread 3: Status reporting task
@@ -150,14 +154,38 @@ local function HealthCheck_thread()
                     (health and jsonc.stringify(health) or "no error"))
         end
         nixio.nanosleep(sleep_times.heathcheck_interval * 10, 0) -- Sleep for the configured time
+        coroutine.yield() -- Yield execution back to the manager after each iteration
     end
-    coroutine.yield() -- Yield execution back to the manager
 end
 
 -- Function to start the daemon and all coroutines
 local function start_daemon()
     running = true
     log("Starting ispappd daemon...")
+    
+    -- Write PID file
+    local pid_file_handle = io.open(pid_file, "w")
+    if pid_file_handle then
+        pid_file_handle:write(tostring(nixio.getpid()))
+        pid_file_handle:close()
+        log("PID file created: " .. pid_file)
+    else
+        log("Warning: Failed to create PID file")
+    end
+    
+    -- Set up signal handlers for graceful shutdown
+    nixio.signal(nixio.const.SIGTERM, function()
+        log("Received SIGTERM, shutting down gracefully...")
+        stop_daemon()
+        os.exit(0)
+    end)
+    
+    nixio.signal(nixio.const.SIGINT, function()
+        log("Received SIGINT, shutting down gracefully...")
+        stop_daemon()
+        os.exit(0)
+    end)
+    
     -- Load the sleep times from config
     load_config()
     log(
@@ -177,7 +205,9 @@ local function start_daemon()
         local ok, err = coroutine.resume(thread)
         if not ok then
             log_to_syslog("err", "[ispappd]: " .. name .. " error: " .. (err or "unknown error"))
+            return false
         end
+        return true
     end
 
     local function watch_and_restart_threads()
@@ -201,8 +231,11 @@ local function start_daemon()
     while running do
         watch_and_restart_threads()
         for i, thread in ipairs(threads) do
-            if coroutine.status(thread) == "suspended" then
+            local status = coroutine.status(thread)
+            if status == "suspended" then
                 safe_resume(thread, "Thread " .. i)
+            elseif status == "dead" then
+                log("Thread " .. i .. " died unexpectedly, will be restarted on next cycle")
             end
         end
         nixio.nanosleep(0, 100000000) -- Short sleep to avoid tight loop
@@ -271,9 +304,8 @@ end
 -- Main execution logic for init.d and service management
 local action = arg[1]
 if action == "start" then
-    -- Start the service by daemonizing it
-    -- daemonize()
-    -- nixio.nanosleep(1, 0) -- Sleep for 1 second before Starting
+    -- Start the service in foreground for procd compatibility
+    -- Note: procd manages the daemonization, so we don't need to fork
     start_daemon()
     log("ispappd started.")
 elseif action == "stop" then
