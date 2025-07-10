@@ -2,29 +2,34 @@
 
 -- ispapp daemon
 -- path: /bin/ispappd
+-- Simple daemon that only handles the main loop - all process management is handled by procd
 local nixio = require "nixio"
 local uci = require"luci.model.uci".cursor()
--- local ubus = require "ubus"
 local sys = require "luci.sys"
 local jsonc = require "luci.jsonc"
--- local conn = ubus.connect()
+
 -- Variables to manage threads and their respective sleep times
 local threads = {}
-local running = false
+local running = true
 local sleep_times = {
-    update_interval = 5, -- Default sleep time for WISP monitor (10s minimum)
-    config_interval = 5, -- Default sleep time for connection manager (10s minimum)
-    heathcheck_interval = 10, -- Default sleep time for status reporter (10s minimum)
-    terminal_interval = 1 -- Default sleep time for terminal (faster than other threads)
+    update_interval = 30, -- Default sleep time for WISP monitor
+    config_interval = 35, -- Default sleep time for connection manager
+    heathcheck_interval = 40, -- Default sleep time for status reporter
+    terminal_interval = 5 -- Default sleep time for terminal (faster than other threads)
 }
-local pid_file = "/var/run/ispappd.pid"
-local log_file = "/var/log/ispapp" -- Log file path no used in this script
-local max_log_size = 0.1 * 1024 * 1024 -- 0.1 MB
 local maxinteger = 9223372036854775807/1024
--- Function to log messages to the log file with rotation
-local function log_to_syslog(level, message) nixio.syslog(level, message) end
--- priority Priority ["emerg", "alert", "crit", "err", "warning", "notice", "info", "debug"] 
-local function log(message) log_to_syslog("debug", "[ispappd]: " .. message) end
+
+-- Function to log messages to syslog
+local function log_to_syslog(level, message) 
+    nixio.syslog(level, message) 
+end
+
+-- Simple logging function
+local function log(message) 
+    log_to_syslog("debug", "[ispappd]: " .. message) 
+end
+
+-- RPC call function
 local function rpcdCall(method, params)
     local cmd = "lua /usr/libexec/rpcd/ispapp call ".. method
     if (params and #params > 0) then
@@ -42,6 +47,7 @@ local function rpcdCall(method, params)
         return nil
     end
 end
+
 -- Function to load configuration and get sleep times for each thread
 local function load_config()
     local UpdateInterval = uci:get("ispapp", "@settings[0]", "updateInterval")
@@ -105,44 +111,31 @@ local function Update_thread()
         coroutine.yield() -- Yield execution back to the manager after each iteration
     end
 end
--- terminal handler thread
-
--- Thread 4: Terminal handling task (faster than other threads)
-local function Terminal_thread()
-    local count = 0
-    while running do
-        count = count + 1
-        if count > maxinteger then
-            count = 0
-        end
-        log("Processing terminal commands..." .. " count: " .. count)
-        local terminal = rpcdCall("terminal", {})
-        if terminal and terminal.code == 200 then
-            log("Terminal processed successfully" .. " count: " .. count)
-        else
-            log("Failed to process terminal" .. " count: " .. count)
-        end
-        nixio.nanosleep(sleep_times.terminal_interval, 0) -- Sleep for shorter time than other threads
-        coroutine.yield() -- Yield execution back to the manager after each iteration
-    end
-end
 
 -- Thread 2: Connection management task
 local function Config_thread()
     local count = 0
     while running do
-        count = count + 1
-        if count > maxinteger then
-            count = 0
+        local success, err = pcall(function()
+            count = count + 1
+            if count > maxinteger then
+                count = 0
+            end
+            log("Sending configs..." .. " count: " .. count)
+            local config = rpcdCall("config", {})
+            if config and config.code == 200 then
+                log("Config sent successfully" .. " count: " .. count)
+            else
+                log("Failed to send config" .. " count: " .. count)
+            end
+            nixio.nanosleep(sleep_times.config_interval, 0) -- Sleep for the configured time
+        end)
+        
+        if not success then
+            log("Error in Config_thread: " .. (err or "unknown error"))
+            nixio.nanosleep(5, 0) -- Sleep on error to prevent tight loop
         end
-        log("Sending configs..." .. " count: " .. count)
-        local config = rpcdCall("config", {})
-        if config and config.code == 200 then
-            log("Config sent successfully" .. " count: " .. count)
-        else
-            log("Failed to send config" .. " count: " .. count)
-        end
-        nixio.nanosleep(sleep_times.config_interval, 0) -- Sleep for the configured time
+        
         coroutine.yield() -- Yield execution back to the manager after each iteration
     end
 end
@@ -151,42 +144,63 @@ end
 local function HealthCheck_thread()
     local count = 0
     while running do
-        count = count + 1
-        if count > maxinteger then
-            count = 0
+        local success, err = pcall(function()
+            count = count + 1
+            if count > maxinteger then
+                count = 0
+            end
+            log("Reporting heath check..." .. " count: " .. count)
+            local health = rpcdCall("checkconnection", {})
+            if health and health.code == 200 then
+                log("Health check reported successfully" .. " count: " .. count)
+            else
+                log("Failed to report health check" .. " count: " .. count)
+                log("heath error..." ..
+                        (health and jsonc.stringify(health) or "no error"))
+            end
+            nixio.nanosleep(sleep_times.heathcheck_interval, 0) -- Sleep for the configured time
+        end)
+        
+        if not success then
+            log("Error in HealthCheck_thread: " .. (err or "unknown error"))
+            nixio.nanosleep(5, 0) -- Sleep on error to prevent tight loop
         end
-        log("Reporting heath check..." .. " count: " .. count)
-        local health = rpcdCall("checkconnection", {})
-        if health and health.code == 200 then
-            log("Health check reported successfully" .. " count: " .. count)
-        else
-            log("Failed to report health check" .. " count: " .. count)
-            log("heath error..." ..
-                    (health and jsonc.stringify(health) or "no error"))
-        end
-        nixio.nanosleep(sleep_times.heathcheck_interval * 10, 0) -- Sleep for the configured time
+        
         coroutine.yield() -- Yield execution back to the manager after each iteration
     end
 end
 
--- Function to start the daemon and all coroutines
-local function start_daemon()
-    running = true
-    log("Starting ispappd daemon...")
-    
-    -- Write PID file
-    local pid_file_handle = io.open(pid_file, "w")
-    if pid_file_handle then
-        pid_file_handle:write(tostring(nixio.getpid()))
-        pid_file_handle:close()
-        log("PID file created: " .. pid_file)
-    else
-        log("Warning: Failed to create PID file")
+-- Thread 4: Terminal handling task (faster than other threads)
+local function Terminal_thread()
+    local count = 0
+    while running do
+        local success, err = pcall(function()
+            count = count + 1
+            if count > maxinteger then
+                count = 0
+            end
+            log("Processing terminal commands..." .. " count: " .. count)
+            local terminal = rpcdCall("terminal", {})
+            if terminal and terminal.code == 200 then
+                log("Terminal processed successfully" .. " count: " .. count)
+            else
+                log("Failed to process terminal" .. " count: " .. count)
+            end
+            nixio.nanosleep(sleep_times.terminal_interval, 0) -- Sleep for shorter time than other threads
+        end)
+        
+        if not success then
+            log("Error in Terminal_thread: " .. (err or "unknown error"))
+            nixio.nanosleep(5, 0) -- Sleep on error to prevent tight loop
+        end
+        
+        coroutine.yield() -- Yield execution back to the manager after each iteration
     end
-    
-    -- Set up signal handlers for graceful shutdown
-    -- Note: nixio.signal only supports "ign" and "dfl", so we'll handle signals differently
-    -- The process manager (procd) will handle SIGTERM properly
+end
+
+-- Main daemon loop - this is the only function that runs
+local function run_daemon()
+    log("Starting ispappd daemon...")
     
     -- Load the sleep times from config
     load_config()
@@ -229,18 +243,8 @@ local function start_daemon()
         end
     end
 
-    -- Manage threads in a round-robin fashion
+    -- Main loop - runs forever until terminated by procd
     while running do
-        -- Check if we should stop (simple signal handling alternative)
-        local stop_file = "/tmp/ispappd.stop"
-        local stop_check = io.open(stop_file, "r")
-        if stop_check then
-            stop_check:close()
-            os.remove(stop_file)
-            log("Stop signal received via file, shutting down...")
-            break
-        end
-        
         watch_and_restart_threads()
         local active_threads = 0
         for i, thread in ipairs(threads) do
@@ -264,179 +268,21 @@ local function start_daemon()
         
         nixio.nanosleep(0, 100000000) -- Short sleep to avoid tight loop
     end
+    
+    log("Daemon loop ended")
 end
--- Function to remove the PID file
-local function remove_pid_file()
-    os.remove(pid_file)
-end
--- Function to stop the daemon
-local function stop_daemon()
-    log("Stopping ispappd daemon...")
+
+-- Signal handler for graceful shutdown
+local function handle_signal(signum)
+    log("Received signal " .. signum .. ", shutting down gracefully...")
     running = false
-    
-    -- Create stop signal file for running daemon instances
-    local stop_file = "/tmp/ispappd.stop"
-    local stop_handle = io.open(stop_file, "w")
-    if stop_handle then
-        stop_handle:write("stop")
-        stop_handle:close()
-        log("Created stop signal file")
-    end
-    
-    -- Give the daemon a moment to see the stop signal
-    nixio.nanosleep(1, 0)
-    
-    -- Clean up stop file
-    os.remove(stop_file)
-    
-    remove_pid_file()
 end
 
--- Function to daemonize the process
-local function daemonize()
-    local pid = nixio.fork()
-    if pid > 0 then
-        -- Parent process: exit to let the child run in the background
-        os.exit(0)
-    elseif pid == 0 then
-        -- Child process: become session leader
-        nixio.setsid()
-        pid = nixio.fork()
-        if pid > 0 then
-            -- Exit the first child to allow the second to run in the background
-            os.exit(0)
-        end
-    else
-        log("Failed to fork process")
-        os.exit(1)
-    end
+-- Register signal handlers
+nixio.signal(nixio.const.SIGTERM, "dfl")
+nixio.signal(nixio.const.SIGINT, "dfl")
 
-    -- In the final child process, write the PID to a file
-    local pid_file_handle = io.open(pid_file, "w")
-    if pid_file_handle then
-        pid_file_handle:write(nixio.getpid())
-        pid_file_handle:close()
-    else
-        log("Failed to write PID file")
-        os.exit(1)
-    end
-end
-
-
--- Helper function to check if a PID exists
-local function pid_exists(pid)
-    if not pid or pid == "" then
-        return false
-    end
-    local check_result = sys.exec("kill -0 " .. pid .. " 2>/dev/null")
-    return check_result ~= nil
-end
-
--- cleanup child process with ps:
-local CleanUp = function()
-    log("Starting cleanup process...")
-    local current_pid = nixio.getpid()
-    
-    -- First, try to kill using the PID file if it exists
-    local pid_file_handle = io.open(pid_file, "r")
-    if pid_file_handle then
-        local pid = pid_file_handle:read("*n")
-        pid_file_handle:close()
-        if pid and pid ~= current_pid and pid_exists(pid) then
-            log("Attempting to kill PID from file: " .. pid)
-            local kill_result = sys.exec("kill -TERM " .. pid .. " 2>/dev/null")
-            if kill_result then
-                log("Successfully sent TERM signal to PID: " .. pid)
-                nixio.nanosleep(2, 0) -- Wait 2 seconds for graceful shutdown
-                -- If still running, force kill
-                if pid_exists(pid) then
-                    local force_kill = sys.exec("kill -9 " .. pid .. " 2>/dev/null")
-                    if force_kill then
-                        log("Force killed PID: " .. pid)
-                    end
-                end
-            end
-        end
-    end
-    
-    -- Clean up any remaining ispapp processes more carefully
-    local ps_output = sys.exec("ps | grep ispapp | grep -v grep | awk '{print $1}'")
-    if ps_output and ps_output ~= "" then
-        local pids = {}
-        for pid in ps_output:gmatch("%d+") do
-            local pid_num = tonumber(pid)
-            if pid_num and pid_num ~= current_pid and pid_exists(pid) then
-                table.insert(pids, pid)
-            end
-        end
-        
-        if #pids > 0 then
-            log("Found " .. #pids .. " ispapp processes to clean up")
-            for _, pid in ipairs(pids) do
-                if pid_exists(pid) then
-                    local kill_result = sys.exec("kill -TERM " .. pid .. " 2>/dev/null")
-                    if kill_result then
-                        log("Sent TERM signal to PID: " .. pid)
-                    end
-                end
-            end
-            
-            -- Wait a bit then force kill any remaining
-            nixio.nanosleep(2, 0)
-            for _, pid in ipairs(pids) do
-                if pid_exists(pid) then
-                    local force_kill = sys.exec("kill -9 " .. pid .. " 2>/dev/null")
-                    if force_kill then
-                        log("Force killed PID: " .. pid)
-                    end
-                end
-            end
-        end
-    else
-        log("No ispapp processes found to clean up")
-    end
-    
-    log("Cleanup process completed")
-end
-
--- Function to restart the daemon
-local function restart_daemon()
-    log("Restarting ispappd daemon...")
-    
-    -- First try graceful stop
-    stop_daemon()
-    
-    -- Wait a bit for graceful shutdown
-    nixio.nanosleep(2, 0)
-    
-    -- Check if any processes are still running and clean them up if needed
-    local ps_output = sys.exec("ps | grep ispapp | grep -v grep")
-    if ps_output and ps_output ~= "" then
-        log("Found lingering processes, cleaning up...")
-        CleanUp()
-        nixio.nanosleep(2, 0) -- Wait for cleanup to complete
-    end
-    
-    -- Start the daemon
-    start_daemon()
-end
-
--- Main execution logic for init.d and service management
-local action = arg[1]
-if action == "start" then
-    -- Start the service in foreground for procd compatibility
-    -- Note: procd manages the daemonization, so we don't need to fork
-    start_daemon()
-    log("ispappd started.")
-elseif action == "stop" then
-    stop_daemon()
-    log("ispappd stopped.")
-elseif action == "restart" then
-    restart_daemon()
-    log("ispappd restarted.")
-elseif action == "cleanup" then
-    CleanUp()
-    log("ispappd cleanup completed.")
-else
-    log("Usage: ispappd {start|stop|restart|cleanup}")
-end
+-- Main execution - just run the daemon
+log("ispappd starting...")
+run_daemon()
+log("ispappd stopped.")
